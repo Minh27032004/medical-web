@@ -1,0 +1,47 @@
+spring:
+  application:
+    name: clinic-backend
+
+  datasource:
+    # BẮT BUỘC dùng Supavisor SESSION mode (port 5432) — xem docs/DECISIONS.md D10
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:8}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # schema do Flyway quản lý, JPA chỉ kiểm tra khớp
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SUPABASE_JWKS_URI:}
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+app:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:3000}
+  supabase:
+    url: ${SUPABASE_URL}
+    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    # Project cũ dùng HS256: đặt SUPABASE_JWT_SECRET thay vì JWKS. Ưu tiên JWKS nếu có cả hai.
+    jwt-secret: ${SUPABASE_JWT_SECRET:}
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: gemini-2.5-flash
+    embedding-model: text-embedding-004
