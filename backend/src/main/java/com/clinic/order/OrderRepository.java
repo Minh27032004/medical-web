@@ -21,4 +21,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Page<Order> findByDeletedAtIsNullOrderByCreatedAtDesc(Pageable pageable);
 
     Page<Order> findByStatusAndDeletedAtIsNullOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);
+
+    /** Đơn hoàn tất trong khoảng thời gian — updatedAt là thời điểm chuyển COMPLETED. */
+    java.util.List<Order> findByStatusAndUpdatedAtBetweenAndDeletedAtIsNull(
+        OrderStatus status, java.time.Instant from, java.time.Instant to);
 }

@@ -95,6 +95,9 @@ export default function Header() {
               <Link href="/doctor/schedule" className="hover:text-emerald-700 font-medium">
                 Lịch làm việc
               </Link>
+              <Link href="/doctor/revenue" className="hover:text-emerald-700 font-medium">
+                Doanh thu
+              </Link>
             </>
           )}
         </nav>
