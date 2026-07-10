@@ -32,14 +32,19 @@ public class ProfileService {
         if (cached != null && cached.expiresAt().isAfter(Instant.now())) {
             return cached.role();
         }
-        var profile = profileRepository.findById(userId).orElseGet(() -> {
+        var profile = getOrCreate(userId);
+        roleCache.put(userId, new CachedRole(profile.getRole(), Instant.now().plus(ROLE_CACHE_TTL)));
+        return profile.getRole();
+    }
+
+    @Transactional
+    public Profile getOrCreate(UUID userId) {
+        return profileRepository.findById(userId).orElseGet(() -> {
             var p = new Profile();
             p.setId(userId);
             p.setRole(Profile.ROLE_PATIENT);
             return profileRepository.save(p);
         });
-        roleCache.put(userId, new CachedRole(profile.getRole(), Instant.now().plus(ROLE_CACHE_TTL)));
-        return profile.getRole();
     }
 
     /** Gọi khi Doctor đổi role/quyền để cache không giữ giá trị cũ. */

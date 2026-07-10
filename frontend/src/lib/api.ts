@@ -46,3 +46,31 @@ export async function api<T>(
   if (res.status === 204) return undefined as T;
   return res.json();
 }
+
+/** Upload multipart (KHÔNG set Content-Type — browser tự thêm boundary). */
+export async function apiForm<T>(path: string, formData: FormData): Promise<T> {
+  const supabase = createSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const headers: Record<string, string> = {};
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
+  }
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(
+      res.status,
+      body?.code ?? "UNKNOWN",
+      body?.message ?? `Lỗi ${res.status}`
+    );
+  }
+  return res.json();
+}

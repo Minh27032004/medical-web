@@ -24,6 +24,11 @@ export function getLocalCart(): LocalCartItem[] {
   }
 }
 
+function save(cart: LocalCartItem[]) {
+  localStorage.setItem(KEY, JSON.stringify(cart));
+  window.dispatchEvent(new Event("cart-changed"));
+}
+
 export function addToLocalCart(medicineId: string, quantity = 1) {
   const cart = getLocalCart();
   const existing = cart.find((i) => i.medicineId === medicineId);
@@ -32,16 +37,15 @@ export function addToLocalCart(medicineId: string, quantity = 1) {
   } else {
     cart.push({ medicineId, quantity });
   }
-  localStorage.setItem(KEY, JSON.stringify(cart));
+  save(cart);
 }
 
 export function removeFromLocalCart(medicineId: string) {
-  const cart = getLocalCart().filter((i) => i.medicineId !== medicineId);
-  localStorage.setItem(KEY, JSON.stringify(cart));
+  save(getLocalCart().filter((i) => i.medicineId !== medicineId));
 }
 
 export function clearLocalCart() {
-  localStorage.removeItem(KEY);
+  save([]);
 }
 
 /** Gọi ngay sau khi đăng nhập thành công. */

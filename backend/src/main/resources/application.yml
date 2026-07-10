@@ -30,6 +30,11 @@ spring:
         jwt:
           jwk-set-uri: ${SUPABASE_JWKS_URI:}
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
 server:
   port: ${PORT:8080}
 
