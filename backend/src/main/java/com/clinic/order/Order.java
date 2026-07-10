@@ -1,15 +1,21 @@
-package com.clinic.medicine;
+package com.clinic.order;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate; // dùng cho expiryDate + isVisibleInStore
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,37 +23,36 @@ import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 @Entity
-@Table(name = "medicines")
+@Table(name = "orders")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Medicine {
+public class Order {
 
     @Id
     @GeneratedValue
     @UuidGenerator
     private UUID id;
 
+    @Column(name = "profile_id", nullable = false)
+    private UUID profileId;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String name;
+    private OrderStatus status = OrderStatus.PENDING;
 
-    private String description;
+    @Column(name = "pickup_code", nullable = false, unique = true)
+    private String pickupCode;
 
-    /** Dạng "medicine-images/<uuid>.<ext>" — URL public dựng từ path này. */
-    @Column(name = "image_path")
-    private String imagePath;
+    @Column(name = "total_amount", nullable = false)
+    private BigDecimal totalAmount = BigDecimal.ZERO;
 
-    @Column(name = "cost_price", nullable = false)
-    private BigDecimal costPrice;
+    @Column(name = "payment_method", nullable = false)
+    private String paymentMethod = "COUNTER";
 
-    @Column(name = "sale_price", nullable = false)
-    private BigDecimal salePrice;
-
-    @Column(name = "expiry_date")
-    private LocalDate expiryDate;
-
-    @Column(name = "in_stock", nullable = false)
-    private boolean inStock = true;
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "order_id", nullable = false)
+    private List<OrderItem> items = new ArrayList<>();
 
     @Column(name = "deleted_at")
     private Instant deletedAt;
@@ -57,12 +62,6 @@ public class Medicine {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
-
-    /** Còn bán được trên cửa hàng: chưa xóa, còn hàng, chưa hết HSD. */
-    public boolean isVisibleInStore() {
-        return deletedAt == null && inStock
-            && (expiryDate == null || !expiryDate.isBefore(LocalDate.now()));
-    }
 
     @PrePersist
     void prePersist() {

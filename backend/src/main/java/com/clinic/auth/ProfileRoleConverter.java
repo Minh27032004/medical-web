@@ -1,6 +1,7 @@
 package com.clinic.auth;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.convert.converter.Converter;
@@ -22,8 +23,16 @@ public class ProfileRoleConverter implements Converter<Jwt, AbstractAuthenticati
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         var userId = UUID.fromString(jwt.getSubject());
-        var role = profileService.resolveRole(userId);
+        var role = profileService.resolveRole(userId, extractFullName(jwt));
         var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
         return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
+    }
+
+    /** Họ tên nhập lúc đăng ký nằm trong claim user_metadata — dùng khi tạo profile lần đầu. */
+    private static String extractFullName(Jwt jwt) {
+        Map<String, Object> meta = jwt.getClaimAsMap("user_metadata");
+        if (meta == null) return null;
+        var name = meta.get("full_name");
+        return name instanceof String s && !s.isBlank() ? s : null;
     }
 }

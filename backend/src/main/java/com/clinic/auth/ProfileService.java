@@ -27,24 +27,38 @@ public class ProfileService {
      * Cache 5 phút để không query DB mỗi request.
      */
     @Transactional
-    public String resolveRole(UUID userId) {
+    public String resolveRole(UUID userId, String fullNameHint) {
         var cached = roleCache.get(userId);
         if (cached != null && cached.expiresAt().isAfter(Instant.now())) {
             return cached.role();
         }
-        var profile = getOrCreate(userId);
+        var profile = getOrCreate(userId, fullNameHint);
         roleCache.put(userId, new CachedRole(profile.getRole(), Instant.now().plus(ROLE_CACHE_TTL)));
         return profile.getRole();
     }
 
     @Transactional
     public Profile getOrCreate(UUID userId) {
-        return profileRepository.findById(userId).orElseGet(() -> {
-            var p = new Profile();
-            p.setId(userId);
-            p.setRole(Profile.ROLE_PATIENT);
-            return profileRepository.save(p);
-        });
+        return getOrCreate(userId, null);
+    }
+
+    /** fullName lấy từ user_metadata của JWT (đăng ký kèm họ tên); backfill nếu profile cũ còn trống. */
+    @Transactional
+    public Profile getOrCreate(UUID userId, String fullName) {
+        var existing = profileRepository.findById(userId);
+        if (existing.isPresent()) {
+            var p = existing.get();
+            if (p.getFullName() == null && fullName != null) {
+                p.setFullName(fullName);
+                p = profileRepository.save(p);
+            }
+            return p;
+        }
+        var p = new Profile();
+        p.setId(userId);
+        p.setRole(Profile.ROLE_PATIENT);
+        p.setFullName(fullName);
+        return profileRepository.save(p);
     }
 
     /** Gọi khi Doctor đổi role/quyền để cache không giữ giá trị cũ. */

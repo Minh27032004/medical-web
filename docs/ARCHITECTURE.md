@@ -162,6 +162,8 @@ frontend/src/
 - [x] SecurityConfig + CORS + cấu hình env
 - [x] Flyway V1 đã chạy trên DB thật; auth end-to-end đã test (login Supabase → JWT ES256 → role DOCTOR từ DB → qua hasRole)
 - [x] Seed tài khoản Doctor: `admin@clinic.local` (profiles.role=DOCTOR; trang login sẽ map alias "admin" → email này)
-- [ ] Nghiệp vụ từng module (làm theo thứ tự: auth/profile → medicines → cart/order → appointment → patient/prescription → revenue → chat/RAG)
+- [x] Module medicines: kho thuốc Doctor + cửa hàng public + upload ảnh + suggest autocomplete
+- [x] Module cart/order: giỏ DB (merge từ localStorage), đặt hàng snapshot giá, mã nhận hàng 6 ký tự (bỏ ký tự dễ nhầm), state machine PENDING→CONFIRMED→READY→COMPLETED/CANCELLED, Patient tự hủy khi PENDING
+- [ ] Nghiệp vụ còn lại (theo thứ tự: appointment → patient/prescription → revenue → chat/RAG)
 - [ ] Seed dữ liệu kb_documents cho RAG
 - [ ] Tạo 2 bucket Storage: `medicine-images` (public), `medical-docs` (private) — làm khi tới module upload

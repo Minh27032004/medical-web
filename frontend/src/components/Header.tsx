@@ -60,10 +60,20 @@ export default function Header() {
               </span>
             )}
           </Link>
-          {profile?.role === "DOCTOR" && (
-            <Link href="/doctor/medicines" className="hover:text-emerald-700 font-medium">
-              Quản lý kho thuốc
+          {profile?.role === "PATIENT" && (
+            <Link href="/account/orders" className="hover:text-emerald-700">
+              Đơn hàng của tôi
             </Link>
+          )}
+          {profile?.role === "DOCTOR" && (
+            <>
+              <Link href="/doctor/medicines" className="hover:text-emerald-700 font-medium">
+                Kho thuốc
+              </Link>
+              <Link href="/doctor/orders" className="hover:text-emerald-700 font-medium">
+                Đơn hàng
+              </Link>
+            </>
           )}
         </nav>
         <div className="text-sm flex items-center gap-3">

@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { getLocalCart, removeFromLocalCart } from "@/lib/cart";
+import { api, ApiError } from "@/lib/api";
+import { clearLocalCart, getLocalCart, removeFromLocalCart } from "@/lib/cart";
+import { createSupabaseClient } from "@/lib/supabase";
 import { formatVnd } from "@/lib/format";
-import type { MedicinePublic } from "@/lib/types";
+import type { MedicinePublic, Order } from "@/lib/types";
 
 interface CartRow {
   medicine: MedicinePublic;
@@ -14,8 +16,12 @@ interface CartRow {
 }
 
 export default function CartPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<CartRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [placing, setPlacing] = useState(false);
+  const [orderError, setOrderError] = useState("");
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
 
   async function load() {
     const cart = getLocalCart();
@@ -43,6 +49,56 @@ export default function CartPage() {
   }, []);
 
   const total = rows.reduce((s, r) => s + r.medicine.salePrice * r.quantity, 0);
+
+  async function placeOrder() {
+    setOrderError("");
+    const supabase = createSupabaseClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      router.push("/login?next=/cart");
+      return;
+    }
+    setPlacing(true);
+    try {
+      const order = await api<Order>("/api/me/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          items: rows.map((r) => ({
+            medicineId: r.medicine.id,
+            quantity: r.quantity,
+          })),
+        }),
+      });
+      clearLocalCart();
+      setPlacedOrder(order);
+    } catch (err) {
+      setOrderError(err instanceof ApiError ? err.message : "Đặt hàng thất bại, thử lại sau");
+    } finally {
+      setPlacing(false);
+    }
+  }
+
+  if (placedOrder) {
+    return (
+      <div className="max-w-md mx-auto text-center py-12 space-y-4">
+        <div className="text-5xl">✅</div>
+        <h1 className="text-xl font-bold">Đặt hàng thành công!</h1>
+        <p className="text-gray-600">Mã nhận hàng của bạn:</p>
+        <p className="text-4xl font-mono font-bold tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl py-4">
+          {placedOrder.pickupCode}
+        </p>
+        <p className="text-sm text-gray-600">
+          Đưa mã này cho bác sĩ khi đến phòng khám nhận thuốc và thanh toán tại quầy
+          ({formatVnd(placedOrder.totalAmount)}).
+        </p>
+        <Link href="/account/orders" className="inline-block text-emerald-700 hover:underline">
+          Xem đơn hàng của tôi →
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) return <p className="text-gray-500 py-8 text-center">Đang tải...</p>;
 
@@ -97,12 +153,13 @@ export default function CartPage() {
           <span className="text-emerald-700">{formatVnd(total)}</span>
         </div>
       </div>
+      {orderError && <p className="text-red-600 text-sm mt-3 text-center">{orderError}</p>}
       <button
-        disabled
-        title="Chức năng đặt hàng sẽ có ở bước tiếp theo"
-        className="mt-4 w-full bg-gray-300 text-gray-600 py-2.5 rounded-lg cursor-not-allowed"
+        onClick={placeOrder}
+        disabled={placing}
+        className="mt-4 w-full bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
       >
-        Đặt hàng (sắp ra mắt)
+        {placing ? "Đang đặt hàng..." : "Đặt hàng"}
       </button>
       <p className="text-xs text-gray-500 mt-2 text-center">
         Nhận thuốc trực tiếp tại phòng khám — thanh toán tại quầy.

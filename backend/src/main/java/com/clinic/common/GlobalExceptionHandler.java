@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** Format lỗi thống nhất cho toàn API: { "code": ..., "message": ... } */
@@ -28,6 +29,12 @@ public class GlobalExceptionHandler {
             .map(e -> e.getField() + ": " + e.getDefaultMessage())
             .collect(Collectors.joining("; "));
         return ResponseEntity.badRequest().body(new ErrorResponse("VALIDATION_ERROR", message));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest()
+            .body(new ErrorResponse("BAD_REQUEST", "Tham số không hợp lệ: " + ex.getName()));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
