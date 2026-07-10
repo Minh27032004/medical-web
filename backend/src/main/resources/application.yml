@@ -2,6 +2,11 @@ spring:
   application:
     name: clinic-backend
 
+  config:
+    # Dev local: nạp backend/.env (dạng KEY=value) làm property source.
+    # Trên Render không có file này → "optional" bỏ qua, đọc từ env vars thật.
+    import: optional:file:.env[.properties]
+
   datasource:
     # BẮT BUỘC dùng Supavisor SESSION mode (port 5432) — xem docs/DECISIONS.md D10
     url: ${DATABASE_URL}
