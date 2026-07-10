@@ -160,6 +160,8 @@ frontend/src/
 - [x] Scaffold Next.js (`frontend/`) + Spring Boot (`backend/`)
 - [x] V1 migration (schema đầy đủ)
 - [x] SecurityConfig + CORS + cấu hình env
+- [x] Flyway V1 đã chạy trên DB thật; auth end-to-end đã test (login Supabase → JWT ES256 → role DOCTOR từ DB → qua hasRole)
+- [x] Seed tài khoản Doctor: `admin@clinic.local` (profiles.role=DOCTOR; trang login sẽ map alias "admin" → email này)
 - [ ] Nghiệp vụ từng module (làm theo thứ tự: auth/profile → medicines → cart/order → appointment → patient/prescription → revenue → chat/RAG)
-- [ ] Seed tài khoản Doctor + dữ liệu kb_documents
-- [ ] Tạo 2 bucket Storage: `medicine-images` (public), `medical-docs` (private)
+- [ ] Seed dữ liệu kb_documents cho RAG
+- [ ] Tạo 2 bucket Storage: `medicine-images` (public), `medical-docs` (private) — làm khi tới module upload

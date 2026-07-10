@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -65,7 +66,13 @@ public class SecurityConfig {
     @Bean
     public JwtDecoder jwtDecoder() {
         if (StringUtils.hasText(jwkSetUri)) {
-            return NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
+            // Supabase ký ES256; mặc định của Spring chỉ nhận RS256 nên phải khai báo thêm
+            return NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
+                .jwsAlgorithms(algs -> {
+                    algs.add(SignatureAlgorithm.ES256);
+                    algs.add(SignatureAlgorithm.RS256);
+                })
+                .build();
         }
         if (StringUtils.hasText(jwtSecret)) {
             var key = new SecretKeySpec(jwtSecret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
