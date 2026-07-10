@@ -61,9 +61,14 @@ export default function Header() {
             )}
           </Link>
           {profile?.role !== "DOCTOR" && (
-            <Link href="/booking" className="hover:text-emerald-700">
-              Đặt lịch khám
-            </Link>
+            <>
+              <Link href="/booking" className="hover:text-emerald-700">
+                Đặt lịch khám
+              </Link>
+              <Link href="/chat" className="hover:text-emerald-700">
+                Tư vấn
+              </Link>
+            </>
           )}
           {profile?.role === "PATIENT" && (
             <>
@@ -97,6 +102,12 @@ export default function Header() {
               </Link>
               <Link href="/doctor/revenue" className="hover:text-emerald-700 font-medium">
                 Doanh thu
+              </Link>
+              <Link href="/doctor/chat" className="hover:text-emerald-700 font-medium">
+                Tư vấn
+              </Link>
+              <Link href="/doctor/kb" className="hover:text-emerald-700 font-medium">
+                Chatbot
               </Link>
             </>
           )}

@@ -20,8 +20,9 @@ Supabase Auth phát JWT; Spring Boot làm **resource server**, verify chữ ký 
 ## D6 — Monorepo (2026-07-10)
 1 repo GitHub private: `frontend/` (Next.js) + `backend/` (Spring Boot). Solo dev → dễ đồng bộ, 1 PR chạm cả 2 phía.
 
-## D7 — Gemini 2.5 Flash cho chat (2026-07-10)
+## D7 — Gemini cho chat (2026-07-10, cập nhật 2026-07-11)
 Dùng cho cả intent classification lẫn sinh câu trả lời RAG. Embedding + vector search dùng **pgvector ngay trên Supabase** — không thêm vector DB riêng.
+**Cập nhật khi triển khai:** `gemini-2.5-flash` bị Google khóa với API key tạo mới từ 2026 → dùng alias **`gemini-flash-latest`**; embedding `text-embedding-004` không còn → **`gemini-embedding-001` với `outputDimensionality: 768`** (khớp cột vector(768)). Cả hai cấu hình qua env `GEMINI_MODEL` / `GEMINI_EMBEDDING_MODEL`.
 
 ## D8 — Deploy: Vercel (FE) + Render (BE) (2026-07-10)
 Hệ quả: CORS phải cấu hình tường minh cho domain Vercel; backend không được stateful (Render restart tự do); mọi secret nằm ở env của từng platform.

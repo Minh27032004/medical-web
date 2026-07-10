@@ -164,6 +164,13 @@ frontend/src/
 - [x] Seed tài khoản Doctor: `admin@clinic.local` (profiles.role=DOCTOR; trang login sẽ map alias "admin" → email này)
 - [x] Module medicines: kho thuốc Doctor + cửa hàng public + upload ảnh + suggest autocomplete
 - [x] Module cart/order: giỏ DB (merge từ localStorage), đặt hàng snapshot giá, mã nhận hàng 6 ký tự (bỏ ký tự dễ nhầm), state machine PENDING→CONFIRMED→READY→COMPLETED/CANCELLED, Patient tự hủy khi PENDING
-- [ ] Nghiệp vụ còn lại (theo thứ tự: appointment → patient/prescription → revenue → chat/RAG)
-- [ ] Seed dữ liệu kb_documents cho RAG
-- [ ] Tạo 2 bucket Storage: `medicine-images` (public), `medical-docs` (private) — làm khi tới module upload
+- [x] Module appointments: lịch làm việc, slot trống theo giờ VN, đặt/hủy, giấy khám (private bucket + signed URL)
+- [x] Module patients + prescriptions: hồ sơ bệnh nhân, kê đơn autocomplete, ảnh bệnh, snapshot giá
+- [x] Module revenue: ngày/tuần/tháng, lãi gộp, lịch sử khám kèm giá gốc
+- [x] Module chat 2 tầng: Gemini (`gemini-flash-latest`) intent + RAG pgvector (`gemini-embedding-001` 768d),
+      red-flag tự chuyển bác sĩ, inbox Doctor, quản lý KB tự re-embed (/doctor/kb)
+- [x] 2 bucket Storage: `medicine-images` (public), `medical-docs` (private)
+- [x] Seed KB đầu tiên (thông tin phòng khám) — Doctor bổ sung thêm qua /doctor/kb
+
+**Backlog sau MVP:** thanh toán QR (webhook SePay/PayOS), nhắc lịch/tái khám (Zalo/SMS),
+xuất đơn thuốc PDF, cờ thuốc Rx/OTC, realtime chat (thay polling 5s), thống kê biểu đồ.

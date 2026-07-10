@@ -53,5 +53,8 @@ app:
     jwt-secret: ${SUPABASE_JWT_SECRET:}
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    model: gemini-2.5-flash
-    embedding-model: text-embedding-004
+    # alias luôn trỏ bản flash mới nhất (gemini-2.5-flash bị khóa với API key tạo mới từ 2026)
+    model: ${GEMINI_MODEL:gemini-flash-latest}
+    # gemini-embedding-001 mặc định 3072 chiều → ép 768 cho khớp cột vector(768)
+    embedding-model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
+    embedding-dimensions: 768
