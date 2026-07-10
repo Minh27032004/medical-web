@@ -60,10 +60,20 @@ export default function Header() {
               </span>
             )}
           </Link>
-          {profile?.role === "PATIENT" && (
-            <Link href="/account/orders" className="hover:text-emerald-700">
-              Đơn hàng của tôi
+          {profile?.role !== "DOCTOR" && (
+            <Link href="/booking" className="hover:text-emerald-700">
+              Đặt lịch khám
             </Link>
+          )}
+          {profile?.role === "PATIENT" && (
+            <>
+              <Link href="/account/appointments" className="hover:text-emerald-700">
+                Lịch hẹn
+              </Link>
+              <Link href="/account/orders" className="hover:text-emerald-700">
+                Đơn hàng
+              </Link>
+            </>
           )}
           {profile?.role === "DOCTOR" && (
             <>
@@ -72,6 +82,12 @@ export default function Header() {
               </Link>
               <Link href="/doctor/orders" className="hover:text-emerald-700 font-medium">
                 Đơn hàng
+              </Link>
+              <Link href="/doctor/appointments" className="hover:text-emerald-700 font-medium">
+                Lịch hẹn
+              </Link>
+              <Link href="/doctor/schedule" className="hover:text-emerald-700 font-medium">
+                Lịch làm việc
               </Link>
             </>
           )}

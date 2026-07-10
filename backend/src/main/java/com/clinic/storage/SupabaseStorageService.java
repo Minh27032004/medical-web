@@ -48,4 +48,20 @@ public class SupabaseStorageService {
         if (path == null || path.isBlank()) return null;
         return supabaseUrl + "/storage/v1/object/public/" + path;
     }
+
+    /**
+     * Signed URL có hạn dùng cho bucket PRIVATE (ảnh y tế) — chỉ ai được backend
+     * cấp link mới xem được, link tự hết hạn.
+     */
+    @SuppressWarnings("unchecked")
+    public String signedUrl(String path, int expiresSeconds) {
+        if (path == null || path.isBlank()) return null;
+        var resp = rest.post()
+            .uri("/storage/v1/object/sign/" + path)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(java.util.Map.of("expiresIn", expiresSeconds))
+            .retrieve()
+            .body(java.util.Map.class);
+        return supabaseUrl + "/storage/v1" + resp.get("signedURL");
+    }
 }

@@ -68,6 +68,61 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   CANCELLED: "Đã hủy",
 };
 
+export interface Slot {
+  start: string;
+  end: string;
+  available: boolean;
+}
+
+export type AppointmentStatus = "BOOKED" | "CONFIRMED" | "DONE" | "CANCELLED";
+
+export interface AppointmentDocument {
+  id: string;
+  url: string;
+}
+
+export interface Appointment {
+  id: string;
+  slotStart: string;
+  slotEnd: string;
+  status: AppointmentStatus;
+  note: string | null;
+  documents: AppointmentDocument[];
+  patientName?: string | null; // chỉ Doctor
+  patientPhone?: string | null;
+}
+
+export interface AvailabilityRow {
+  weekday: number; // 0 = Chủ nhật
+  startTime: string; // "08:00:00"
+  endTime: string;
+  slotMinutes: number;
+}
+
+export const APPT_STATUS_LABEL: Record<AppointmentStatus, string> = {
+  BOOKED: "Chờ xác nhận",
+  CONFIRMED: "Đã xác nhận",
+  DONE: "Đã khám",
+  CANCELLED: "Đã hủy",
+};
+
+export const APPT_STATUS_COLOR: Record<AppointmentStatus, string> = {
+  BOOKED: "bg-amber-50 text-amber-700",
+  CONFIRMED: "bg-blue-50 text-blue-700",
+  DONE: "bg-emerald-50 text-emerald-700",
+  CANCELLED: "bg-gray-100 text-gray-500",
+};
+
+export const WEEKDAY_LABEL = [
+  "Chủ nhật",
+  "Thứ 2",
+  "Thứ 3",
+  "Thứ 4",
+  "Thứ 5",
+  "Thứ 6",
+  "Thứ 7",
+];
+
 export const ORDER_STATUS_COLOR: Record<OrderStatus, string> = {
   PENDING: "bg-amber-50 text-amber-700",
   CONFIRMED: "bg-blue-50 text-blue-700",
