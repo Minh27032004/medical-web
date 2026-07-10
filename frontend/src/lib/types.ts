@@ -83,6 +83,7 @@ export interface AppointmentDocument {
 
 export interface Appointment {
   id: string;
+  profileId?: string; // chỉ Doctor — để liên kết khi tạo hồ sơ bệnh nhân
   slotStart: string;
   slotEnd: string;
   status: AppointmentStatus;
@@ -111,6 +112,51 @@ export const APPT_STATUS_COLOR: Record<AppointmentStatus, string> = {
   CONFIRMED: "bg-blue-50 text-blue-700",
   DONE: "bg-emerald-50 text-emerald-700",
   CANCELLED: "bg-gray-100 text-gray-500",
+};
+
+export interface Patient {
+  id: string;
+  fullName: string;
+  phone: string | null;
+  age: number | null;
+  photoUrl: string | null;
+  note: string | null;
+  profileId: string | null;
+  createdAt: string;
+}
+
+export interface PrescriptionItem {
+  medicineName: string;
+  quantity: number;
+  dosage: string | null;
+  costPrice: number | null; // null với Patient
+  salePrice: number;
+}
+
+export interface PrescriptionImage {
+  id: string;
+  kind: "XRAY" | "ECG" | "OTHER";
+  url: string;
+}
+
+export interface Prescription {
+  id: string;
+  patientId: string;
+  patientName: string | null;
+  symptoms: string | null;
+  diagnosis: string | null;
+  examFee: number;
+  medicineTotal: number;
+  costTotal: number | null; // null với Patient
+  createdAt: string;
+  items: PrescriptionItem[];
+  images: PrescriptionImage[];
+}
+
+export const IMAGE_KIND_LABEL: Record<string, string> = {
+  XRAY: "X-quang",
+  ECG: "Điện tim",
+  OTHER: "Khác",
 };
 
 export const WEEKDAY_LABEL = [

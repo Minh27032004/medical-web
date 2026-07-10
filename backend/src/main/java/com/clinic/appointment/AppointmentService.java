@@ -145,7 +145,7 @@ public class AppointmentService {
 
         return appts.stream().map(a -> {
             var p = profiles.get(a.getProfileId());
-            return new DoctorAppointment(a.getId(), a.getSlotStart(), a.getSlotEnd(),
+            return new DoctorAppointment(a.getId(), a.getProfileId(), a.getSlotStart(), a.getSlotEnd(),
                 a.getStatus(), a.getNote(),
                 p != null ? p.getFullName() : null,
                 p != null ? p.getPhone() : null,

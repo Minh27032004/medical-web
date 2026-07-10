@@ -73,18 +73,24 @@ export default function Header() {
               <Link href="/account/orders" className="hover:text-emerald-700">
                 Đơn hàng
               </Link>
+              <Link href="/account/prescriptions" className="hover:text-emerald-700">
+                Đơn thuốc
+              </Link>
             </>
           )}
           {profile?.role === "DOCTOR" && (
             <>
+              <Link href="/doctor/appointments" className="hover:text-emerald-700 font-medium">
+                Lịch hẹn
+              </Link>
+              <Link href="/doctor/patients" className="hover:text-emerald-700 font-medium">
+                Bệnh nhân
+              </Link>
               <Link href="/doctor/medicines" className="hover:text-emerald-700 font-medium">
                 Kho thuốc
               </Link>
               <Link href="/doctor/orders" className="hover:text-emerald-700 font-medium">
                 Đơn hàng
-              </Link>
-              <Link href="/doctor/appointments" className="hover:text-emerald-700 font-medium">
-                Lịch hẹn
               </Link>
               <Link href="/doctor/schedule" className="hover:text-emerald-700 font-medium">
                 Lịch làm việc

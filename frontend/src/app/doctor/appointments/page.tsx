@@ -114,6 +114,15 @@ export default function DoctorAppointmentsPage() {
             </p>
             {a.note && <p className="text-sm text-gray-600 mt-1">Ghi chú: {a.note}</p>}
 
+            {(a.status === "CONFIRMED" || a.status === "BOOKED") && (
+              <a
+                href={`/doctor/patients/new?profileId=${a.profileId ?? ""}`}
+                className="inline-block text-sm text-emerald-700 hover:underline mt-1"
+              >
+                → Tạo hồ sơ bệnh nhân từ lịch hẹn này
+              </a>
+            )}
+
             {a.documents.length > 0 && (
               <div className="mt-3">
                 <p className="text-sm font-medium mb-2">Giấy khám sức khỏe đã gửi:</p>

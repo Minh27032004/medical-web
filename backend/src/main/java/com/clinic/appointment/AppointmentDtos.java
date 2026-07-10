@@ -29,6 +29,7 @@ public class AppointmentDtos {
 
     public record DoctorAppointment(
         UUID id,
+        UUID profileId, // để liên kết khi tạo hồ sơ bệnh nhân từ lịch hẹn
         Instant slotStart,
         Instant slotEnd,
         AppointmentStatus status,

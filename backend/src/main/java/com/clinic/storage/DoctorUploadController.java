@@ -40,6 +40,22 @@ public class DoctorUploadController {
         return Map.of("path", path, "url", storage.publicUrl(path));
     }
 
+    /**
+     * Upload ảnh y tế (chân dung bệnh nhân, X-quang, điện tim...) → bucket PRIVATE.
+     * Trả về path (lưu DB) + url signed 1h (hiển thị ngay trên form).
+     */
+    @PostMapping(value = "/medical-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Map<String, String> uploadMedicalImage(@RequestParam("file") MultipartFile file) {
+        var ext = validate(file);
+        var path = "medical-docs/uploads/" + UUID.randomUUID() + "." + ext;
+        try {
+            storage.upload(path, file.getBytes(), file.getContentType());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Map.of("path", path, "url", storage.signedUrl(path, 3600));
+    }
+
     private String validate(MultipartFile file) {
         if (file.isEmpty()) throw ApiException.badRequest("File rỗng");
         if (file.getSize() > MAX_SIZE_BYTES) throw ApiException.badRequest("Ảnh tối đa 5MB");
