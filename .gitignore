@@ -1,0 +1,33 @@
+# Secrets & env — không bao giờ commit
+.env
+.env.*
+!.env.example
+.mcp.json
+
+# Claude Code local
+.claude/settings.local.json
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+npm-debug.log*
+
+# Java / Spring Boot
+target/
+build/
+.gradle/
+*.class
+*.jar
+!**/gradle-wrapper.jar
+!**/maven-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
