@@ -69,26 +69,46 @@ public class AppointmentService {
 
     // ===== Patient =====
 
+    /** Bệnh nhân TỰ NHẬP giờ khám — validate: đúng giờ làm việc, sau hiện tại, trong 7 ngày. */
+    public static final int MAX_BOOKING_DAYS = 7;
+
     @Transactional
     public PatientAppointment book(UUID profileId, Instant slotStart, String note) {
-        var date = slotStart.atZone(CLINIC_ZONE).toLocalDate();
-        var slot = slotsForDate(date).stream()
-            .filter(s -> s.start().equals(slotStart))
+        var now = Instant.now();
+        if (!slotStart.isAfter(now)) {
+            throw ApiException.badRequest("Giờ khám phải sau thời điểm hiện tại");
+        }
+        if (slotStart.isAfter(now.plus(Duration.ofDays(MAX_BOOKING_DAYS)))) {
+            throw ApiException.badRequest("Chỉ nhận đặt lịch trước tối đa " + MAX_BOOKING_DAYS + " ngày");
+        }
+
+        // Giờ nhập phải nằm trọn trong một khung giờ làm việc của thứ đó
+        var zoned = slotStart.atZone(CLINIC_ZONE);
+        int weekday = zoned.getDayOfWeek().getValue() % 7;
+        var time = zoned.toLocalTime();
+        var window = availabilityRepository.findByWeekdayOrderByStartTime(weekday).stream()
+            .filter(w -> !time.isBefore(w.getStartTime())
+                && !time.plusMinutes(w.getSlotMinutes()).isAfter(w.getEndTime()))
             .findFirst()
-            .orElseThrow(() -> ApiException.badRequest("Giờ này không nằm trong lịch làm việc"));
-        if (!slot.available()) {
-            throw ApiException.conflict("Khung giờ này đã có người đặt hoặc đã qua");
+            .orElseThrow(() -> ApiException.badRequest(
+                "Giờ này ngoài giờ làm việc của phòng khám — xem khung giờ bên trên"));
+
+        var slotEnd = slotStart.plus(Duration.ofMinutes(window.getSlotMinutes()));
+        if (appointmentRepository.existsBySlotStartLessThanAndSlotEndGreaterThanAndStatusIn(
+                slotEnd, slotStart,
+                List.of(AppointmentStatus.BOOKED, AppointmentStatus.CONFIRMED))) {
+            throw ApiException.conflict("Khung giờ này đã có người đặt — chọn giờ khác nhé");
         }
 
         var appt = new Appointment();
         appt.setProfileId(profileId);
-        appt.setSlotStart(slot.start());
-        appt.setSlotEnd(slot.end());
+        appt.setSlotStart(slotStart);
+        appt.setSlotEnd(slotEnd);
         appt.setNote(note);
         try {
             return toPatient(appointmentRepository.saveAndFlush(appt));
         } catch (DataIntegrityViolationException e) {
-            // 2 người đặt cùng lúc — unique index uq_appointments_active_slot chặn người sau
+            // 2 người đặt chồng lấn cùng lúc — exclusion constraint (V2) chặn người sau
             throw ApiException.conflict("Khung giờ này vừa có người đặt, chọn giờ khác nhé");
         }
     }

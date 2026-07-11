@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, apiForm, ApiError } from "@/lib/api";
+import { CLINIC } from "@/lib/clinic-info";
 import type { Appointment, Slot } from "@/lib/types";
+
+const MAX_DAYS = 7; // khớp MAX_BOOKING_DAYS phía backend
 
 function toDateStr(d: Date) {
   return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD theo giờ máy
@@ -13,17 +16,26 @@ function timeLabel(iso: string) {
   return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Khung giờ làm việc hiển thị cho từng thứ (0 = Chủ nhật) — khớp lịch phòng khám. */
+function windowsHint(weekday: number): string {
+  if (weekday === 0) return "Chủ nhật: 6:00 – 19:30 (làm cả ngày)";
+  return "Sáng 6:00 – 7:30 · Chiều 16:30 – 19:30";
+}
+
 export default function BookingPage() {
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    return d;
-  });
+  const days = useMemo(
+    () =>
+      Array.from({ length: MAX_DAYS }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() + i);
+        return d;
+      }),
+    []
+  );
 
   const [date, setDate] = useState(toDateStr(days[0]));
+  const [time, setTime] = useState(""); // "HH:MM" người khám tự nhập
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [booking, setBooking] = useState(false);
@@ -31,27 +43,45 @@ export default function BookingPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
 
+  const selectedDay = useMemo(() => new Date(date + "T00:00:00"), [date]);
+
+  // Gợi ý các mốc giờ còn trống (bấm là điền vào ô giờ)
   useEffect(() => {
-    setLoading(true);
-    setSelected(null);
+    setError("");
     api<Slot[]>(`/api/public/appointments/slots?date=${date}`)
       .then(setSlots)
-      .catch(() => setError("Không tải được khung giờ"))
-      .finally(() => setLoading(false));
+      .catch(() => setSlots([]));
   }, [date]);
 
+  function validateLocally(): string | null {
+    if (!/^\d{2}:\d{2}$/.test(time)) {
+      return "Vui lòng nhập giờ đúng định dạng 24h HH:MM — ví dụ 06:15 hoặc 17:00";
+    }
+    const chosen = new Date(`${date}T${time}:00`);
+    if (isNaN(chosen.getTime())) return "Giờ không hợp lệ";
+    if (chosen.getTime() <= Date.now()) {
+      return "Giờ khám phải SAU thời điểm hiện tại";
+    }
+    return null; // giờ làm việc + trùng lịch: backend kiểm tra chính xác
+  }
+
   async function book() {
-    if (!selected) return;
+    const localError = validateLocally();
+    if (localError) {
+      setError(localError);
+      return;
+    }
     setBooking(true);
     setError("");
     try {
+      const slotStart = new Date(`${date}T${time}:00`).toISOString();
       const appt = await api<Appointment>("/api/me/appointments", {
         method: "POST",
-        body: JSON.stringify({ slotStart: selected, note: note || null }),
+        body: JSON.stringify({ slotStart, note: note || null }),
       });
       setBooked(appt);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Đặt lịch thất bại");
+      setError(err instanceof ApiError ? err.message : "Đặt lịch thất bại, thử lại sau");
     } finally {
       setBooking(false);
     }
@@ -115,16 +145,22 @@ export default function BookingPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-xl font-bold mb-4">Đặt lịch khám</h1>
+      <h1 className="text-xl font-bold mb-1">Đặt lịch khám</h1>
+      <p className="text-sm text-gray-500 mb-4">
+        Nhận đặt trước tối đa {MAX_DAYS} ngày. Mỗi lượt khám 30 phút.
+      </p>
 
-      <p className="text-sm font-medium mb-2">Chọn ngày</p>
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+      <p className="text-sm font-medium mb-2">1️⃣ Chọn ngày</p>
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
         {days.map((d) => {
           const v = toDateStr(d);
           return (
             <button
               key={v}
-              onClick={() => setDate(v)}
+              onClick={() => {
+                setDate(v);
+                setTime("");
+              }}
               className={`shrink-0 border rounded-lg px-3 py-2 text-sm ${
                 date === v ? "bg-blue-600 text-white border-blue-600" : "bg-white hover:bg-gray-50"
               }`}
@@ -135,33 +171,55 @@ export default function BookingPage() {
         })}
       </div>
 
-      <p className="text-sm font-medium mb-2">Chọn giờ</p>
-      {loading ? (
-        <p className="text-gray-500 py-4">Đang tải...</p>
-      ) : slots.length === 0 ? (
-        <p className="text-gray-500 py-4">Phòng khám không làm việc ngày này.</p>
-      ) : (
-        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 mb-4">
-          {slots.map((s) => (
-            <button
-              key={s.start}
-              disabled={!s.available}
-              onClick={() => setSelected(s.start)}
-              className={`border rounded-lg py-2 text-sm ${
-                selected === s.start
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : s.available
-                    ? "bg-white hover:bg-blue-50"
-                    : "bg-gray-100 text-gray-400 cursor-not-allowed line-through"
-              }`}
-            >
-              {timeLabel(s.start)}
-            </button>
-          ))}
-        </div>
+      <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-900 mb-4">
+        🕐 Giờ làm việc {selectedDay.getDay() === 0 ? "" : "T2–T7"} —{" "}
+        <span className="font-semibold">{windowsHint(selectedDay.getDay())}</span>
+        <br />
+        <span className="text-blue-700 text-xs">
+          Giờ khám phải nằm trong khung trên và sau thời điểm hiện tại.
+        </span>
+      </div>
+
+      <p className="text-sm font-medium mb-2">2️⃣ Nhập giờ khám (định dạng 24h — HH:MM)</p>
+      <div className="flex items-center gap-3 mb-2">
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          step={300}
+          className="border rounded-lg px-4 py-2.5 text-lg font-mono w-40"
+          required
+        />
+        <span className="text-xs text-gray-500">Ví dụ: 06:15, 17:00, 18:45</span>
+      </div>
+
+      {slots.some((s) => s.available) && (
+        <>
+          <p className="text-xs text-gray-500 mb-1.5">Hoặc bấm nhanh giờ còn trống:</p>
+          <div className="flex flex-wrap gap-1.5 mb-4">
+            {slots
+              .filter((s) => s.available)
+              .map((s) => {
+                const label = timeLabel(s.start);
+                return (
+                  <button
+                    key={s.start}
+                    onClick={() => setTime(label.padStart(5, "0"))}
+                    className={`border rounded-full px-3 py-1 text-xs ${
+                      time === label.padStart(5, "0")
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white hover:bg-blue-50"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+          </div>
+        </>
       )}
 
-      <p className="text-sm font-medium mb-2">Ghi chú cho bác sĩ (tùy chọn)</p>
+      <p className="text-sm font-medium mb-2">3️⃣ Ghi chú cho bác sĩ (tùy chọn)</p>
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
@@ -170,10 +228,14 @@ export default function BookingPage() {
         className="w-full border rounded-lg px-3 py-2 text-sm mb-4"
       />
 
-      {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
+      {error && (
+        <p className="text-red-600 text-sm mb-3 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          ⚠️ {error}
+        </p>
+      )}
       <button
         onClick={book}
-        disabled={!selected || booking}
+        disabled={!time || booking}
         className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
       >
         {booking ? "Đang đặt..." : "Xác nhận đặt lịch"}
