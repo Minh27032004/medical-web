@@ -1,0 +1,6 @@
+# KHÔNG upload secrets và file build lên Cloud Build
+.env
+.env.*
+target/
+.mvn/wrapper/*.jar
+*.log

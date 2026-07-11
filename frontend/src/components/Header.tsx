@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
@@ -76,13 +77,17 @@ export default function Header() {
       {/* Main bar */}
       <div className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white flex items-center justify-center text-xl shadow">
-              ⚕
-            </span>
+          <Link href="/" className="flex items-center gap-2.5 shrink-0">
+            <Image
+              src="/images/logo.jpg"
+              alt="Logo phòng khám"
+              width={44}
+              height={44}
+              className="w-11 h-11 rounded-xl object-cover shadow-sm border border-blue-100"
+            />
             <span className="leading-tight">
               <span className="block font-bold text-blue-800">{CLINIC.shortName}</span>
-              <span className="block text-[11px] text-gray-500">Phòng khám gia đình</span>
+              <span className="block text-[11px] text-gray-500">Tận tâm chăm sóc</span>
             </span>
           </Link>
 

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { CLINIC } from "@/lib/clinic-info";
 
@@ -6,8 +7,14 @@ export default function Footer() {
     <footer id="contact" className="bg-blue-950 text-blue-100 mt-12">
       <div className="max-w-6xl mx-auto px-4 py-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 text-sm">
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center text-lg">⚕</span>
+          <div className="flex items-center gap-2.5 mb-3">
+            <Image
+              src="/images/logo.jpg"
+              alt="Logo phòng khám"
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-xl object-cover"
+            />
             <span className="font-bold text-white">{CLINIC.name}</span>
           </div>
           <p className="text-blue-300 leading-relaxed">{CLINIC.slogan}</p>

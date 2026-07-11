@@ -20,10 +20,10 @@ const STEPS = [
 ];
 
 const SERVICES = [
-  { icon: "🩺", title: "Khám nội tổng quát", desc: "Khám, chẩn đoán và điều trị các bệnh lý nội khoa thường gặp" },
-  { icon: "👶", title: "Khám nhi", desc: "Chăm sóc sức khỏe trẻ em, tư vấn dinh dưỡng và tiêm chủng" },
-  { icon: "📈", title: "Điện tâm đồ", desc: "Đo điện tim phát hiện sớm các bất thường tim mạch" },
-  { icon: "🏠", title: "Bác sĩ gia đình", desc: "Theo dõi sức khỏe định kỳ cho cả gia đình bạn" },
+  { icon: "🩺", title: "Khám nội tổng quát", desc: "Khám, chẩn đoán và điều trị các bệnh lý nội khoa thường gặp", image: "/images/kham-benh.png" },
+  { icon: "👶", title: "Khám nhi", desc: "Chăm sóc sức khỏe trẻ em, tư vấn dinh dưỡng và tiêm chủng", image: "/images/hero-family.jpg" },
+  { icon: "🩻", title: "Chụp X-quang", desc: "Phòng chụp X-quang đạt chuẩn ngay tại phòng khám", image: "/images/clinic-xray.jpg" },
+  { icon: "🏠", title: "Bác sĩ gia đình", desc: "Theo dõi sức khỏe định kỳ cho cả gia đình bạn", image: "/images/heart-care.jpg" },
   { icon: "💬", title: "Tư vấn trực tuyến", desc: "Chat với trợ lý AI 24/7 hoặc trực tiếp với bác sĩ", href: "/chat" },
   { icon: "💊", title: "Nhà thuốc", desc: "Thuốc chính hãng, đặt online nhận tại phòng khám", href: "/medicines", image: "/images/pharmacy.jpg" },
 ];
@@ -78,12 +78,11 @@ export default function Home() {
             </p>
           </FadeIn>
           <FadeIn delay={0.15} className="hidden md:block">
-            {/* TODO: thay bằng ảnh thật của phòng khám / bác sĩ */}
             <div className="relative mx-auto w-fit">
               <div className="absolute -inset-3 rounded-3xl bg-white/15 rotate-2" />
               <Image
-                src="/images/doctor-hero.jpg"
-                alt="Bác sĩ phòng khám"
+                src="/images/hero-family.jpg"
+                alt="Bác sĩ khám cho bé cùng gia đình"
                 width={440}
                 height={300}
                 priority
@@ -201,11 +200,11 @@ export default function Home() {
       {/* ===== Giới thiệu bác sĩ ===== */}
       <section className="max-w-6xl mx-auto px-4 py-16 grid md:grid-cols-2 gap-10 items-center">
         <FadeIn>
-          {/* TODO: thay bằng ảnh thật của bác sĩ */}
+          {/* TODO: thay bằng ảnh chân dung thật của bác sĩ */}
           <div className="relative mx-auto w-fit">
             <div className="absolute -inset-3 rounded-3xl bg-blue-100 -rotate-2" />
             <Image
-              src="/images/consultation.jpg"
+              src="/images/doctor-consult.jpg"
               alt="Bác sĩ tư vấn cho bệnh nhân"
               width={460}
               height={310}
