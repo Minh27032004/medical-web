@@ -85,7 +85,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         var config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(frontendOrigin, "http://localhost:3000"));
+        // FRONTEND_ORIGIN nhận nhiều origin cách nhau dấu phẩy (prod + preview...)
+        var origins = new java.util.ArrayList<>(
+            java.util.Arrays.stream(frontendOrigin.split(","))
+                .map(String::trim).filter(s -> !s.isBlank()).toList());
+        if (!origins.contains("http://localhost:3000")) {
+            origins.add("http://localhost:3000");
+        }
+        config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setMaxAge(3600L);
