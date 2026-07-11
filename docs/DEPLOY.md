@@ -15,59 +15,35 @@ git push main
 - Env vars/secrets của backend nằm TRÊN Cloud Run (set lần đầu bằng `scripts/deploy-backend-gcloud.sh`);
   CI deploy không đụng tới nên không cần nhét secrets nghiệp vụ vào GitHub.
 
-## A. Backend tự deploy (GitHub Actions) — thiết lập 1 lần
+## A. Backend tự deploy (GitHub Actions) — ĐÃ THIẾT LẬP XONG (2026-07-11)
 
-Workflow đã có sẵn: `.github/workflows/deploy-backend.yml`. Chỉ thiếu quyền để GitHub gọi được GCP.
+Xác thực bằng **Workload Identity Federation (OIDC)** — không có key/secret nào trên GitHub.
+(Tài khoản GCP mới bị org policy `disableServiceAccountKeyCreation` cấm tạo key JSON,
+nên đây vừa là cách duy nhất vừa là cách an toàn nhất.)
 
-### A1. Tạo service account cho GitHub (chạy trong terminal / gõ `!` trong Claude Code)
-
-```bash
-gcloud iam service-accounts create github-deployer \
-  --project=project-0a96f6c2-d0b9-44ce-b28 \
-  --display-name="GitHub Actions deployer"
-```
-
-### A2. Cấp quyền cho service account đó (5 lệnh)
+Những gì đã tạo trên GCP (chỉ cần làm lại nếu đổi project):
 
 ```bash
-SA=github-deployer@project-0a96f6c2-d0b9-44ce-b28.iam.gserviceaccount.com
+# 1. Service account deploy
+gcloud iam service-accounts create github-deployer --project=<PROJECT_ID>
 
-gcloud projects add-iam-policy-binding project-0a96f6c2-d0b9-44ce-b28 --member=serviceAccount:$SA --role=roles/run.admin --condition=None
-gcloud projects add-iam-policy-binding project-0a96f6c2-d0b9-44ce-b28 --member=serviceAccount:$SA --role=roles/cloudbuild.builds.editor --condition=None
-gcloud projects add-iam-policy-binding project-0a96f6c2-d0b9-44ce-b28 --member=serviceAccount:$SA --role=roles/storage.admin --condition=None
-gcloud projects add-iam-policy-binding project-0a96f6c2-d0b9-44ce-b28 --member=serviceAccount:$SA --role=roles/serviceusage.serviceUsageConsumer --condition=None
+# 2. Quyền: run.admin, cloudbuild.builds.editor, storage.admin,
+#    serviceusage.serviceUsageConsumer (project-level)
+#    + iam.serviceAccountUser trên compute SA runtime
 
-# cho phép deployer "đóng vai" service account runtime của Cloud Run
-gcloud iam service-accounts add-iam-policy-binding 70334084165-compute@developer.gserviceaccount.com \
-  --project=project-0a96f6c2-d0b9-44ce-b28 \
-  --member=serviceAccount:$SA --role=roles/iam.serviceAccountUser
+# 3. Workload Identity pool + provider OIDC của GitHub,
+#    khóa chặt theo repo: assertion.repository=='Minh27032004/medical-web'
+gcloud iam workload-identity-pools create github-pool --location=global ...
+gcloud iam workload-identity-pools providers create-oidc github-provider ...
+
+# 4. Cho repo impersonate SA
+gcloud iam service-accounts add-iam-policy-binding github-deployer@... \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/70334084165/locations/global/workloadIdentityPools/github-pool/attribute.repository/Minh27032004/medical-web"
 ```
 
-Ý nghĩa: `run.admin` (deploy service), `cloudbuild.builds.editor` (chạy build), `storage.admin`
-(upload source lên bucket build), `serviceUsageConsumer` (gọi API), `serviceAccountUser`
-(gán runtime SA cho revision mới). Không có quyền xem/sửa dữ liệu khác.
-
-### A3. Tạo key JSON
-
-```bash
-gcloud iam service-accounts keys create gcp-key.json --iam-account=$SA
-```
-
-File `gcp-key.json` xuất hiện ở thư mục hiện tại. **Đây là chìa khóa deploy — không commit, không gửi qua chat.**
-
-### A4. Nạp key vào GitHub Secrets
-
-1. Mở https://github.com/Minh27032004/medical-web/settings/secrets/actions
-2. **New repository secret**
-3. Name: `GCP_SA_KEY`
-4. Secret: mở `gcp-key.json`, copy **toàn bộ nội dung** dán vào
-5. **Add secret**, rồi **xóa file `gcp-key.json`** trên máy (`rm gcp-key.json`)
-
-### A5. Kiểm chứng
-
-- Vào tab **Actions** của repo → workflow "Deploy backend (Cloud Run)" → **Run workflow** (chạy tay lần đầu)
-- Chạy xanh ✅ = từ giờ mọi push vào `main` có sửa `backend/**` sẽ tự deploy (~5-8 phút),
-  kèm bước tự kiểm tra health sau deploy.
+Cơ chế: khi workflow chạy, GitHub phát token OIDC chứa tên repo → GCP kiểm tra token đúng
+repo này thì cấp quyền tạm thời của `github-deployer` (hết hạn sau job). Không có gì để lộ.
 
 ## B. Frontend tự deploy (Vercel) — thiết lập 1 lần
 

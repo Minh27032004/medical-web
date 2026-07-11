@@ -1,5 +1,6 @@
 # Tự động deploy backend lên Cloud Run khi push vào main có thay đổi trong backend/
-# Yêu cầu secret GCP_SA_KEY (JSON key của service account github-deployer) — xem docs/DEPLOY.md
+# Xác thực bằng Workload Identity Federation (OIDC) — KHÔNG dùng key/secret nào.
+# GCP chỉ chấp nhận token OIDC phát ra từ đúng repo Minh27032004/medical-web.
 name: Deploy backend (Cloud Run)
 
 on:
@@ -10,6 +11,10 @@ on:
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch: {} # cho phép bấm chạy tay trên tab Actions
 
+permissions:
+  contents: read
+  id-token: write # bắt buộc cho OIDC
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -17,10 +22,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Xác thực Google Cloud
+      - name: Xác thực Google Cloud (OIDC, không key)
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: projects/70334084165/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@project-0a96f6c2-d0b9-44ce-b28.iam.gserviceaccount.com
 
       - name: Cài gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
