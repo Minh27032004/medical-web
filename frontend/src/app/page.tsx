@@ -21,9 +21,9 @@ const STEPS = [
 ];
 
 const SERVICES = [
-  { icon: "🩺", title: "Khám nội tổng quát", desc: "Khám, chẩn đoán và điều trị các bệnh lý nội khoa thường gặp", image: "/images/kham-benh.png" },
+  { icon: "🩺", title: "Khám nội tổng quát", desc: "Khám, chẩn đoán và điều trị các bệnh lý nội khoa thường gặp", image: "/images/consultation.jpg" },
   { icon: "👶", title: "Khám nhi", desc: "Chăm sóc sức khỏe trẻ em, tư vấn dinh dưỡng và tiêm chủng", image: "/images/hero-family.jpg" },
-  { icon: "🩻", title: "Chụp X-quang", desc: "Công nghệ hiện đại, chẩn đoán hình ảnh ngay tại phòng khám", image: "/images/clinic-xray.jpg" },
+  { icon: "🩸", title: "Đo đường huyết + điện tim", desc: "Tầm soát tiểu đường và bệnh tim mạch với thiết bị hiện đại ngay tại phòng khám", image: "/images/kham-benh.png" },
   { icon: "🏠", title: "Bác sĩ gia đình", desc: "Theo dõi sức khỏe định kỳ cho cả gia đình bạn", image: "/images/heart-care.jpg" },
   { icon: "💬", title: "Tư vấn trực tuyến", desc: "Chat với trợ lý AI 24/7 hoặc trực tiếp với bác sĩ", href: "/chat", image: "/images/tu-van.jpg" },
   { icon: "💊", title: "Nhà thuốc", desc: "Thuốc chính hãng, đặt online nhận tại phòng khám", href: "/medicines", image: "/images/pharmacy.jpg" },

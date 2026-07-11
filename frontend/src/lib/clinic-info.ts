@@ -9,14 +9,14 @@ export const CLINIC = {
   address: "An Hòa, Đồng Tháp, Việt Nam",
   phone: "0907 729 127",
   phoneHref: "tel:0907729127",
-  email: "phongkham@example.com",
+  email: "tranvanteo.b7719@gmail.com",
   workingHours: [
     { days: "Thứ 2 — Thứ 7", hours: "Sáng 6:00 – 7:30" },
     { days: "Thứ 2 — Thứ 7", hours: "Chiều 16:30 – 19:30" },
     { days: "Chủ nhật", hours: "Làm cả ngày" },
   ],
   doctor: {
-    name: "BS. Trần Nhựt Minh",
+    name: "BS. Trần Văn Tèo",
     title: "Bác sĩ Chuyên khoa I",
     education: "Tốt nghiệp Đại học Y Dược Cần Thơ",
     experience: "15 năm kinh nghiệm khám và điều trị",
