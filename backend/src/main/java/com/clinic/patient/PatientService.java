@@ -1,80 +1,116 @@
 package com.clinic.patient;
 
 import com.clinic.common.ApiException;
-import com.clinic.patient.PatientDtos.PatientDto;
-import com.clinic.patient.PatientDtos.UpsertRequest;
-import com.clinic.storage.SupabaseStorageService;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+interface PatientRepository extends JpaRepository<Patient, UUID> {
+
+    /** Search theo tên HOẶC SĐT — LUÔN kèm doctorId (cô lập dữ liệu). */
+    @Query("""
+        select p from Patient p
+        where p.doctorId = :doctorId and p.deletedAt is null
+          and (lower(p.fullName) like lower(concat('%', :q, '%'))
+               or p.phone like concat('%', :q, '%'))
+        order by p.createdAt desc
+        """)
+    Page<Patient> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
+
+    Optional<Patient> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
+}
 
 @Service
 @RequiredArgsConstructor
 public class PatientService {
 
-    private static final int SIGNED_URL_TTL_SECONDS = 3600;
+    private final PatientRepository repository;
 
-    private final PatientRepository patientRepository;
-    private final SupabaseStorageService storage;
+    public record UpsertRequest(
+        String fullName, String phone, String gender, String address,
+        boolean hasDrugAllergy, String drugAllergyNote,
+        boolean hasChronicCondition, String chronicConditionNote
+    ) {}
 
-    private static String sanitize(String q) {
-        return q == null ? "" : q.trim();
+    public record PatientDto(
+        UUID id, String fullName, String phone, String gender, String address,
+        boolean hasDrugAllergy, String drugAllergyNote,
+        boolean hasChronicCondition, String chronicConditionNote, Instant createdAt
+    ) {}
+
+    @Transactional(readOnly = true)
+    public Page<PatientDto> search(UUID doctorId, String q, int page, int size) {
+        var query = q == null ? "" : q.trim();
+        return repository.search(doctorId, query, PageRequest.of(page, Math.min(size, 100)))
+            .map(PatientService::toDto);
     }
 
     @Transactional(readOnly = true)
-    public Page<PatientDto> search(String q, int page, int size) {
-        return patientRepository.search(sanitize(q), PageRequest.of(page, Math.min(size, 100)))
-            .map(this::toDto);
-    }
-
-    @Transactional(readOnly = true)
-    public PatientDto get(UUID id) {
-        return toDto(find(id));
+    public PatientDto get(UUID doctorId, UUID id) {
+        return toDto(findOwned(doctorId, id));
     }
 
     @Transactional
-    public PatientDto create(UpsertRequest req) {
+    public PatientDto create(UUID doctorId, UpsertRequest req) {
         var p = new Patient();
+        p.setDoctorId(doctorId);
         apply(p, req);
-        return toDto(patientRepository.save(p));
+        return toDto(repository.save(p));
     }
 
     @Transactional
-    public PatientDto update(UUID id, UpsertRequest req) {
-        var p = find(id);
+    public PatientDto update(UUID doctorId, UUID id, UpsertRequest req) {
+        var p = findOwned(doctorId, id);
         apply(p, req);
-        return toDto(patientRepository.save(p));
+        return toDto(repository.save(p));
     }
 
     @Transactional
-    public void softDelete(UUID id) {
-        var p = find(id);
+    public void softDelete(UUID doctorId, UUID id) {
+        var p = findOwned(doctorId, id);
         p.setDeletedAt(Instant.now());
-        patientRepository.save(p);
+        repository.save(p);
     }
 
-    private Patient find(UUID id) {
-        return patientRepository.findByIdAndDeletedAtIsNull(id)
-            .orElseThrow(() -> ApiException.notFound("Không tìm thấy hồ sơ bệnh nhân"));
+    public Patient findOwned(UUID doctorId, UUID id) {
+        return repository.findByIdAndDoctorIdAndDeletedAtIsNull(id, doctorId)
+            .orElseThrow(() -> ApiException.notFound("Không tìm thấy bệnh nhân"));
+    }
+
+    /** Map id→Patient cho danh sách — CHỈ trả về bệnh nhân của doctor này. */
+    @Transactional(readOnly = true)
+    public java.util.Map<UUID, Patient> mapByIds(UUID doctorId, java.util.Collection<UUID> ids) {
+        return repository.findAllById(ids).stream()
+            .filter(p -> doctorId.equals(p.getDoctorId()))
+            .collect(java.util.stream.Collectors.toMap(Patient::getId, p -> p));
     }
 
     private void apply(Patient p, UpsertRequest req) {
+        if (req.fullName() == null || req.fullName().isBlank()) {
+            throw ApiException.badRequest("Thiếu tên bệnh nhân");
+        }
         p.setFullName(req.fullName().trim());
         p.setPhone(req.phone());
-        p.setAge(req.age());
-        // null = giữ ảnh cũ (form không gửi lại path khi không đổi ảnh)
-        if (req.photoPath() != null) p.setPhotoPath(req.photoPath());
-        p.setNote(req.note());
-        if (req.profileId() != null) p.setProfileId(req.profileId());
+        p.setGender(req.gender());
+        p.setAddress(req.address());
+        p.setHasDrugAllergy(req.hasDrugAllergy());
+        p.setDrugAllergyNote(req.hasDrugAllergy() ? req.drugAllergyNote() : null);
+        p.setHasChronicCondition(req.hasChronicCondition());
+        p.setChronicConditionNote(req.hasChronicCondition() ? req.chronicConditionNote() : null);
     }
 
-    private PatientDto toDto(Patient p) {
-        return new PatientDto(p.getId(), p.getFullName(), p.getPhone(), p.getAge(),
-            storage.signedUrl(p.getPhotoPath(), SIGNED_URL_TTL_SECONDS),
-            p.getNote(), p.getProfileId(), p.getCreatedAt());
+    private static PatientDto toDto(Patient p) {
+        return new PatientDto(p.getId(), p.getFullName(), p.getPhone(), p.getGender(),
+            p.getAddress(), p.isHasDrugAllergy(), p.getDrugAllergyNote(),
+            p.isHasChronicCondition(), p.getChronicConditionNote(), p.getCreatedAt());
     }
 }

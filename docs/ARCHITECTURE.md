@@ -1,176 +1,99 @@
-# Kiến trúc hệ thống
+# Kiến trúc hệ thống (từ pivot 2026-07-11 — multi-doctor nội bộ)
 
 ## Sơ đồ tổng quan
 
 ```
-[Browser]
+[Browser — chỉ bác sĩ & admin]
    │
-   ├── Next.js (Vercel) — UI Customer/Patient/Doctor, giỏ hàng localStorage,
-   │        │              Supabase JS chỉ dùng cho Auth (login/register/token)
+   ├── Next.js (Vercel) — login + app quản lý; KHÔNG còn trang public nào khác
    │        │  REST HTTPS + JWT Bearer
    │        ▼
-   └── Spring Boot API (Render) — toàn bộ business logic, verify JWT qua JWKS
-            │
-            ├── PostgreSQL (Supabase, JDBC pooler SESSION mode port 5432)
-            │      └── pgvector: bảng kb_chunks cho RAG
-            ├── Supabase Storage — ảnh thuốc (bucket public: medicine-images)
-            │                      ảnh y tế (bucket private: medical-docs, signed URL)
-            ├── Supabase Auth — đăng ký/đăng nhập, phát JWT
-            └── Gemini 2.5 Flash — intent classification + trả lời RAG
-                └── text-embedding-004 (768 chiều) — embedding cho kb_chunks
+   └── Spring Boot API (Cloud Run asia-southeast1) — mọi business logic
+            │      MỌI QUERY DỮ LIỆU BÁC SĨ ĐỀU LỌC doctor_id TỪ JWT (tầng service)
+            ├── PostgreSQL (Supabase, pooler session 5432)
+            ├── Supabase Auth — identity (username ⇔ email ảo @clinic.local, xem D15)
+            └── Gemini (gemini-3-flash-preview) — CHỈ classify intent + trích tham số cho chat
+                (không RAG, không sinh SQL tự do)
 ```
 
-Nguyên tắc: **frontend không bao giờ chạm trực tiếp Postgres**. Supabase JS phía FE chỉ làm Auth. Mọi dữ liệu đi qua Spring Boot. Migration schema bằng **Flyway** (`backend/src/main/resources/db/migration/`) — tự chạy khi backend khởi động.
+- Prod: FE https://medical-web-lime.vercel.app · BE https://clinic-backend-70334084165.asia-southeast1.run.app
+- CI/CD: push main → Vercel (FE) + GitHub Actions OIDC → Cloud Run (backend/**), xem docs/DEPLOY.md
 
-## ERD
+## ERD (V4)
 
 ```
-profiles (1-1 auth.users)          medicines
-├─ id uuid PK = auth.users.id      ├─ id uuid PK
-├─ role: PATIENT | DOCTOR          ├─ name, description
-├─ full_name, phone, avatar_url    ├─ image_path
-└─ timestamps                      ├─ cost_price, sale_price numeric(12,0)
-                                   ├─ expiry_date date
-patients (hồ sơ do Doctor tạo)     ├─ in_stock bool
-├─ id uuid PK                      └─ deleted_at, timestamps
-├─ profile_id uuid NULL ──→ profiles   (walk-in không có tài khoản → NULL)
-├─ full_name, phone NULL, age NULL, photo_path NULL, note
-└─ deleted_at, timestamps
+users (= bảng profiles cũ, 1-1 auth.users)     icd10_codes (dùng chung, seed sẵn)
+├─ id uuid PK = auth.users.id                  ├─ code text PK  (vd J00)
+├─ role: admin | doctor                        └─ name text     (tên tiếng Việt)
+├─ username text UNIQUE (đăng nhập)
+├─ full_name, phone, clinic_name (in trên đơn)
+├─ is_blocked bool default false  ← check MỖI request
+└─ created_at
 
-doctor_availability                appointments
-├─ weekday 0-6                     ├─ id uuid PK
-├─ start_time, end_time            ├─ profile_id ──→ profiles (người đặt)
-└─ slot_minutes                    ├─ slot_start, slot_end timestamptz
-                                   ├─ status: BOOKED|CONFIRMED|DONE|CANCELLED
-appointment_documents              ├─ note
-├─ appointment_id ──→ appointments └─ timestamps
-└─ image_path (giấy khám SK,           + partial UNIQUE(slot_start)
-   bucket private)                       WHERE status IN (BOOKED,CONFIRMED)  ← chống trùng giờ
+patients                                visits (lần khám)
+├─ id uuid PK                           ├─ id uuid PK
+├─ doctor_id ──→ users                  ├─ doctor_id, patient_id
+├─ full_name, phone, gender, address   ├─ visit_date timestamptz default now
+├─ has_drug_allergy + drug_allergy_note├─ diagnosis_code + diagnosis_name (snapshot, BẮT BUỘC)
+├─ has_chronic_condition + note        ├─ note
+└─ created_at                           └─ created_at
+   idx (doctor_id, full_name), (doctor_id, phone)      idx (doctor_id, visit_date desc)
 
-prescriptions                      prescription_items (SNAPSHOT giá — D11)
-├─ id uuid PK                      ├─ prescription_id ──→ prescriptions
-├─ patient_id ──→ patients         ├─ medicine_id NULL ──→ medicines
-├─ appointment_id NULL             ├─ medicine_name text   ← snapshot tên
-├─ symptoms, diagnosis text        ├─ quantity, dosage
-├─ exam_fee numeric                ├─ cost_price, sale_price ← snapshot giá
-└─ deleted_at, created_at          prescription_images
-                                   ├─ prescription_id, image_path
-                                   └─ kind: XRAY|ECG|OTHER
+prescriptions (1:1 visit)               prescription_items (snapshot)
+├─ id, doctor_id, visit_id UNIQUE       ├─ prescription_id, medicine_id NULL
+└─ created_at, printed_at NULL          ├─ medicine_name, base_unit (snapshot)
+                                        ├─ dose_morning/noon/afternoon/evening numeric
+                                        ├─ special_dose_text, usage_note, num_days
+                                        ├─ total_quantity_base numeric
+                                        └─ is_injection bool
 
-cart_items                         orders / order_items
-├─ profile_id + medicine_id UNIQUE ├─ orders: profile_id, status, pickup_code(6 ký tự),
-└─ quantity                        │    total_amount, payment_method=COUNTER,
-                                   │    deleted_at, created_at
-                                   │    status: PENDING|CONFIRMED|READY|COMPLETED|CANCELLED
-                                   └─ order_items: snapshot name+giá như prescription_items
+medicines (kho — MỖI bác sĩ riêng)      medicine_units (quy đổi)
+├─ id, doctor_id, name                  ├─ medicine_id
+├─ is_injection (→ chỉ đơn vị ống)      ├─ unit_name: chai|hop|vi|vien|goi|ong
+├─ base_unit text                       ├─ level_order int (lớn→nhỏ)
+├─ stock_base_qty numeric (CÓ THỂ ÂM)   └─ factor_to_base numeric
+└─ low_stock_threshold int default 30
+   idx (doctor_id, name)
 
-conversations                      kb_documents / kb_chunks (RAG)
-├─ profile_id NULL (ẩn danh)       ├─ kb_documents: title, category(CLINIC|DOCTOR|SERVICE|FAQ), content
-├─ anon_key uuid NULL              └─ kb_chunks: document_id, content,
-├─ status: AI|WAITING_DOCTOR|             embedding vector(768), HNSW index
-│          WITH_DOCTOR|CLOSED
-└─ messages: sender USER|AI|DOCTOR, content, created_at
+medicine_templates (thuốc mẫu)
+├─ id, doctor_id, medicine_id NULL, name
+├─ default_dose_* ×4, default_usage_note, default_num_days
 ```
 
-Doanh thu = tổng hợp từ `prescriptions.exam_fee` + `prescription_items` (khám trực tiếp) + `order_items` của orders COMPLETED (bán online). Lãi gộp = Σ(sale_price − cost_price) × quantity.
+## API contract (prefix /api, JWT bắt buộc trừ login phía Supabase)
 
-## API contract (REST, prefix `/api`)
-
-| Nhóm | Endpoint chính | Quyền |
+| Nhóm | Endpoint | Quyền |
 |---|---|---|
-| Public | `GET /public/medicines`, `GET /public/medicines/{id}`, `GET /public/clinic-info`, `GET /public/appointments/slots?date=` | permitAll |
-| Chat | `POST /chat/messages` (anon: kèm `anonKey`; Patient: JWT), `GET /chat/conversations/{id}/messages` | permitAll + JWT |
-| Patient | `GET/PUT /me/profile` · `GET/POST/DELETE /me/cart` + `POST /me/cart/merge` · `POST /me/orders` (từ cart) + `GET /me/orders` · `POST /me/appointments` + `POST /me/appointments/{id}/documents` + `DELETE /me/appointments/{id}` · `GET /me/prescriptions` | ROLE_PATIENT |
-| Doctor | CRUD `/doctor/medicines` · `GET /doctor/medicines/suggest?q=` (autocomplete ảnh+tên) · `GET/PATCH /doctor/appointments` · CRUD `/doctor/patients` · `POST /doctor/prescriptions` + `GET /doctor/prescriptions?date=` · `PATCH /doctor/orders/{id}/status` · `GET /doctor/chat/inbox` + `POST /doctor/chat/{id}/reply` · `GET /doctor/revenue?period=day|week|month` · CRUD `/doctor/kb` (tài liệu RAG, tự re-embed) | ROLE_DOCTOR |
+| Admin | `GET/POST /admin/doctors`, `PATCH /admin/doctors/{id}/block` `/unblock` | ROLE_ADMIN |
+| Me | `GET /me/profile` | đăng nhập |
+| Patients | CRUD `/doctor/patients` + `?q=` (tên/SĐT) + `GET /{id}/visits` | ROLE_DOCTOR |
+| ICD-10 | `GET /doctor/icd10?q=` (2 chiều code/name, limit 20) | ROLE_DOCTOR |
+| Medicines | CRUD `/doctor/medicines` (+units), `GET ?q=`, `POST /{id}/adjust-stock` {entries:[{unitName,qty}], reason}, `GET /low-stock`, `GET /suggest?q=` (ưu tiên template) | ROLE_DOCTOR |
+| Templates | CRUD `/doctor/templates` | ROLE_DOCTOR |
+| Visits + Rx | `POST /doctor/visits` {patientId, diagnosisCode/Name, note, items[]} → tạo visit + prescription + trừ kho 1 transaction; `GET /doctor/visits?date=&from=&to=`; `GET /doctor/visits/{id}` (kèm đơn); `GET /doctor/patients/{id}/last-prescription` (copy đơn); `POST /doctor/prescriptions/{id}/printed` | ROLE_DOCTOR |
+| Chat | `POST /doctor/chat` {question} → intent+params (Gemini) → query template → kết quả cấu trúc | ROLE_DOCTOR |
 
-Quy ước: Patient endpoints lấy identity **từ JWT `sub`**, không bao giờ tin id trong request. Response lỗi thống nhất `{ "code": ..., "message": ... }`. DTO riêng — không expose entity.
+Cô lập: mọi service method nhận `doctorId` (từ JWT sub) và mọi repository query có điều kiện doctor_id.
+Admin không có endpoint nào đọc dữ liệu lâm sàng.
 
-## Auth & phân quyền
+## Chat nội bộ — intent & template (không RAG)
 
-1. FE đăng ký/đăng nhập bằng `@supabase/supabase-js` → nhận `access_token`.
-2. FE gửi `Authorization: Bearer <token>` → Spring (oauth2 resource server) verify chữ ký qua JWKS: `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json`.
-3. Role KHÔNG lấy từ JWT claim mà đọc từ bảng `profiles` theo `sub` (cache in-memory) — tránh phải cấu hình Auth Hook, và đổi role có hiệu lực ngay.
-4. Đăng ký mới → backend tự tạo `profiles` với role PATIENT ở lần gọi API đầu (upsert). Tài khoản Doctor: seed thủ công bằng SQL (chỉ 1 bác sĩ).
+Intent seed (mở rộng dần): `PATIENTS_BY_DATE` (khoảng ngày), `VISITS_BY_DATE`,
+`INJECTION_PRESCRIPTIONS_BY_DATE`, `PATIENT_HISTORY` (tên bệnh nhân), `LOW_STOCK`,
+`MEDICINE_STOCK` (tên thuốc). Gemini trả JSON {intent, params}; backend validate whitelist
+intent + parse params → chạy JPQL/SQL dựng sẵn có `:doctorId`. LLM không bao giờ chạm DB.
 
-## Luồng chat 2 tầng
+## In đơn thuốc
 
-```
-User gửi message
-  → conversation.status == WITH_DOCTOR? → lưu, chờ Doctor trả lời (realtime: polling 5s giai đoạn đầu)
-  → ngược lại: Gemini classify intent
-       ├─ CLINIC_INFO / DOCTOR_INFO / MEDICINE_INFO / FAQ
-       │     → embed câu hỏi → pgvector top-5 kb_chunks → Gemini trả lời với context
-       ├─ MY_ORDERS / MY_PRESCRIPTIONS (chỉ Patient — anon thì mời đăng nhập)
-       │     → query DB của chính user → Gemini tóm tắt
-       ├─ MEDICAL_QUESTION hoặc red-flag keywords (đau ngực, khó thở, chảy máu...)
-       │     → KHÔNG trả lời chuyên môn + disclaimer + nút "Gặp bác sĩ"
-       │       (red-flag → tự động chuyển WAITING_DOCTOR)
-       ├─ MEET_DOCTOR → status = WAITING_DOCTOR, hiện trong inbox Doctor
-       └─ SMALLTALK/OTHER → trả lời ngắn, gợi ý chức năng
-```
+Trang `/print/prescriptions/{id}` phía Next.js: render đơn (tên phòng khám = users.clinic_name,
+tên bác sĩ, bệnh nhân, chẩn đoán, bảng thuốc liều 4 buổi + cách dùng + số ngày) với CSS
+`@media print`; nút In gọi `window.print()` và POST /printed để lưu printed_at.
 
-Guardrail cứng (system prompt + code): LLM không chẩn đoán, không kê đơn, không gợi ý liều lượng.
+## Trạng thái triển khai
 
-## Cấu trúc thư mục
-
-```
-backend/src/main/java/com/clinic/
-├── config/          SecurityConfig, CorsConfig, CacheConfig
-├── common/          ApiException, GlobalExceptionHandler, ErrorResponse
-├── auth/            ProfileEntity, ProfileService (upsert + role lookup), JwtRoleFilter
-├── medicine/        entity/repo/service/controller + MedicineSuggestDto
-├── cart/            CartItem..., CartController (kèm merge)
-├── order/           Order, OrderItem, trạng thái + pickup code
-├── appointment/     Appointment, DoctorAvailability, SlotService (tính giờ trống)
-├── patient/         PatientEntity... (hồ sơ Doctor tạo)
-├── prescription/    Prescription, Items, Images
-├── chat/            Conversation, Message, IntentService, RagService, GeminiClient
-├── kb/              KbDocument, KbChunk, EmbeddingService (chunking + re-embed)
-├── storage/         SupabaseStorageService (signed URL, upload)
-└── revenue/         RevenueService (aggregate queries), RevenueController
-
-frontend/src/
-├── app/
-│   ├── (public)/    page.tsx (trang chủ), medicines/, cart/, chat/
-│   ├── (auth)/      login/, register/
-│   ├── account/     orders/, appointments/, prescriptions/   ← Patient
-│   ├── booking/
-│   └── doctor/      dashboard/, medicines/, appointments/, patients/,
-│                    prescriptions/, orders/, chat/, revenue/  ← Doctor
-├── components/      ui chung (theo feature khi phình to)
-├── lib/             supabase.ts (Auth), api.ts (fetch wrapper + Bearer), cart.ts (localStorage)
-└── middleware.ts    chặn /doctor/** và /account/** khi chưa đăng nhập
-```
-
-## Môi trường & deploy
-
-| Biến | Nơi đặt |
-|---|---|
-| `DATABASE_URL` (jdbc:postgresql://...pooler.supabase.com:5432/postgres), `DATABASE_USERNAME`, `DATABASE_PASSWORD` | Render |
-| `SUPABASE_URL`, `SUPABASE_JWKS_URI`, `SUPABASE_SERVICE_ROLE_KEY` (chỉ backend — KHÔNG bao giờ đưa lên FE) | Render |
-| `GEMINI_API_KEY`, `FRONTEND_ORIGIN` | Render |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL` | Vercel |
-
-- CORS: chỉ allow `FRONTEND_ORIGIN` + `http://localhost:3000`.
-- RLS: bật deny-all trên các bảng public schema (backend kết nối bằng role `postgres` nên không bị chặn; chặn được truy cập lậu qua anon key).
-- Render free tier ngủ sau 15' — chấp nhận giai đoạn đầu, nâng cấp khi dùng thật với bệnh nhân.
-
-## Trạng thái hiện tại
-
-- [x] Scaffold Next.js (`frontend/`) + Spring Boot (`backend/`)
-- [x] V1 migration (schema đầy đủ)
-- [x] SecurityConfig + CORS + cấu hình env
-- [x] Flyway V1 đã chạy trên DB thật; auth end-to-end đã test (login Supabase → JWT ES256 → role DOCTOR từ DB → qua hasRole)
-- [x] Seed tài khoản Doctor: `admin@clinic.local` (profiles.role=DOCTOR; trang login sẽ map alias "admin" → email này)
-- [x] Module medicines: kho thuốc Doctor + cửa hàng public + upload ảnh + suggest autocomplete
-- [x] Module cart/order: giỏ DB (merge từ localStorage), đặt hàng snapshot giá, mã nhận hàng 6 ký tự (bỏ ký tự dễ nhầm), state machine PENDING→CONFIRMED→READY→COMPLETED/CANCELLED, Patient tự hủy khi PENDING
-- [x] Module appointments: lịch làm việc, slot trống theo giờ VN, đặt/hủy, giấy khám (private bucket + signed URL)
-- [x] Module patients + prescriptions: hồ sơ bệnh nhân, kê đơn autocomplete, ảnh bệnh, snapshot giá
-- [x] Module revenue: ngày/tuần/tháng, lãi gộp, lịch sử khám kèm giá gốc
-- [x] Module chat 2 tầng: Gemini (`gemini-flash-latest`) intent + RAG pgvector (`gemini-embedding-001` 768d),
-      red-flag tự chuyển bác sĩ, inbox Doctor, quản lý KB tự re-embed (/doctor/kb)
-- [x] 2 bucket Storage: `medicine-images` (public), `medical-docs` (private)
-- [x] Seed KB đầu tiên (thông tin phòng khám) — Doctor bổ sung thêm qua /doctor/kb
-
-**Backlog sau MVP:** thanh toán QR (webhook SePay/PayOS), nhắc lịch/tái khám (Zalo/SMS),
-xuất đơn thuốc PDF, cờ thuốc Rx/OTC, realtime chat (thay polling 5s), thống kê biểu đồ.
+- [x] Docs cập nhật theo đặc tả mới
+- [ ] V4 migration + seed ICD-10
+- [ ] Backend: auth admin/doctor + is_blocked, admin quản lý bác sĩ
+- [ ] Backend: patients, medicines+units, icd10, visits+prescriptions (+trừ kho, copy đơn), templates, history, chat
+- [ ] Frontend: login-only public + app doctor/admin + trang in
+- [ ] Test cô lập doctor_id + quy đổi kho, deploy

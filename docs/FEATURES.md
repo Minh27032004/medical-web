@@ -1,77 +1,96 @@
-# Đặc tả chức năng (đã chốt với chủ dự án — 2026-07-10)
+# Đặc tả chức năng — Hệ thống quản lý phòng khám (Multi-doctor)
 
-Nguồn sự thật về nghiệp vụ. Mọi thay đổi phạm vi phải cập nhật file này.
+> **PIVOT 2026-07-11**: dự án đổi hướng hoàn toàn theo `dac-ta-he-thong-phong-kham_1.md`
+> (chủ dự án cung cấp). Web **nội bộ cho bác sĩ** — KHÔNG còn phần dành cho bệnh nhân
+> (cửa hàng, đặt lịch, chat công khai đã gỡ bỏ). Public chỉ còn màn hình đăng nhập.
 
-## 1. Vai trò & quyền
+## 1. Tổng quan
 
-| Hành động | Customer (vãng lai) | Patient (đăng nhập) | Doctor |
-|---|---|---|---|
-| Xem cửa hàng thuốc | ✅ | ✅ | ✅ |
-| Thêm giỏ hàng | ✅ (localStorage) | ✅ (DB) | — |
-| Mua thuốc / đặt lịch | ❌ → yêu cầu đăng nhập | ✅ | — |
-| Chat tư vấn tầng LLM | ✅ (chỉ thông tin chung) | ✅ (+ ngữ cảnh cá nhân: lịch sử mua hàng, lịch sử khám) | — |
-| Chat với bác sĩ (tầng 2) | ❌ | ✅ | ✅ (trả lời) |
-| Quản lý kho thuốc, đơn thuốc, doanh thu | — | — | ✅ |
+- **Nhiều bác sĩ**, mỗi bác sĩ = một "phòng khám" dữ liệu **độc lập hoàn toàn**: bệnh nhân,
+  kho thuốc, đơn thuốc, thuốc mẫu riêng. Bác sĩ chỉ thấy dữ liệu của chính mình.
+- Luồng chính: tạo bệnh nhân → mở bệnh nhân → tạo lần khám (chẩn đoán ICD-10 **bắt buộc**)
+  → tạo đơn thuốc → in đơn. Kho tự trừ khi kê đơn.
+- **Không** liên thông Đơn thuốc Quốc gia, **không** ký số (hệ nội bộ). Schema đơn thuốc giữ
+  đủ trường để mở rộng sau (Thông tư 26/2025/TT-BYT bắt buộc kê đơn điện tử liên thông nếu
+  dùng chính thức).
 
-Đăng ký/đăng nhập qua **Supabase Auth**. Customer → Patient chỉ bằng cách đăng nhập; không có 2 loại tài khoản riêng.
+## 2. Vai trò
 
-## 2. Cửa hàng thuốc
+| Vai trò | Quyền |
+|---|---|
+| **Admin** | Tạo tài khoản bác sĩ; khóa/mở khóa (`is_blocked`); xem danh sách bác sĩ. KHÔNG truy cập dữ liệu lâm sàng. |
+| **Doctor** | Toàn quyền CRUD trên dữ liệu của CHÍNH MÌNH. |
 
-- Doctor thêm/sửa thuốc: **tên, ảnh chụp, giá gốc, giá bán, hạn sử dụng (HSD)**.
-- **Không quản lý số lượng tồn kho** — chỉ có cờ `in_stock` để Doctor bật/tắt "còn hàng/hết hàng". Thuốc hết hàng hoặc hết HSD tự ẩn khỏi cửa hàng (không xóa — giữ lịch sử giá cho đơn cũ).
-- Patient/Customer xem danh sách, tìm kiếm; chỉ Patient mua được.
+**Cô lập dữ liệu (yêu cầu bảo mật số 1):** mọi bảng thuộc bác sĩ có `doctor_id`; mọi truy vấn
+đọc/ghi lọc theo `doctor_id` lấy từ JWT — thực thi ở tầng API, không chỉ ẩn UI.
 
-## 3. Đặt hàng & thanh toán
+## 3. Module
 
-- **Nhận thuốc tại phòng khám — KHÔNG ship.**
-- Trạng thái đơn: `PENDING → CONFIRMED → READY → COMPLETED / CANCELLED`.
-- Sinh **mã nhận hàng** cho Patient đưa Doctor đối chiếu khi đến lấy.
-- Thanh toán giai đoạn đầu: **trả tại quầy**. Thanh toán QR ngân hàng: **để sau** (đã quyết định hoãn).
+### 3.1 Quản lý tài khoản (Admin)
+Tạo bác sĩ (username, mật khẩu tạm, họ tên, tên phòng khám, SĐT); khóa/mở khóa; danh sách.
+Tài khoản bị khóa không đăng nhập được (check mỗi request).
 
-## 4. Đặt lịch khám (cập nhật 2026-07-11)
+### 3.2 Bệnh nhân (Doctor)
+- Tạo/sửa: họ tên, SĐT, giới tính, địa chỉ (tùy chọn); **dị ứng thuốc** & **bệnh nền** là
+  checkbox → tick mới hiện ô nhập ghi chú. (Phòng khám người lớn — không có trường nhi khoa.)
+- **Search nhanh theo tên HOẶC SĐT.**
+- Mở bệnh nhân → thông tin + lịch sử các lần khám.
 
-- Patient **tự nhập giờ khám** (định dạng 24h HH:MM, có chip gợi ý mốc giờ): phải nằm trong
-  giờ làm việc của thứ đó (đọc từ doctor_availability), **sau thời điểm hiện tại**, tối đa
-  **7 ngày** tới.
-- **Nhiều bệnh nhân được đặt CÙNG khung giờ** — phòng khám khám theo thứ tự đến (quyết định
-  của chủ dự án, đã gỡ ràng buộc chống chồng lấn V2 bằng V3).
-- Đặt thành công → **thông báo chuông** cho Doctor.
-- Patient có thể **upload ảnh giấy khám sức khỏe** để Doctor xem trước buổi khám.
-- Có hủy/đổi lịch. Trạng thái: `BOOKED → CONFIRMED → DONE / CANCELLED`.
+### 3.3 Lần khám & ICD-10
+- Chẩn đoán **bắt buộc**, tra ICD-10 **hai chiều**: gõ mã `J00` + space/enter → tự hiện tên;
+  gõ một phần tên → gợi ý danh sách mã. Lưu snapshot cả `diagnosis_code` + `diagnosis_name`.
+- Bảng `icd10_codes` seed sẵn, dùng chung (không gắn doctor_id).
 
-## 4b. Thông báo cho Doctor (chuông trên header)
+### 3.4 Đơn thuốc (1:1 với lần khám)
+- Dòng thuốc: **autocomplete theo tên** kèm tồn kho (đơn vị nhỏ nhất); gợi ý **ưu tiên thuốc
+  mẫu** (tự điền liều mặc định), cũng chọn được thuốc kho trực tiếp.
+- Liều: 4 ô **Sáng–Trưa–Chiều–Tối** (số lượng mỗi buổi) + 1 ô **nhập tự do** cho ca đặc biệt.
+- Cách dùng (trước/sau ăn...) tùy chọn; **số ngày dùng** để tính tổng.
+- Tick **"có tiêm thuốc"** → hiện ô thuốc tiêm (`is_injection`, đơn vị `ống`).
+- **Tạo lại đơn gần nhất**: copy toàn bộ dòng thuốc từ lần khám gần nhất sang lần mới
+  (không ghi đè lịch sử cũ).
+- Lưu đơn → **trừ kho** (mục 4.3) trong 1 transaction.
+- **In đơn**: tên phòng khám, tên bác sĩ, thông tin bệnh nhân, chẩn đoán, thuốc + liều +
+  cách dùng + số ngày.
 
-- 3 loại: lịch hẹn mới, đơn hàng mới, bệnh nhân chờ tư vấn (kể cả red-flag).
-- Badge số chưa đọc (poll 30s), bấm item → đánh dấu đã đọc + nhảy tới trang tương ứng,
-  có "đánh dấu đã đọc hết".
+### 3.5 Kho thuốc (Doctor) — CÓ quản lý tồn kho
+- CRUD thuốc + khai báo đơn vị & tỷ lệ quy đổi (mục 4). Search theo tên.
+- Chỉnh tay tồn (± theo đơn vị bất kỳ, quy về base; ghi lý do tùy chọn).
+- **Cảnh báo sắp hết** khi `stock_base_qty < low_stock_threshold` (mặc định 30).
+- Hiển thị tồn quy ngược lên đơn vị lớn (vd 210 viên → "4 hộp 2 vĩ").
 
-## 5. Khám bệnh & đơn thuốc (phía Doctor)
+### 3.6 Lịch sử khám
+Mặc định 30 ngày gần nhất, filter theo ngày; bấm một lần khám → hiện đơn thuốc hôm đó.
 
-- Bệnh nhân mới: Doctor tạo hồ sơ — **ảnh, tên, SĐT, tuổi** (các trường có thể bỏ trống).
-- Sau khám, Doctor tạo **đơn thuốc** gồm:
-  - Triệu chứng bệnh
-  - Ảnh bệnh (X-quang, điện tim, ...) — nhiều ảnh
-  - Chẩn đoán
-  - Danh sách thuốc: mỗi dòng có nút **(+)** thêm dòng mới; ô tên thuốc có **autocomplete trực quan (ảnh + tên)** lấy từ kho thuốc của Doctor
-- Đơn thuốc lưu **snapshot giá** (giá gốc + giá bán tại thời điểm kê).
+### 3.7 Chat nội bộ (KHÔNG RAG)
+- Trả lời câu hỏi truy vấn dữ liệu của chính bác sĩ: "danh sách bệnh nhân hôm nay",
+  "các đơn có tiêm thuốc hôm nay"...
+- LLM chỉ **phân loại intent + trích tham số** (khoảng ngày, có tiêm, tên bệnh nhân...) →
+  map vào **query template dựng sẵn** luôn kèm `doctor_id = current`. KHÔNG cho LLM sinh SQL tự do.
 
-## 6. Chat tư vấn 2 tầng
+## 4. Logic kho & quy đổi đơn vị (quan trọng nhất)
 
-- **Tầng 1 — LLM (Gemini 2.5 Flash)**: phân loại intent → RAG trên các chunk thông tin phòng khám, bác sĩ, dịch vụ, thuốc (pgvector trên Supabase). Patient có thêm intent cá nhân ("lịch sử mua hàng của tôi", "lịch sử khám của tôi").
-- **Tầng 2 — Doctor**: khi intent vượt phạm vi (triệu chứng, chẩn đoán, kê đơn) hoặc người dùng yêu cầu → chuyển sang chat với bác sĩ.
-- **Guardrail bắt buộc**: LLM không chẩn đoán, không kê đơn; từ khóa nguy hiểm (đau ngực, khó thở...) → chuyển bác sĩ ngay + disclaimer.
+### 4.1 Khai báo
+Thứ tự lớn→nhỏ: **chai > hộp > vĩ > viên > gói**; thuốc tiêm dùng riêng **ống** (tick ống thì
+ẩn đơn vị khác). Bác sĩ tick các đơn vị áp dụng + nhập tỷ lệ giữa 2 cấp liền kề. Đơn vị nhỏ
+nhất được tick = `base_unit`; hệ thống tính `factor_to_base` từng đơn vị.
+VD Paracetamol: hộp/vĩ/viên, 1 hộp = 5 vĩ, 1 vĩ = 10 viên → base=viên, vĩ=10, hộp=50.
 
-## 7. Doanh thu & lịch sử (phía Doctor)
+### 4.2 Nhập kho
+Quy hết về base rồi cộng `stock_base_qty`. Nhập hỗn hợp được: 3 hộp + 5 vĩ + 10 viên = 210 viên.
+Hiển thị tồn: chia lấy dư lớn→nhỏ (210 → 4 hộp 2 vĩ).
 
-- Xem doanh thu theo **ngày / tuần / tháng**; hiển thị cả **lãi gộp** (giá bán − giá gốc) và tách nguồn thu (tiền khám vs tiền thuốc).
-- Lịch sử khám: list đơn thuốc theo ngày, kèm giá gốc và **tổng doanh thu từng ngày** hiển thị kế bên.
+### 4.3 Kê đơn → trừ kho
+```
+liều/ngày = sáng + trưa + chiều + tối
+total_quantity_base = liều/ngày × num_days
+stock_base_qty -= total_quantity_base   (trong transaction với lưu đơn)
+```
+Thuốc tiêm: base = ống, không quy đổi, nhập bao nhiêu trừ bấy nhiêu.
 
-## 8. Backlog (chưa làm — đã ghi nhận)
+### 4.4 Snapshot
+`prescription_items` lưu snapshot tên thuốc + đơn vị + liều — đơn cũ bất biến khi kho đổi.
 
-- Thanh toán QR ngân hàng (webhook SePay/Casso/PayOS)
-- Nhắc lịch hẹn / nhắc tái khám (Zalo/SMS/email)
-- Cờ thuốc kê đơn (Rx) vs OTC — chặn Customer mua thuốc kê đơn tự do
-- Xuất đơn thuốc PDF / in
-- Ghi chú riêng tư của Doctor về bệnh nhân
-- Thống kê thuốc bán chạy, biểu đồ doanh thu
-- Cảnh báo thuốc sắp hết HSD trên dashboard Doctor
+## 5. Thứ tự triển khai (theo đặc tả §8)
+1. Auth + admin → 2. Bệnh nhân → 3. Kho + quy đổi → 4. ICD-10 → 5. Khám + đơn + mẫu + trừ kho
++ in → 6. Copy đơn gần nhất → 7. Lịch sử → 8. Chat template.

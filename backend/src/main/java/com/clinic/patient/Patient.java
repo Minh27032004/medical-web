@@ -14,10 +14,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
-/**
- * Hồ sơ bệnh nhân do Doctor tạo khi khám. profileId nullable —
- * bệnh nhân walk-in không có tài khoản vẫn có hồ sơ (D2).
- */
+/** Bệnh nhân — thuộc về MỘT bác sĩ (doctor_id, cô lập tuyệt đối). Phòng khám người lớn. */
 @Entity
 @Table(name = "patients")
 @Getter
@@ -30,21 +27,30 @@ public class Patient {
     @UuidGenerator
     private UUID id;
 
-    @Column(name = "profile_id")
-    private UUID profileId;
+    @Column(name = "doctor_id", nullable = false, updatable = false)
+    private UUID doctorId;
 
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
     private String phone;
 
-    private Integer age;
+    /** male | female | other — tùy chọn. */
+    private String gender;
 
-    /** Ảnh chân dung — bucket PRIVATE (dữ liệu định danh bệnh nhân). */
-    @Column(name = "photo_path")
-    private String photoPath;
+    private String address;
 
-    private String note;
+    @Column(name = "has_drug_allergy", nullable = false)
+    private boolean hasDrugAllergy = false;
+
+    @Column(name = "drug_allergy_note")
+    private String drugAllergyNote;
+
+    @Column(name = "has_chronic_condition", nullable = false)
+    private boolean hasChronicCondition = false;
+
+    @Column(name = "chronic_condition_note")
+    private String chronicConditionNote;
 
     @Column(name = "deleted_at")
     private Instant deletedAt;

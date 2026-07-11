@@ -1,5 +1,6 @@
 package com.clinic.auth;
 
+import com.clinic.common.ApiException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,14 +14,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class MeController {
 
-    private final ProfileService profileService;
+    private final UserRepository userRepository;
 
-    public record ProfileResponse(UUID id, String role, String fullName, String phone) {}
+    public record MeResponse(UUID id, String role, String username, String fullName,
+                             String phone, String clinicName) {}
 
-    /** Identity luôn lấy từ JWT sub — không bao giờ nhận id từ client. */
     @GetMapping("/profile")
-    public ProfileResponse myProfile(@AuthenticationPrincipal Jwt jwt) {
-        var p = profileService.getOrCreate(UUID.fromString(jwt.getSubject()));
-        return new ProfileResponse(p.getId(), p.getRole(), p.getFullName(), p.getPhone());
+    public MeResponse myProfile(@AuthenticationPrincipal Jwt jwt) {
+        var u = userRepository.findById(UUID.fromString(jwt.getSubject()))
+            .orElseThrow(() -> ApiException.notFound("Không tìm thấy tài khoản"));
+        return new MeResponse(u.getId(), u.getRole(), u.getUsername(), u.getFullName(),
+            u.getPhone(), u.getClinicName());
     }
 }

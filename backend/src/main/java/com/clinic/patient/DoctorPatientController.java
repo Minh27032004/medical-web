@@ -1,15 +1,13 @@
 package com.clinic.patient;
 
-import com.clinic.patient.PatientDtos.PatientDto;
-import com.clinic.patient.PatientDtos.UpsertRequest;
-import com.clinic.prescription.PrescriptionDtos.PrescriptionDto;
-import com.clinic.prescription.PrescriptionService;
-import jakarta.validation.Valid;
-import java.util.List;
+import com.clinic.patient.PatientService.PatientDto;
+import com.clinic.patient.PatientService.UpsertRequest;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,42 +25,41 @@ import org.springframework.web.bind.annotation.RestController;
 public class DoctorPatientController {
 
     private final PatientService patientService;
-    private final PrescriptionService prescriptionService;
+
+    private static UUID doctorId(Jwt jwt) {
+        return UUID.fromString(jwt.getSubject());
+    }
 
     @GetMapping
     public Page<PatientDto> search(
+        @AuthenticationPrincipal Jwt jwt,
         @RequestParam(defaultValue = "") String q,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
-        return patientService.search(q, page, size);
+        return patientService.search(doctorId(jwt), q, page, size);
     }
 
     @GetMapping("/{id}")
-    public PatientDto get(@PathVariable UUID id) {
-        return patientService.get(id);
-    }
-
-    /** Lịch sử khám của một bệnh nhân. */
-    @GetMapping("/{id}/prescriptions")
-    public List<PrescriptionDto> prescriptions(@PathVariable UUID id) {
-        return prescriptionService.listByPatient(id);
+    public PatientDto get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return patientService.get(doctorId(jwt), id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PatientDto create(@Valid @RequestBody UpsertRequest req) {
-        return patientService.create(req);
+    public PatientDto create(@AuthenticationPrincipal Jwt jwt, @RequestBody UpsertRequest req) {
+        return patientService.create(doctorId(jwt), req);
     }
 
     @PutMapping("/{id}")
-    public PatientDto update(@PathVariable UUID id, @Valid @RequestBody UpsertRequest req) {
-        return patientService.update(id, req);
+    public PatientDto update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                             @RequestBody UpsertRequest req) {
+        return patientService.update(doctorId(jwt), id, req);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
-        patientService.softDelete(id);
+    public void delete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        patientService.softDelete(doctorId(jwt), id);
     }
 }

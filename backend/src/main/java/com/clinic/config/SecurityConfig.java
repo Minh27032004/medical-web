@@ -1,6 +1,6 @@
 package com.clinic.config;
 
-import com.clinic.auth.ProfileRoleConverter;
+import com.clinic.auth.UserRoleConverter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import javax.crypto.spec.SecretKeySpec;
@@ -29,7 +29,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final ProfileRoleConverter profileRoleConverter;
+    private final UserRoleConverter userRoleConverter;
 
     @Value("${app.frontend-origin}")
     private String frontendOrigin;
@@ -47,15 +47,15 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // API stateless + JWT Bearer, không dùng cookie phiên
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Hệ NỘI BỘ (D13): không còn endpoint public nào ngoài health check
                 .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/api/chat/**").permitAll() // chat cho cả khách vãng lai; controller tự phân biệt
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/doctor/**").hasRole("DOCTOR")
                 .requestMatchers("/api/me/**").authenticated()
                 .anyRequest().denyAll())
             .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwtAuthenticationConverter(profileRoleConverter)));
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(userRoleConverter)));
         return http.build();
     }
 

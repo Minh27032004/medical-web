@@ -2,6 +2,36 @@
 
 Mỗi quyết định ghi: bối cảnh → quyết định → lý do. Muốn làm khác đi phải bàn với chủ dự án trước, không tự ý.
 
+## D13 — PIVOT: hệ nội bộ multi-doctor, bỏ toàn bộ phần bệnh nhân (2026-07-11) ⭐
+
+Chủ dự án cung cấp đặc tả mới (`dac-ta-he-thong-phong-kham_1.md`): web nội bộ cho NHIỀU bác sĩ,
+mỗi bác sĩ dữ liệu độc lập (doctor_id), có Admin quản lý tài khoản. **Gỡ bỏ**: cửa hàng thuốc
+công khai, giỏ hàng, đặt lịch của bệnh nhân, chat công khai/RAG, thông báo chuông, doanh thu,
+Supabase Storage ảnh. Public chỉ còn login. **Các ADR bị vô hiệu**: D2 (customer/patient),
+D3 (không tồn kho — giờ CÓ quản lý tồn + quy đổi đơn vị), D4 (QR), D7 phần RAG (chat mới =
+intent → query template, không vector).
+
+## D14 — Giữ stack Spring Boot + Supabase (2026-07-11)
+
+Đặc tả *đề xuất* Next.js full-stack + Prisma + NextAuth (cho team làm mới từ đầu). Quyết định:
+**giữ nguyên** Spring Boot API + Next.js FE + Supabase Postgres + Cloud Run + CI/CD đã chạy —
+mọi yêu cầu chức năng map được 1:1, viết lại chỉ tốn công không thêm giá trị. Chủ dự án yêu cầu
+"fix code" chứ không phải rewrite.
+
+## D15 — Đăng nhập bằng username, map sang email ảo Supabase (2026-07-11)
+
+Đặc tả yêu cầu username + password, admin cấp tài khoản, có `is_blocked`. Giữ Supabase Auth làm
+identity: username `teo` ⇔ email ảo `teo@clinic.local` (FE map khi login, backend tạo user qua
+Admin API với email_confirm=true). `is_blocked` nằm ở bảng users (profiles cũ) — check trong
+JWT converter mỗi request, bị khóa → 403 ngay cả khi token còn hạn.
+
+## D16 — Tồn kho theo đơn vị nhỏ nhất (2026-07-11)
+
+`stock_base_qty` luôn lưu theo base_unit; nhập/chỉnh/trừ đều quy về base qua `factor_to_base`;
+hiển thị quy ngược lớn→nhỏ. Trừ kho khi lưu đơn nằm CÙNG transaction với tạo đơn. **Cho phép
+tồn âm** (kèm cảnh báo đỏ): sổ sách lệch thực tế không được phép chặn việc kê đơn cho bệnh nhân —
+bác sĩ đối soát và chỉnh tay sau. Đây là hệ hỗ trợ, thuốc thật nằm trong tủ của bác sĩ.
+
 ## D1 — Một phòng khám duy nhất (2026-07-10)
 Ban đầu định làm đa phòng khám (multi-tenant), sau đổi thành **1 phòng khám**. Không thiết kế bảng `clinics`, không tenant_id.
 

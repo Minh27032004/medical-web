@@ -1,0 +1,74 @@
+package com.clinic.visit;
+
+import com.clinic.visit.VisitService.CreateRequest;
+import com.clinic.visit.VisitService.ItemDto;
+import com.clinic.visit.VisitService.VisitDetail;
+import com.clinic.visit.VisitService.VisitRow;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/doctor")
+@RequiredArgsConstructor
+public class DoctorVisitController {
+
+    private final VisitService visitService;
+
+    private static UUID doctorId(Jwt jwt) {
+        return UUID.fromString(jwt.getSubject());
+    }
+
+    /** Tạo lần khám + đơn thuốc + trừ kho — một transaction. */
+    @PostMapping("/visits")
+    @ResponseStatus(HttpStatus.CREATED)
+    public VisitDetail create(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateRequest req) {
+        return visitService.create(doctorId(jwt), req);
+    }
+
+    /** Lịch sử khám — mặc định 30 ngày gần nhất, filter theo ngày (§5.6). */
+    @GetMapping("/visits")
+    public List<VisitRow> history(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return visitService.history(doctorId(jwt), from, to);
+    }
+
+    @GetMapping("/visits/{id}")
+    public VisitDetail detail(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return visitService.detail(doctorId(jwt), id);
+    }
+
+    @GetMapping("/patients/{patientId}/visits")
+    public List<VisitRow> visitsOfPatient(@AuthenticationPrincipal Jwt jwt,
+                                          @PathVariable UUID patientId) {
+        return visitService.visitsOfPatient(doctorId(jwt), patientId);
+    }
+
+    /** Nút "Tạo lại đơn gần nhất" — trả các dòng thuốc của lần khám trước để FE điền form. */
+    @GetMapping("/patients/{patientId}/last-prescription")
+    public List<ItemDto> lastPrescription(@AuthenticationPrincipal Jwt jwt,
+                                          @PathVariable UUID patientId) {
+        return visitService.lastPrescriptionItems(doctorId(jwt), patientId);
+    }
+
+    @PostMapping("/prescriptions/{id}/printed")
+    public void markPrinted(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        visitService.markPrinted(doctorId(jwt), id);
+    }
+}
