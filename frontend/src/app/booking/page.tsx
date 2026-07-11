@@ -147,7 +147,8 @@ export default function BookingPage() {
     <div className="max-w-2xl mx-auto">
       <h1 className="text-xl font-bold mb-1">Đặt lịch khám</h1>
       <p className="text-sm text-gray-500 mb-4">
-        Nhận đặt trước tối đa {MAX_DAYS} ngày. Mỗi lượt khám 30 phút.
+        Nhận đặt trước tối đa {MAX_DAYS} ngày. Nhiều người có thể đặt cùng khung giờ —
+        bác sĩ khám theo thứ tự đến.
       </p>
 
       <p className="text-sm font-medium mb-2">1️⃣ Chọn ngày</p>
@@ -195,7 +196,7 @@ export default function BookingPage() {
 
       {slots.some((s) => s.available) && (
         <>
-          <p className="text-xs text-gray-500 mb-1.5">Hoặc bấm nhanh giờ còn trống:</p>
+          <p className="text-xs text-gray-500 mb-1.5">Hoặc bấm nhanh mốc giờ gợi ý:</p>
           <div className="flex flex-wrap gap-1.5 mb-4">
             {slots
               .filter((s) => s.available)

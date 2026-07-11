@@ -7,6 +7,7 @@ import { createSupabaseClient } from "@/lib/supabase";
 import { api } from "@/lib/api";
 import { getLocalCart } from "@/lib/cart";
 import { CLINIC } from "@/lib/clinic-info";
+import NotificationBell from "@/components/NotificationBell";
 import type { Profile } from "@/lib/types";
 
 const DOCTOR_MENU = [
@@ -128,6 +129,7 @@ export default function Header() {
           </nav>
 
           <div className="flex items-center gap-3 ml-auto text-sm">
+            {isDoctor && <NotificationBell />}
             <Link href="/cart" className="relative p-1.5 hover:text-blue-700" title="Giỏ hàng">
               <span className="text-xl">🛒</span>
               {cartCount > 0 && (

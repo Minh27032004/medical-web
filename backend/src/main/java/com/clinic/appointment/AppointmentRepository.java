@@ -16,8 +16,4 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 
     List<Appointment> findBySlotStartBetweenAndStatusInOrderBySlotStart(
         Instant from, Instant to, List<AppointmentStatus> statuses);
-
-    /** Có lịch active nào giao với khoảng [start, end) không — check sớm cho UX. */
-    boolean existsBySlotStartLessThanAndSlotEndGreaterThanAndStatusIn(
-        Instant end, Instant start, List<AppointmentStatus> statuses);
 }

@@ -35,6 +35,7 @@ public class AppointmentService {
     private final DoctorAvailabilityRepository availabilityRepository;
     private final ProfileRepository profileRepository;
     private final SupabaseStorageService storage;
+    private final com.clinic.notification.NotificationService notificationService;
 
     // ===== Slot trống (public) =====
 
@@ -44,13 +45,7 @@ public class AppointmentService {
         var windows = availabilityRepository.findByWeekdayOrderByStartTime(weekday);
         if (windows.isEmpty()) return List.of();
 
-        var dayStart = date.atStartOfDay(CLINIC_ZONE).toInstant();
-        var dayEnd = date.plusDays(1).atStartOfDay(CLINIC_ZONE).toInstant();
-        var taken = appointmentRepository
-            .findBySlotStartBetweenAndStatusInOrderBySlotStart(dayStart, dayEnd,
-                List.of(AppointmentStatus.BOOKED, AppointmentStatus.CONFIRMED))
-            .stream().map(Appointment::getSlotStart).collect(Collectors.toSet());
-
+        // Nhiều người được đặt cùng giờ (V3) → slot chỉ cần còn ở TƯƠNG LAI là gợi ý được
         var now = Instant.now();
         var slots = new ArrayList<Slot>();
         for (var w : windows) {
@@ -59,8 +54,7 @@ public class AppointmentService {
             var step = Duration.ofMinutes(w.getSlotMinutes());
             while (!cursor.plus(step).isAfter(windowEnd)) {
                 var end = cursor.plus(step);
-                boolean available = cursor.isAfter(now) && !taken.contains(cursor);
-                slots.add(new Slot(cursor, end, available));
+                slots.add(new Slot(cursor, end, cursor.isAfter(now)));
                 cursor = end;
             }
         }
@@ -93,24 +87,28 @@ public class AppointmentService {
             .orElseThrow(() -> ApiException.badRequest(
                 "Giờ này ngoài giờ làm việc của phòng khám — xem khung giờ bên trên"));
 
+        // Nhiều bệnh nhân được đặt CÙNG khung giờ — phòng khám khám theo thứ tự đến (V3)
         var slotEnd = slotStart.plus(Duration.ofMinutes(window.getSlotMinutes()));
-        if (appointmentRepository.existsBySlotStartLessThanAndSlotEndGreaterThanAndStatusIn(
-                slotEnd, slotStart,
-                List.of(AppointmentStatus.BOOKED, AppointmentStatus.CONFIRMED))) {
-            throw ApiException.conflict("Khung giờ này đã có người đặt — chọn giờ khác nhé");
-        }
 
         var appt = new Appointment();
         appt.setProfileId(profileId);
         appt.setSlotStart(slotStart);
         appt.setSlotEnd(slotEnd);
         appt.setNote(note);
-        try {
-            return toPatient(appointmentRepository.saveAndFlush(appt));
-        } catch (DataIntegrityViolationException e) {
-            // 2 người đặt chồng lấn cùng lúc — exclusion constraint (V2) chặn người sau
-            throw ApiException.conflict("Khung giờ này vừa có người đặt, chọn giờ khác nhé");
-        }
+        var saved = appointmentRepository.save(appt);
+
+        var patientName = profileRepository.findById(profileId)
+            .map(p -> p.getFullName() != null ? p.getFullName() : "Bệnh nhân")
+            .orElse("Bệnh nhân");
+        var timeLabel = java.time.format.DateTimeFormatter.ofPattern("HH:mm 'ngày' dd/MM")
+            .format(slotStart.atZone(CLINIC_ZONE));
+        notificationService.notify(
+            com.clinic.notification.Notification.TYPE_NEW_APPOINTMENT,
+            "📅 Lịch hẹn mới: " + patientName,
+            timeLabel + (note != null && !note.isBlank() ? " — " + note : ""),
+            "/doctor/appointments");
+
+        return toPatient(saved);
     }
 
     @Transactional(readOnly = true)

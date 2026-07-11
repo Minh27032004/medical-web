@@ -28,11 +28,22 @@ Nguồn sự thật về nghiệp vụ. Mọi thay đổi phạm vi phải cập
 - Sinh **mã nhận hàng** cho Patient đưa Doctor đối chiếu khi đến lấy.
 - Thanh toán giai đoạn đầu: **trả tại quầy**. Thanh toán QR ngân hàng: **để sau** (đã quyết định hoãn).
 
-## 4. Đặt lịch khám
+## 4. Đặt lịch khám (cập nhật 2026-07-11)
 
-- Patient chọn khung giờ trống (Doctor khai báo lịch làm việc; giờ đã đặt bị khóa — chống trùng).
+- Patient **tự nhập giờ khám** (định dạng 24h HH:MM, có chip gợi ý mốc giờ): phải nằm trong
+  giờ làm việc của thứ đó (đọc từ doctor_availability), **sau thời điểm hiện tại**, tối đa
+  **7 ngày** tới.
+- **Nhiều bệnh nhân được đặt CÙNG khung giờ** — phòng khám khám theo thứ tự đến (quyết định
+  của chủ dự án, đã gỡ ràng buộc chống chồng lấn V2 bằng V3).
+- Đặt thành công → **thông báo chuông** cho Doctor.
 - Patient có thể **upload ảnh giấy khám sức khỏe** để Doctor xem trước buổi khám.
 - Có hủy/đổi lịch. Trạng thái: `BOOKED → CONFIRMED → DONE / CANCELLED`.
+
+## 4b. Thông báo cho Doctor (chuông trên header)
+
+- 3 loại: lịch hẹn mới, đơn hàng mới, bệnh nhân chờ tư vấn (kể cả red-flag).
+- Badge số chưa đọc (poll 30s), bấm item → đánh dấu đã đọc + nhảy tới trang tương ứng,
+  có "đánh dấu đã đọc hết".
 
 ## 5. Khám bệnh & đơn thuốc (phía Doctor)
 

@@ -34,6 +34,7 @@ public class OrderService {
     private final MedicineRepository medicineRepository;
     private final ProfileRepository profileRepository;
     private final CartService cartService;
+    private final com.clinic.notification.NotificationService notificationService;
 
     // ===== Patient =====
 
@@ -65,6 +66,17 @@ public class OrderService {
 
         var saved = orderRepository.save(order);
         cartService.clear(profileId); // đã đặt xong thì dọn giỏ DB
+
+        var buyerName = profileRepository.findById(profileId)
+            .map(p -> p.getFullName() != null ? p.getFullName() : "Khách hàng")
+            .orElse("Khách hàng");
+        notificationService.notify(
+            com.clinic.notification.Notification.TYPE_NEW_ORDER,
+            "🛒 Đơn hàng mới: " + saved.getPickupCode(),
+            buyerName + " — " + saved.getItems().size() + " loại thuốc, tổng "
+                + saved.getTotalAmount() + "đ",
+            "/doctor/orders");
+
         return toPatient(saved);
     }
 

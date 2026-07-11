@@ -41,6 +41,20 @@ public class ChatService {
     private final PrescriptionService prescriptionService;
     private final KbService kbService;
     private final GeminiClient gemini;
+    private final com.clinic.notification.NotificationService notificationService;
+
+    /** Báo chuông cho bác sĩ khi có người chờ tư vấn trực tiếp. */
+    private void notifyDoctorWaiting(UUID profileId, String lastMessage) {
+        var name = profileId == null ? "Khách vãng lai"
+            : profileRepository.findById(profileId)
+                .map(p -> p.getFullName() != null ? p.getFullName() : "Bệnh nhân")
+                .orElse("Bệnh nhân");
+        notificationService.notify(
+            com.clinic.notification.Notification.TYPE_CHAT_WAITING,
+            "💬 " + name + " chờ tư vấn",
+            lastMessage.length() > 100 ? lastMessage.substring(0, 100) + "…" : lastMessage,
+            "/doctor/chat");
+    }
 
     public record MessageDto(UUID id, String sender, String content, Instant createdAt) {}
 
@@ -77,6 +91,7 @@ public class ChatService {
         var normalized = content.toLowerCase(Locale.ROOT);
         if (RED_FLAGS.stream().anyMatch(normalized::contains)) {
             conv.setStatus(Conversation.STATUS_WAITING_DOCTOR);
+            notifyDoctorWaiting(profileId, "⚠️ Triệu chứng nguy hiểm: " + content);
             save(conv.getId(), ChatMessage.SENDER_AI,
                 "⚠️ Triệu chứng bạn mô tả có thể nghiêm trọng. Tôi đã chuyển cuộc trò chuyện "
                 + "cho bác sĩ — bác sĩ sẽ trả lời sớm nhất. Nếu khẩn cấp, hãy gọi 115 hoặc "
@@ -93,6 +108,7 @@ public class ChatService {
                         + "Sau khi đăng nhập, bấm \"Gặp bác sĩ\" là được.";
                 }
                 conv.setStatus(Conversation.STATUS_WAITING_DOCTOR);
+                notifyDoctorWaiting(profileId, content);
                 yield "Tôi đã chuyển cuộc trò chuyện cho bác sĩ. Bác sĩ sẽ trả lời bạn sớm nhất có thể 🙌";
             }
             case "MEDICAL_QUESTION" -> gemini.generate(GUARDRAIL,
@@ -123,6 +139,7 @@ public class ChatService {
             save(conv.getId(), ChatMessage.SENDER_AI,
                 "Đã gửi yêu cầu tới bác sĩ — bác sĩ sẽ trả lời bạn tại đây.");
             conversationRepository.save(conv);
+            notifyDoctorWaiting(profileId, "Bệnh nhân bấm nút Nhắn tin trực tiếp");
         }
         return toState(conv);
     }
