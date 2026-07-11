@@ -6,7 +6,7 @@ export const CLINIC = {
   name: "Phòng Khám Gia Đình BS Minh",
   shortName: "PK BS Minh",
   slogan: "Sức khỏe của bạn — Sứ mệnh của chúng tôi",
-  address: "123 Nguyễn Trãi, Phường 7, Quận 5, TP.HCM",
+  address: "An Hòa, Đồng Tháp, Việt Nam",
   phone: "0907 729 127",
   phoneHref: "tel:0907729127",
   email: "phongkham@example.com",
@@ -26,8 +26,7 @@ export const CLINIC = {
     /** Iframe Google Maps — không cần API key */
     embedUrl:
       "https://maps.google.com/maps?q=10.746525519916984,105.38723131854084&z=17&hl=vi&output=embed",
-    /** Mở Google Maps chỉ đường tới phòng khám */
-    directionsUrl:
-      "https://www.google.com/maps/dir/?api=1&destination=10.746525519916984,105.38723131854084",
+    /** Link chia sẻ chính thức của phòng khám trên Google Maps */
+    directionsUrl: "https://maps.app.goo.gl/ofCMo2C9YAbjw4nG9",
   },
 };
