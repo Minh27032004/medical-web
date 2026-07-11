@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import ChatWidget from "@/components/ChatWidget";
 
 const inter = Inter({
   variable: "--font-geist-sans", // giữ tên biến để khớp globals.css của scaffold
@@ -25,6 +26,7 @@ export default function RootLayout({
         <Header />
         <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">{children}</main>
         <Footer />
+        <ChatWidget />
       </body>
     </html>
   );

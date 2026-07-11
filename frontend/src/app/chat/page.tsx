@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { formatChatHtml } from "@/lib/chat-format";
 import { createSupabaseClient } from "@/lib/supabase";
 
 interface ChatMessage {
@@ -148,7 +149,11 @@ export default function ChatPage() {
               }
             >
               {m.sender === "DOCTOR" && <p className="text-xs font-medium text-blue-700 mb-0.5">👨‍⚕️ Bác sĩ</p>}
-              {m.content}
+              {m.sender === "USER" ? (
+                m.content
+              ) : (
+                <div dangerouslySetInnerHTML={{ __html: formatChatHtml(m.content) }} />
+              )}
             </div>
           </div>
         ))}

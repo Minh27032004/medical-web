@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import ImageRotator from "@/components/ImageRotator";
 import FadeIn from "@/components/magicui/FadeIn";
 import Marquee from "@/components/magicui/Marquee";
 import NumberTicker from "@/components/magicui/NumberTicker";
@@ -22,9 +23,9 @@ const STEPS = [
 const SERVICES = [
   { icon: "🩺", title: "Khám nội tổng quát", desc: "Khám, chẩn đoán và điều trị các bệnh lý nội khoa thường gặp", image: "/images/kham-benh.png" },
   { icon: "👶", title: "Khám nhi", desc: "Chăm sóc sức khỏe trẻ em, tư vấn dinh dưỡng và tiêm chủng", image: "/images/hero-family.jpg" },
-  { icon: "🩻", title: "Chụp X-quang", desc: "Phòng chụp X-quang đạt chuẩn ngay tại phòng khám", image: "/images/clinic-xray.jpg" },
+  { icon: "🩻", title: "Chụp X-quang", desc: "Công nghệ hiện đại, chẩn đoán hình ảnh ngay tại phòng khám", image: "/images/clinic-xray.jpg" },
   { icon: "🏠", title: "Bác sĩ gia đình", desc: "Theo dõi sức khỏe định kỳ cho cả gia đình bạn", image: "/images/heart-care.jpg" },
-  { icon: "💬", title: "Tư vấn trực tuyến", desc: "Chat với trợ lý AI 24/7 hoặc trực tiếp với bác sĩ", href: "/chat" },
+  { icon: "💬", title: "Tư vấn trực tuyến", desc: "Chat với trợ lý AI 24/7 hoặc trực tiếp với bác sĩ", href: "/chat", image: "/images/tu-van.jpg" },
   { icon: "💊", title: "Nhà thuốc", desc: "Thuốc chính hãng, đặt online nhận tại phòng khám", href: "/medicines", image: "/images/pharmacy.jpg" },
 ];
 
@@ -200,15 +201,14 @@ export default function Home() {
       {/* ===== Giới thiệu bác sĩ ===== */}
       <section className="max-w-6xl mx-auto px-4 py-16 grid md:grid-cols-2 gap-10 items-center">
         <FadeIn>
-          {/* TODO: thay bằng ảnh chân dung thật của bác sĩ */}
           <div className="relative mx-auto w-fit">
             <div className="absolute -inset-3 rounded-3xl bg-blue-100 -rotate-2" />
-            <Image
-              src="/images/doctor-consult.jpg"
-              alt="Bác sĩ tư vấn cho bệnh nhân"
-              width={460}
-              height={310}
-              className="relative rounded-3xl shadow-xl object-cover w-115 h-78"
+            <ImageRotator
+              images={[
+                { src: "/images/doctor-portrait.png", alt: CLINIC.doctor.name },
+                { src: "/images/doctor-consult.jpg", alt: "Bác sĩ tư vấn cho bệnh nhân" },
+              ]}
+              className="relative rounded-3xl shadow-xl w-80 h-96 md:w-96"
             />
           </div>
         </FadeIn>
@@ -216,7 +216,7 @@ export default function Home() {
           <h2 className="text-2xl md:text-3xl font-bold text-blue-900">{CLINIC.doctor.name}</h2>
           <p className="text-blue-700 font-medium mt-1">{CLINIC.doctor.title}</p>
           <p className="text-gray-600 mt-4 leading-relaxed">
-            Tốt nghiệp Đại học Y Dược TP.HCM với {CLINIC.doctor.experience.toLowerCase()}.
+            {CLINIC.doctor.education}, {CLINIC.doctor.experience.toLowerCase()}.
             Phương châm khám bệnh: lắng nghe kỹ, giải thích rõ, chỉ định đúng — không lạm dụng
             thuốc và xét nghiệm.
           </p>

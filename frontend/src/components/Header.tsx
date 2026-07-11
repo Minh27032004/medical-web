@@ -97,7 +97,6 @@ export default function Header() {
             <Link href="/medicines" className="hover:text-blue-700">Nhà thuốc</Link>
             {!isDoctor && (
               <>
-                <Link href="/chat" className="hover:text-blue-700">Tư vấn</Link>
                 <Link href="/#services" className="hover:text-blue-700">Dịch vụ</Link>
                 <Link href="/#contact" className="hover:text-blue-700">Liên hệ</Link>
               </>
@@ -175,12 +174,7 @@ export default function Header() {
             {[
               { href: "/", label: "Trang chủ" },
               { href: "/medicines", label: "Nhà thuốc" },
-              ...(!isDoctor
-                ? [
-                    { href: "/booking", label: "Đặt lịch khám" },
-                    { href: "/chat", label: "Tư vấn" },
-                  ]
-                : []),
+              ...(!isDoctor ? [{ href: "/booking", label: "Đặt lịch khám" }] : []),
               ...(profile?.role === "PATIENT"
                 ? [
                     { href: "/account/appointments", label: "Lịch hẹn của tôi" },
