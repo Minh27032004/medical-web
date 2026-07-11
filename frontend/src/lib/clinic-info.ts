@@ -20,4 +20,14 @@ export const CLINIC = {
     title: "Chuyên khoa Nội tổng quát — Nhi khoa",
     experience: "15 năm kinh nghiệm khám và điều trị",
   },
+  map: {
+    lat: 10.746525519916984,
+    lng: 105.38723131854084,
+    /** Iframe Google Maps — không cần API key */
+    embedUrl:
+      "https://maps.google.com/maps?q=10.746525519916984,105.38723131854084&z=17&hl=vi&output=embed",
+    /** Mở Google Maps chỉ đường tới phòng khám */
+    directionsUrl:
+      "https://www.google.com/maps/dir/?api=1&destination=10.746525519916984,105.38723131854084",
+  },
 };

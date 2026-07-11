@@ -46,6 +46,11 @@ export default function Footer() {
               ☎ <a href={CLINIC.phoneHref} className="text-amber-400 font-semibold hover:underline">{CLINIC.phone}</a>
             </li>
             <li>✉ {CLINIC.email}</li>
+            <li>
+              <a href={CLINIC.map.directionsUrl} target="_blank" rel="noreferrer" className="hover:text-white">
+                🧭 Xem bản đồ & chỉ đường
+              </a>
+            </li>
           </ul>
         </div>
       </div>

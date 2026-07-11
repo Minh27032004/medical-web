@@ -157,6 +157,61 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ===== Liên hệ + bản đồ ===== */}
+      <section className="bg-white py-16">
+        <div className="max-w-6xl mx-auto px-4">
+          <h2 className="text-2xl md:text-3xl font-bold text-center text-blue-900">
+            Liên hệ & chỉ đường
+          </h2>
+          <p className="text-center text-gray-500 mt-2 mb-10">
+            Ghé thăm phòng khám hoặc gọi trước để được hỗ trợ nhanh nhất
+          </p>
+          <div className="grid md:grid-cols-5 gap-6 items-stretch">
+            <div className="md:col-span-2 space-y-4">
+              <div className="bg-blue-50 rounded-2xl p-5">
+                <p className="font-semibold text-blue-900 mb-1">📍 Địa chỉ</p>
+                <p className="text-sm text-gray-700">{CLINIC.address}</p>
+                <a
+                  href={CLINIC.map.directionsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block mt-3 text-sm bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-full"
+                >
+                  🧭 Chỉ đường trên Google Maps
+                </a>
+              </div>
+              <div className="bg-blue-50 rounded-2xl p-5">
+                <p className="font-semibold text-blue-900 mb-2">🕐 Giờ làm việc</p>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  {CLINIC.workingHours.map((w) => (
+                    <li key={w.days} className="flex justify-between gap-3">
+                      <span>{w.days}</span>
+                      <span className="text-gray-500">{w.hours}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="bg-blue-50 rounded-2xl p-5">
+                <p className="font-semibold text-blue-900 mb-1">☎ Hotline</p>
+                <a href={CLINIC.phoneHref} className="text-xl font-bold text-amber-600 hover:underline">
+                  {CLINIC.phone}
+                </a>
+              </div>
+            </div>
+            <div className="md:col-span-3 rounded-2xl overflow-hidden border shadow-sm min-h-80">
+              <iframe
+                src={CLINIC.map.embedUrl}
+                title={`Bản đồ ${CLINIC.name}`}
+                className="w-full h-full min-h-80"
+                loading="lazy"
+                allowFullScreen
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ===== CTA band ===== */}
       <section className="bg-gradient-to-r from-blue-800 to-blue-600 text-white">
         <div className="max-w-6xl mx-auto px-4 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
