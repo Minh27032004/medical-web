@@ -103,10 +103,10 @@ export default function BookingPage() {
             />
           </label>
           {uploadedCount > 0 && (
-            <p className="text-sm text-emerald-700">✓ Đã gửi {uploadedCount} ảnh</p>
+            <p className="text-sm text-blue-700">✓ Đã gửi {uploadedCount} ảnh</p>
           )}
         </div>
-        <Link href="/account/appointments" className="inline-block text-emerald-700 hover:underline">
+        <Link href="/account/appointments" className="inline-block text-blue-700 hover:underline">
           Xem lịch hẹn của tôi →
         </Link>
       </div>
@@ -126,7 +126,7 @@ export default function BookingPage() {
               key={v}
               onClick={() => setDate(v)}
               className={`shrink-0 border rounded-lg px-3 py-2 text-sm ${
-                date === v ? "bg-emerald-600 text-white border-emerald-600" : "bg-white hover:bg-gray-50"
+                date === v ? "bg-blue-600 text-white border-blue-600" : "bg-white hover:bg-gray-50"
               }`}
             >
               {d.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit" })}
@@ -149,9 +149,9 @@ export default function BookingPage() {
               onClick={() => setSelected(s.start)}
               className={`border rounded-lg py-2 text-sm ${
                 selected === s.start
-                  ? "bg-emerald-600 text-white border-emerald-600"
+                  ? "bg-blue-600 text-white border-blue-600"
                   : s.available
-                    ? "bg-white hover:bg-emerald-50"
+                    ? "bg-white hover:bg-blue-50"
                     : "bg-gray-100 text-gray-400 cursor-not-allowed line-through"
               }`}
             >
@@ -174,7 +174,7 @@ export default function BookingPage() {
       <button
         onClick={book}
         disabled={!selected || booking}
-        className="w-full bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+        className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
       >
         {booking ? "Đang đặt..." : "Xác nhận đặt lịch"}
       </button>

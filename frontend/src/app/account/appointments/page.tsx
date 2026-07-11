@@ -55,7 +55,7 @@ export default function MyAppointmentsPage() {
     return (
       <div className="text-center py-12 space-y-3">
         <p className="text-gray-500">Bạn chưa có lịch hẹn nào.</p>
-        <Link href="/booking" className="text-emerald-700 hover:underline">
+        <Link href="/booking" className="text-blue-700 hover:underline">
           Đặt lịch khám →
         </Link>
       </div>
@@ -68,7 +68,7 @@ export default function MyAppointmentsPage() {
         <h1 className="text-xl font-bold">Lịch hẹn của tôi</h1>
         <Link
           href="/booking"
-          className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+          className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           + Đặt lịch mới
         </Link>
@@ -96,7 +96,7 @@ export default function MyAppointmentsPage() {
             )}
             {(a.status === "BOOKED" || a.status === "CONFIRMED") && (
               <div className="flex gap-3 mt-3 pt-3 border-t text-sm">
-                <label className="text-emerald-700 cursor-pointer hover:underline">
+                <label className="text-blue-700 cursor-pointer hover:underline">
                   📎 Gửi ảnh giấy khám
                   <input
                     type="file"

@@ -70,16 +70,16 @@ export default function MedicinesPage() {
             <div className="p-3 flex flex-col gap-1 flex-1">
               <Link
                 href={`/medicines/${m.id}`}
-                className="font-medium text-sm hover:text-emerald-700 line-clamp-2"
+                className="font-medium text-sm hover:text-blue-700 line-clamp-2"
               >
                 {m.name}
               </Link>
-              <div className="text-emerald-700 font-semibold text-sm mt-auto">
+              <div className="text-blue-700 font-semibold text-sm mt-auto">
                 {formatVnd(m.salePrice)}
               </div>
               <button
                 onClick={() => handleAdd(m.id)}
-                className="mt-1 text-sm border border-emerald-600 text-emerald-700 rounded-lg py-1.5 hover:bg-emerald-50"
+                className="mt-1 text-sm border border-blue-600 text-blue-700 rounded-lg py-1.5 hover:bg-blue-50"
               >
                 {added === m.id ? "✓ Đã thêm" : "Thêm vào giỏ"}
               </button>

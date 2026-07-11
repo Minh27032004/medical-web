@@ -68,7 +68,7 @@ export default function DoctorMedicinesPage() {
           />
           <Link
             href="/doctor/medicines/new"
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-700"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
           >
             + Thêm thuốc
           </Link>
@@ -124,7 +124,7 @@ export default function DoctorMedicinesPage() {
                       onClick={() => toggleStock(m)}
                       className={
                         m.inStock
-                          ? "text-emerald-700 bg-emerald-50 px-2 py-1 rounded text-xs"
+                          ? "text-blue-700 bg-blue-50 px-2 py-1 rounded text-xs"
                           : "text-gray-500 bg-gray-100 px-2 py-1 rounded text-xs"
                       }
                     >
@@ -134,7 +134,7 @@ export default function DoctorMedicinesPage() {
                   <td className="p-3 text-right whitespace-nowrap">
                     <Link
                       href={`/doctor/medicines/${m.id}/edit`}
-                      className="text-emerald-700 hover:underline mr-3"
+                      className="text-blue-700 hover:underline mr-3"
                     >
                       Sửa
                     </Link>

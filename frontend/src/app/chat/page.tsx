@@ -79,7 +79,7 @@ export default function ChatPage() {
             ...s,
             messages: [
               ...s.messages,
-              { id: "tmp", sender: "USER", content, createdAt: new Date().toISOString() },
+              { id: `tmp-${Date.now()}`, sender: "USER", content, createdAt: new Date().toISOString() },
             ],
           }
         : s
@@ -113,7 +113,7 @@ export default function ChatPage() {
         {loggedIn && state?.status === "AI" && (
           <button
             onClick={meetDoctor}
-            className="text-sm border border-emerald-600 text-emerald-700 px-3 py-1.5 rounded-lg hover:bg-emerald-50"
+            className="text-sm border border-blue-600 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50"
           >
             👨‍⚕️ Gặp bác sĩ
           </button>
@@ -141,7 +141,7 @@ export default function ChatPage() {
             <div
               className={
                 m.sender === "USER"
-                  ? "bg-emerald-600 text-white rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
+                  ? "bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
                   : m.sender === "DOCTOR"
                     ? "bg-blue-50 border border-blue-200 rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
                     : "bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
@@ -169,7 +169,7 @@ export default function ChatPage() {
         <button
           onClick={send}
           disabled={sending || !input.trim()}
-          className="bg-emerald-600 text-white px-5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+          className="bg-blue-600 text-white px-5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           Gửi
         </button>

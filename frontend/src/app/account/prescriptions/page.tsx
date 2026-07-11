@@ -39,7 +39,7 @@ export default function MyPrescriptionsPage() {
               <span className="text-sm text-gray-500">
                 Khám ngày {new Date(rx.createdAt).toLocaleDateString("vi-VN")}
               </span>
-              <span className="text-sm font-semibold text-emerald-700">
+              <span className="text-sm font-semibold text-blue-700">
                 {formatVnd(rx.examFee + rx.medicineTotal)}
               </span>
             </div>

@@ -48,13 +48,27 @@ export function clearLocalCart() {
   save([]);
 }
 
-/** Gọi ngay sau khi đăng nhập thành công. */
+interface ServerCartLine {
+  medicineId: string;
+  quantity: number;
+}
+
+/**
+ * Gọi ngay sau khi đăng nhập: đẩy giỏ local lên DB (cộng dồn), rồi lấy giỏ DB
+ * ghi ngược về localStorage — localStorage vẫn là nguồn hiển thị duy nhất,
+ * nhưng không mất giỏ đã lưu từ phiên/máy trước.
+ */
 export async function mergeToServer() {
   const items = getLocalCart();
-  if (items.length === 0) return;
-  await api("/api/me/cart/merge", {
+  const serverCart = await api<ServerCartLine[]>("/api/me/cart/merge", {
     method: "POST",
     body: JSON.stringify({ items }),
   });
-  clearLocalCart();
+  localStorage.setItem(
+    KEY,
+    JSON.stringify(
+      serverCart.map((l) => ({ medicineId: l.medicineId, quantity: l.quantity }))
+    )
+  );
+  window.dispatchEvent(new Event("cart-changed"));
 }

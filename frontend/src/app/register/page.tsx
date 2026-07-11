@@ -52,7 +52,7 @@ export default function RegisterPage() {
     <div className="max-w-sm mx-auto py-10">
       <h1 className="text-2xl font-bold mb-6 text-center">Đăng ký tài khoản</h1>
       {notice ? (
-        <p className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg p-4 text-sm">
+        <p className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-4 text-sm">
           {notice}
         </p>
       ) : (
@@ -90,7 +90,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             {loading ? "Đang đăng ký..." : "Đăng ký"}
           </button>
@@ -98,7 +98,7 @@ export default function RegisterPage() {
       )}
       <p className="text-sm text-center mt-4 text-gray-600">
         Đã có tài khoản?{" "}
-        <Link href="/login" className="text-emerald-700 hover:underline">
+        <Link href="/login" className="text-blue-700 hover:underline">
           Đăng nhập
         </Link>
       </p>

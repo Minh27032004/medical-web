@@ -97,7 +97,7 @@ export default function DoctorOrdersPage() {
             }}
             className={`text-sm px-3 py-1.5 rounded-lg border ${
               tab === t.value && !code
-                ? "bg-emerald-600 text-white border-emerald-600"
+                ? "bg-blue-600 text-white border-blue-600"
                 : "bg-white hover:bg-gray-50"
             }`}
           >
@@ -145,7 +145,7 @@ export default function DoctorOrdersPage() {
 
             <div className="flex items-center justify-between mt-3 pt-3 border-t flex-wrap gap-2">
               <span className="font-semibold">
-                Tổng: <span className="text-emerald-700">{formatVnd(o.totalAmount)}</span>
+                Tổng: <span className="text-blue-700">{formatVnd(o.totalAmount)}</span>
               </span>
               <div className="flex gap-2">
                 {(NEXT_ACTIONS[o.status] ?? []).map((a) => (
@@ -155,7 +155,7 @@ export default function DoctorOrdersPage() {
                     className={
                       a.status === "CANCELLED"
                         ? "text-sm border border-red-300 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50"
-                        : "text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700"
+                        : "text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
                     }
                   >
                     {a.label}

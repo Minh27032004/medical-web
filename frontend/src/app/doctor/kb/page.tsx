@@ -68,7 +68,7 @@ export default function DoctorKbPage() {
         <h1 className="text-xl font-bold">Dữ liệu chatbot</h1>
         <button
           onClick={() => setEditing({ category: "CLINIC" })}
-          className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+          className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           + Thêm tài liệu
         </button>
@@ -111,7 +111,7 @@ export default function DoctorKbPage() {
             <button
               onClick={save}
               disabled={saving}
-              className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
             >
               {saving ? "Đang lưu + tạo embedding..." : "Lưu"}
             </button>
@@ -137,7 +137,7 @@ export default function DoctorKbPage() {
                 <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{CATEGORY_LABEL[d.category]}</span>
               </div>
               <div className="text-sm flex gap-3">
-                <button onClick={() => setEditing(d)} className="text-emerald-700 hover:underline">
+                <button onClick={() => setEditing(d)} className="text-blue-700 hover:underline">
                   Sửa
                 </button>
                 <button onClick={() => remove(d)} className="text-red-600 hover:underline">

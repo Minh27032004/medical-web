@@ -39,7 +39,7 @@ export default function DoctorPatientsPage() {
           />
           <Link
             href="/doctor/patients/new"
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-700"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
           >
             + Bệnh nhân mới
           </Link>
@@ -57,7 +57,7 @@ export default function DoctorPatientsPage() {
           <Link
             key={p.id}
             href={`/doctor/patients/${p.id}`}
-            className="bg-white border rounded-xl p-4 flex items-center gap-3 hover:border-emerald-400"
+            className="bg-white border rounded-xl p-4 flex items-center gap-3 hover:border-blue-400"
           >
             <div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden shrink-0">
               {p.photoUrl ? (

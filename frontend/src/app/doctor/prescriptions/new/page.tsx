@@ -91,7 +91,7 @@ function MedicineInput({
                 onChange({ medicineId: s.id, medicineName: s.name, salePrice: s.salePrice });
                 setOpen(false);
               }}
-              className="w-full flex items-center gap-3 p-2 hover:bg-emerald-50 text-left"
+              className="w-full flex items-center gap-3 p-2 hover:bg-blue-50 text-left"
             >
               <div className="w-9 h-9 bg-gray-100 rounded overflow-hidden shrink-0">
                 {s.imageUrl ? (
@@ -102,7 +102,7 @@ function MedicineInput({
                 )}
               </div>
               <span className="text-sm flex-1">{s.name}</span>
-              <span className="text-xs text-emerald-700">{formatVnd(s.salePrice)}</span>
+              <span className="text-xs text-blue-700">{formatVnd(s.salePrice)}</span>
             </button>
           ))}
         </div>
@@ -202,7 +202,7 @@ function PrescriptionForm() {
   return (
     <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-5">
       <h1 className="text-xl font-bold">
-        Tạo đơn thuốc {patient && <span className="text-emerald-700">— {patient.fullName}</span>}
+        Tạo đơn thuốc {patient && <span className="text-blue-700">— {patient.fullName}</span>}
       </h1>
 
       <div className="bg-white border rounded-xl p-5 space-y-4">
@@ -300,7 +300,7 @@ function PrescriptionForm() {
                 className="w-40 border rounded-lg px-3 py-2 text-sm"
               />
               {r.medicineId ? (
-                <span className="text-sm text-emerald-700 py-2 w-24 text-right">
+                <span className="text-sm text-blue-700 py-2 w-24 text-right">
                   {r.salePrice != null && formatVnd(r.salePrice * r.quantity)}
                 </span>
               ) : r.medicineName.trim() ? (
@@ -340,7 +340,7 @@ function PrescriptionForm() {
         <button
           type="button"
           onClick={() => setRows([...rows, emptyRow()])}
-          className="mt-3 text-sm border border-dashed border-emerald-400 text-emerald-700 rounded-lg px-4 py-2 hover:bg-emerald-50 w-full"
+          className="mt-3 text-sm border border-dashed border-blue-400 text-blue-700 rounded-lg px-4 py-2 hover:bg-blue-50 w-full"
         >
           + Thêm thuốc
         </button>
@@ -351,7 +351,7 @@ function PrescriptionForm() {
         <button
           type="submit"
           disabled={saving || uploading}
-          className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+          className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? "Đang lưu..." : "Lưu đơn thuốc"}
         </button>

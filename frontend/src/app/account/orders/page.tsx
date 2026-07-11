@@ -42,7 +42,7 @@ export default function MyOrdersPage() {
     return (
       <div className="text-center py-12 space-y-3">
         <p className="text-gray-500">Bạn chưa có đơn hàng nào.</p>
-        <Link href="/medicines" className="text-emerald-700 hover:underline">
+        <Link href="/medicines" className="text-blue-700 hover:underline">
           Xem cửa hàng thuốc →
         </Link>
       </div>
@@ -80,7 +80,7 @@ export default function MyOrdersPage() {
             </ul>
             <div className="flex items-center justify-between mt-3 pt-3 border-t">
               <span className="font-semibold">
-                Tổng: <span className="text-emerald-700">{formatVnd(o.totalAmount)}</span>
+                Tổng: <span className="text-blue-700">{formatVnd(o.totalAmount)}</span>
               </span>
               {o.status === "PENDING" && (
                 <button onClick={() => cancel(o)} className="text-red-600 text-sm hover:underline">

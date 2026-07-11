@@ -86,14 +86,14 @@ export default function CartPage() {
         <div className="text-5xl">✅</div>
         <h1 className="text-xl font-bold">Đặt hàng thành công!</h1>
         <p className="text-gray-600">Mã nhận hàng của bạn:</p>
-        <p className="text-4xl font-mono font-bold tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl py-4">
+        <p className="text-4xl font-mono font-bold tracking-widest text-blue-700 bg-blue-50 border border-blue-200 rounded-xl py-4">
           {placedOrder.pickupCode}
         </p>
         <p className="text-sm text-gray-600">
           Đưa mã này cho bác sĩ khi đến phòng khám nhận thuốc và thanh toán tại quầy
           ({formatVnd(placedOrder.totalAmount)}).
         </p>
-        <Link href="/account/orders" className="inline-block text-emerald-700 hover:underline">
+        <Link href="/account/orders" className="inline-block text-blue-700 hover:underline">
           Xem đơn hàng của tôi →
         </Link>
       </div>
@@ -106,7 +106,7 @@ export default function CartPage() {
     return (
       <div className="text-center py-12 space-y-3">
         <p className="text-gray-500">Giỏ hàng trống.</p>
-        <Link href="/medicines" className="text-emerald-700 hover:underline">
+        <Link href="/medicines" className="text-blue-700 hover:underline">
           Xem cửa hàng thuốc →
         </Link>
       </div>
@@ -129,7 +129,7 @@ export default function CartPage() {
             <div className="flex-1">
               <Link
                 href={`/medicines/${r.medicine.id}`}
-                className="font-medium hover:text-emerald-700"
+                className="font-medium hover:text-blue-700"
               >
                 {r.medicine.name}
               </Link>
@@ -150,14 +150,14 @@ export default function CartPage() {
         ))}
         <div className="flex justify-between items-center p-4 font-bold">
           <span>Tổng cộng</span>
-          <span className="text-emerald-700">{formatVnd(total)}</span>
+          <span className="text-blue-700">{formatVnd(total)}</span>
         </div>
       </div>
       {orderError && <p className="text-red-600 text-sm mt-3 text-center">{orderError}</p>}
       <button
         onClick={placeOrder}
         disabled={placing}
-        className="mt-4 w-full bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+        className="mt-4 w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
       >
         {placing ? "Đang đặt hàng..." : "Đặt hàng"}
       </button>

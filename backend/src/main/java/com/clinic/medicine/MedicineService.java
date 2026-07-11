@@ -39,8 +39,9 @@ public class MedicineService {
 
     @Transactional(readOnly = true)
     public PublicItem getForStore(UUID id) {
+        // isVisibleInStore: chặn cả thuốc hết hàng LẪN hết HSD — đồng bộ với danh sách
         var m = medicineRepository.findByIdAndDeletedAtIsNull(id)
-            .filter(Medicine::isInStock)
+            .filter(Medicine::isVisibleInStore)
             .orElseThrow(() -> ApiException.notFound("Không tìm thấy thuốc"));
         return toPublic(m);
     }

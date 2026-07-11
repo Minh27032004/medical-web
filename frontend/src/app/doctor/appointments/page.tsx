@@ -99,7 +99,7 @@ export default function DoctorAppointmentsPage() {
                     className={
                       act.status === "CANCELLED"
                         ? "text-sm border border-red-300 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50"
-                        : "text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700"
+                        : "text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
                     }
                   >
                     {act.label}
@@ -117,7 +117,7 @@ export default function DoctorAppointmentsPage() {
             {(a.status === "CONFIRMED" || a.status === "BOOKED") && (
               <a
                 href={`/doctor/patients/new?profileId=${a.profileId ?? ""}`}
-                className="inline-block text-sm text-emerald-700 hover:underline mt-1"
+                className="inline-block text-sm text-blue-700 hover:underline mt-1"
               >
                 → Tạo hồ sơ bệnh nhân từ lịch hẹn này
               </a>

@@ -5,11 +5,24 @@ import { useEffect, useState } from "react";
 import { createSupabaseClient } from "@/lib/supabase";
 import { api } from "@/lib/api";
 import { getLocalCart } from "@/lib/cart";
+import { CLINIC } from "@/lib/clinic-info";
 import type { Profile } from "@/lib/types";
+
+const DOCTOR_MENU = [
+  { href: "/doctor/appointments", label: "Lịch hẹn khám" },
+  { href: "/doctor/patients", label: "Bệnh nhân" },
+  { href: "/doctor/medicines", label: "Kho thuốc" },
+  { href: "/doctor/orders", label: "Đơn hàng" },
+  { href: "/doctor/chat", label: "Tư vấn bệnh nhân" },
+  { href: "/doctor/revenue", label: "Doanh thu" },
+  { href: "/doctor/schedule", label: "Lịch làm việc" },
+  { href: "/doctor/kb", label: "Dữ liệu chatbot" },
+];
 
 export default function Header() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [cartCount, setCartCount] = useState(0);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createSupabaseClient();
@@ -43,91 +56,146 @@ export default function Header() {
     window.location.href = "/";
   }
 
+  const isDoctor = profile?.role === "DOCTOR";
+
   return (
-    <header className="border-b bg-white sticky top-0 z-10">
-      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-6">
-        <Link href="/" className="font-bold text-emerald-700 text-lg">
-          🏥 Phòng khám
-        </Link>
-        <nav className="flex items-center gap-4 text-sm flex-1">
-          <Link href="/medicines" className="hover:text-emerald-700">
-            Cửa hàng thuốc
-          </Link>
-          <Link href="/cart" className="hover:text-emerald-700">
-            Giỏ hàng{cartCount > 0 && (
-              <span className="ml-1 bg-emerald-600 text-white rounded-full px-1.5 text-xs">
-                {cartCount}
-              </span>
-            )}
-          </Link>
-          {profile?.role !== "DOCTOR" && (
-            <>
-              <Link href="/booking" className="hover:text-emerald-700">
-                Đặt lịch khám
-              </Link>
-              <Link href="/chat" className="hover:text-emerald-700">
-                Tư vấn
-              </Link>
-            </>
-          )}
-          {profile?.role === "PATIENT" && (
-            <>
-              <Link href="/account/appointments" className="hover:text-emerald-700">
-                Lịch hẹn
-              </Link>
-              <Link href="/account/orders" className="hover:text-emerald-700">
-                Đơn hàng
-              </Link>
-              <Link href="/account/prescriptions" className="hover:text-emerald-700">
-                Đơn thuốc
-              </Link>
-            </>
-          )}
-          {profile?.role === "DOCTOR" && (
-            <>
-              <Link href="/doctor/appointments" className="hover:text-emerald-700 font-medium">
-                Lịch hẹn
-              </Link>
-              <Link href="/doctor/patients" className="hover:text-emerald-700 font-medium">
-                Bệnh nhân
-              </Link>
-              <Link href="/doctor/medicines" className="hover:text-emerald-700 font-medium">
-                Kho thuốc
-              </Link>
-              <Link href="/doctor/orders" className="hover:text-emerald-700 font-medium">
-                Đơn hàng
-              </Link>
-              <Link href="/doctor/schedule" className="hover:text-emerald-700 font-medium">
-                Lịch làm việc
-              </Link>
-              <Link href="/doctor/revenue" className="hover:text-emerald-700 font-medium">
-                Doanh thu
-              </Link>
-              <Link href="/doctor/chat" className="hover:text-emerald-700 font-medium">
-                Tư vấn
-              </Link>
-              <Link href="/doctor/kb" className="hover:text-emerald-700 font-medium">
-                Chatbot
-              </Link>
-            </>
-          )}
-        </nav>
-        <div className="text-sm flex items-center gap-3">
-          {profile ? (
-            <>
-              <span className="text-gray-600">
-                {profile.fullName ?? (profile.role === "DOCTOR" ? "Bác sĩ" : "Bệnh nhân")}
-              </span>
-              <button onClick={logout} className="text-red-600 hover:underline">
-                Đăng xuất
-              </button>
-            </>
-          ) : (
-            <Link href="/login" className="text-emerald-700 hover:underline">
-              Đăng nhập
-            </Link>
-          )}
+    <header className="sticky top-0 z-30 shadow-sm">
+      {/* Top bar: hotline + giờ làm việc */}
+      <div className="bg-blue-900 text-blue-100 text-xs">
+        <div className="max-w-6xl mx-auto px-4 h-8 flex items-center justify-between gap-4">
+          <span className="truncate">📍 {CLINIC.address}</span>
+          <div className="flex items-center gap-4 shrink-0">
+            <span className="hidden sm:inline">🕐 {CLINIC.workingHours[0].days}: {CLINIC.workingHours[0].hours}</span>
+            <a href={CLINIC.phoneHref} className="font-semibold text-white hover:text-amber-300">
+              ☎ {CLINIC.phone}
+            </a>
+          </div>
         </div>
+      </div>
+
+      {/* Main bar */}
+      <div className="bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white flex items-center justify-center text-xl shadow">
+              ⚕
+            </span>
+            <span className="leading-tight">
+              <span className="block font-bold text-blue-800">{CLINIC.shortName}</span>
+              <span className="block text-[11px] text-gray-500">Phòng khám gia đình</span>
+            </span>
+          </Link>
+
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-5 text-sm flex-1 justify-center">
+            <Link href="/" className="hover:text-blue-700">Trang chủ</Link>
+            <Link href="/medicines" className="hover:text-blue-700">Nhà thuốc</Link>
+            {!isDoctor && (
+              <>
+                <Link href="/chat" className="hover:text-blue-700">Tư vấn</Link>
+                <Link href="/#services" className="hover:text-blue-700">Dịch vụ</Link>
+                <Link href="/#contact" className="hover:text-blue-700">Liên hệ</Link>
+              </>
+            )}
+            {profile?.role === "PATIENT" && (
+              <div className="relative group">
+                <button className="hover:text-blue-700 py-2">Hồ sơ của tôi ▾</button>
+                <div className="absolute top-full left-0 bg-white border rounded-xl shadow-lg py-2 w-44 hidden group-hover:block">
+                  <Link href="/account/appointments" className="block px-4 py-2 hover:bg-blue-50">Lịch hẹn</Link>
+                  <Link href="/account/orders" className="block px-4 py-2 hover:bg-blue-50">Đơn hàng</Link>
+                  <Link href="/account/prescriptions" className="block px-4 py-2 hover:bg-blue-50">Đơn thuốc</Link>
+                </div>
+              </div>
+            )}
+            {isDoctor && (
+              <div className="relative group">
+                <button className="font-medium text-blue-800 hover:text-blue-600 py-2">
+                  🩺 Quản lý phòng khám ▾
+                </button>
+                <div className="absolute top-full left-0 bg-white border rounded-xl shadow-lg py-2 w-52 hidden group-hover:block">
+                  {DOCTOR_MENU.map((m) => (
+                    <Link key={m.href} href={m.href} className="block px-4 py-2 hover:bg-blue-50">
+                      {m.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </nav>
+
+          <div className="flex items-center gap-3 ml-auto text-sm">
+            <Link href="/cart" className="relative p-1.5 hover:text-blue-700" title="Giỏ hàng">
+              <span className="text-xl">🛒</span>
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-amber-500 text-white rounded-full min-w-4.5 h-4.5 px-1 text-[10px] flex items-center justify-center font-bold">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+            {profile ? (
+              <>
+                <span className="hidden sm:inline text-gray-600 max-w-28 truncate">
+                  {profile.fullName ?? (isDoctor ? "Bác sĩ" : "Bệnh nhân")}
+                </span>
+                <button onClick={logout} className="text-gray-500 hover:text-red-600" title="Đăng xuất">
+                  Thoát
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="text-blue-700 hover:underline shrink-0">
+                Đăng nhập
+              </Link>
+            )}
+            {!isDoctor && (
+              <Link
+                href="/booking"
+                className="hidden sm:inline-block bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2 rounded-full shadow-sm shrink-0"
+              >
+                Đặt lịch ngay
+              </Link>
+            )}
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="md:hidden text-2xl leading-none p-1"
+              aria-label="Menu"
+            >
+              ☰
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile nav */}
+        {mobileOpen && (
+          <nav className="md:hidden border-t px-4 py-3 space-y-1 text-sm bg-white">
+            {[
+              { href: "/", label: "Trang chủ" },
+              { href: "/medicines", label: "Nhà thuốc" },
+              ...(!isDoctor
+                ? [
+                    { href: "/booking", label: "Đặt lịch khám" },
+                    { href: "/chat", label: "Tư vấn" },
+                  ]
+                : []),
+              ...(profile?.role === "PATIENT"
+                ? [
+                    { href: "/account/appointments", label: "Lịch hẹn của tôi" },
+                    { href: "/account/orders", label: "Đơn hàng của tôi" },
+                    { href: "/account/prescriptions", label: "Đơn thuốc của tôi" },
+                  ]
+                : []),
+              ...(isDoctor ? DOCTOR_MENU : []),
+            ].map((m) => (
+              <Link
+                key={m.href}
+                href={m.href}
+                onClick={() => setMobileOpen(false)}
+                className="block py-2 px-2 rounded-lg hover:bg-blue-50"
+              >
+                {m.label}
+              </Link>
+            ))}
+          </nav>
+        )}
       </div>
     </header>
   );

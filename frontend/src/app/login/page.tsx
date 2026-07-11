@@ -76,14 +76,14 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+          className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
       </form>
       <p className="text-sm text-center mt-4 text-gray-600">
         Chưa có tài khoản?{" "}
-        <Link href="/register" className="text-emerald-700 hover:underline">
+        <Link href="/register" className="text-blue-700 hover:underline">
           Đăng ký
         </Link>
       </p>

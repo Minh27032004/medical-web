@@ -131,7 +131,7 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
         <button
           type="submit"
           disabled={saving || uploading}
-          className="bg-emerald-600 text-white px-5 py-2.5 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+          className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? "Đang lưu..." : initial ? "Cập nhật" : "Tạo hồ sơ"}
         </button>

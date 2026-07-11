@@ -71,7 +71,7 @@ export default function PatientDetailPage({
         <div className="flex flex-col gap-2">
           <Link
             href={`/doctor/prescriptions/new?patientId=${patient.id}`}
-            className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-center"
+            className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-center"
           >
             + Tạo đơn thuốc
           </Link>
@@ -92,7 +92,7 @@ export default function PatientDetailPage({
               <span className="text-sm text-gray-500">
                 {new Date(rx.createdAt).toLocaleString("vi-VN")}
               </span>
-              <span className="text-sm font-semibold text-emerald-700">
+              <span className="text-sm font-semibold text-blue-700">
                 {formatVnd(rx.examFee + rx.medicineTotal)}
               </span>
             </div>

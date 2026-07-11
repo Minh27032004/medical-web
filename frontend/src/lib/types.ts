@@ -110,7 +110,7 @@ export const APPT_STATUS_LABEL: Record<AppointmentStatus, string> = {
 export const APPT_STATUS_COLOR: Record<AppointmentStatus, string> = {
   BOOKED: "bg-amber-50 text-amber-700",
   CONFIRMED: "bg-blue-50 text-blue-700",
-  DONE: "bg-emerald-50 text-emerald-700",
+  DONE: "bg-blue-50 text-blue-700",
   CANCELLED: "bg-gray-100 text-gray-500",
 };
 
@@ -173,6 +173,6 @@ export const ORDER_STATUS_COLOR: Record<OrderStatus, string> = {
   PENDING: "bg-amber-50 text-amber-700",
   CONFIRMED: "bg-blue-50 text-blue-700",
   READY: "bg-purple-50 text-purple-700",
-  COMPLETED: "bg-emerald-50 text-emerald-700",
+  COMPLETED: "bg-blue-50 text-blue-700",
   CANCELLED: "bg-gray-100 text-gray-500",
 };

@@ -65,7 +65,7 @@ export default function RevenuePage() {
               key={p}
               onClick={() => setPeriod(p)}
               className={`text-sm px-3 py-1.5 rounded-lg border ${
-                period === p ? "bg-emerald-600 text-white border-emerald-600" : "bg-white hover:bg-gray-50"
+                period === p ? "bg-blue-600 text-white border-blue-600" : "bg-white hover:bg-gray-50"
               }`}
             >
               {PERIOD_LABEL[p]}
@@ -91,11 +91,11 @@ export default function RevenuePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <div className="bg-white border rounded-xl p-4">
               <p className="text-sm text-gray-500">Tổng thu</p>
-              <p className="text-xl font-bold text-emerald-700">{formatVnd(summary.grandTotal)}</p>
+              <p className="text-xl font-bold text-blue-700">{formatVnd(summary.grandTotal)}</p>
             </div>
             <div className="bg-white border rounded-xl p-4">
               <p className="text-sm text-gray-500">Lãi gộp</p>
-              <p className="text-xl font-bold text-emerald-700">{formatVnd(summary.grossProfit)}</p>
+              <p className="text-xl font-bold text-blue-700">{formatVnd(summary.grossProfit)}</p>
             </div>
             <div className="bg-white border rounded-xl p-4">
               <p className="text-sm text-gray-500">Tiền công khám</p>
@@ -155,7 +155,7 @@ export default function RevenuePage() {
                   <div className="text-right shrink-0 border-l pl-4">
                     <p className="text-sm text-gray-500">Khám: {formatVnd(rx.examFee)}</p>
                     <p className="text-sm text-gray-500">Thuốc: {formatVnd(rx.medicineTotal)}</p>
-                    <p className="font-bold text-emerald-700 mt-1">{formatVnd(total)}</p>
+                    <p className="font-bold text-blue-700 mt-1">{formatVnd(total)}</p>
                     <p className="text-xs text-gray-500">lãi {formatVnd(profit)}</p>
                   </div>
                 </div>

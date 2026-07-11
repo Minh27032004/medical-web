@@ -112,7 +112,7 @@ export default function DoctorSchedulePage() {
         <button
           onClick={save}
           disabled={saving}
-          className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+          className="text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           {saving ? "Đang lưu..." : "Lưu lịch làm việc"}
         </button>

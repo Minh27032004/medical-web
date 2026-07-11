@@ -93,8 +93,8 @@ export default function DoctorChatPage() {
             <button
               key={item.conversationId}
               onClick={() => loadConversation(item.conversationId)}
-              className={`w-full text-left p-3 hover:bg-emerald-50 ${
-                current?.conversationId === item.conversationId ? "bg-emerald-50" : ""
+              className={`w-full text-left p-3 hover:bg-blue-50 ${
+                current?.conversationId === item.conversationId ? "bg-blue-50" : ""
               }`}
             >
               <div className="flex justify-between items-center">
@@ -126,7 +126,7 @@ export default function DoctorChatPage() {
                   <div
                     className={
                       m.sender === "DOCTOR"
-                        ? "bg-emerald-600 text-white rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
+                        ? "bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
                         : m.sender === "AI"
                           ? "bg-gray-50 border border-dashed rounded-2xl px-4 py-2 max-w-[80%] text-sm text-gray-500 whitespace-pre-line"
                           : "bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
@@ -150,7 +150,7 @@ export default function DoctorChatPage() {
               <button
                 onClick={reply}
                 disabled={sending || !input.trim()}
-                className="bg-emerald-600 text-white px-4 rounded-lg hover:bg-emerald-700 disabled:opacity-50"
+                className="bg-blue-600 text-white px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 Gửi
               </button>

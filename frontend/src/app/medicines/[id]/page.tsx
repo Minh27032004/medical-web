@@ -44,7 +44,7 @@ export default function MedicineDetailPage({
       </div>
       <div className="space-y-4">
         <h1 className="text-2xl font-bold">{medicine.name}</h1>
-        <p className="text-2xl text-emerald-700 font-semibold">
+        <p className="text-2xl text-blue-700 font-semibold">
           {formatVnd(medicine.salePrice)}
         </p>
         {medicine.expiryDate && (
@@ -67,7 +67,7 @@ export default function MedicineDetailPage({
         </div>
         <button
           onClick={handleAdd}
-          className="bg-emerald-600 text-white px-6 py-2.5 rounded-lg hover:bg-emerald-700"
+          className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700"
         >
           {added ? "✓ Đã thêm vào giỏ" : "Thêm vào giỏ hàng"}
         </button>
