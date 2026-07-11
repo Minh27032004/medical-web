@@ -1,0 +1,45 @@
+# Tự động deploy backend lên Cloud Run khi push vào main có thay đổi trong backend/
+# Yêu cầu secret GCP_SA_KEY (JSON key của service account github-deployer) — xem docs/DEPLOY.md
+name: Deploy backend (Cloud Run)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch: {} # cho phép bấm chạy tay trên tab Actions
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Xác thực Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Cài gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Cloud Run
+        # Không truyền --set-env-vars: revision mới GIỮ NGUYÊN env vars hiện có
+        # (secrets đã set lúc deploy tay lần đầu — không cần nhét vào GitHub)
+        run: |
+          gcloud run deploy clinic-backend \
+            --source backend \
+            --region asia-southeast1 \
+            --project project-0a96f6c2-d0b9-44ce-b28 \
+            --allow-unauthenticated \
+            --quiet
+
+      - name: Kiểm tra health sau deploy
+        run: |
+          sleep 5
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 \
+            https://clinic-backend-70334084165.asia-southeast1.run.app/actuator/health)
+          echo "Health: $code"
+          test "$code" = "200"
