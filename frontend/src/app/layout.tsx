@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import AssistantWidget from "@/components/AssistantWidget";
-import Header from "@/components/Header";
+import AppShell from "@/components/AppShell";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -22,9 +22,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className={`${inter.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
-        <Header />
-        <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">{children}</main>
+      <body className="h-full bg-gray-50 text-gray-900">
+        <AppShell>{children}</AppShell>
         <AssistantWidget />
       </body>
     </html>
