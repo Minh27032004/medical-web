@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { ChatResponse } from "@/lib/types";
+import type { ChatHistoryItem, ChatResponse } from "@/lib/types";
 
 interface Turn {
   question: string;
@@ -13,9 +13,9 @@ interface Turn {
 
 const EXAMPLES = [
   "Bệnh nhân khám hôm nay",
-  "Các đơn có tiêm thuốc hôm nay",
-  "Thuốc nào sắp hết",
-  "Lịch sử khám của Nguyễn Văn A",
+  "Nguyễn Văn A khám gần nhất khi nào",
+  "Tháng này Nguyễn Văn A khám mấy lần",
+  "Thuốc nào tồn thấp nhất",
 ];
 
 /** Lõi chat trợ lý — dùng chung cho trang /chat và widget nổi. Tự lấp đầy chiều cao cha, cuộn nội bộ. */
@@ -28,6 +28,32 @@ export default function AssistantChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns, loading]);
+
+  // Nạp 5 lượt gần nhất khi mở — để bác sĩ (và ngữ cảnh) có lại mạch hội thoại trước.
+  useEffect(() => {
+    let active = true;
+    api<ChatHistoryItem[]>("/api/doctor/chat/history")
+      .then((items) => {
+        if (!active || items.length === 0) return;
+        setTurns((cur) =>
+          cur.length > 0
+            ? cur
+            : items.map((h) => ({
+                question: h.question,
+                response: {
+                  intent: h.intent,
+                  title: null,
+                  rows: [],
+                  message: h.answerSummary ?? "(đã trả lời)",
+                },
+              }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function ask(question: string) {
     const q = question.trim();

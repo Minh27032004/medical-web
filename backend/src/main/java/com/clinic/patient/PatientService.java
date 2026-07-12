@@ -86,6 +86,13 @@ public class PatientService {
             .orElseThrow(() -> ApiException.notFound("Không tìm thấy bệnh nhân"));
     }
 
+    /** Tra bệnh nhân theo tên/SĐT (trả entity) — dùng cho trợ lý chat resolve "anh A". */
+    @Transactional(readOnly = true)
+    public java.util.List<Patient> searchEntities(UUID doctorId, String q, int limit) {
+        return repository.search(doctorId, q == null ? "" : q.trim(),
+            PageRequest.of(0, Math.max(1, limit))).getContent();
+    }
+
     /** Map id→Patient cho danh sách — CHỈ trả về bệnh nhân của doctor này. */
     @Transactional(readOnly = true)
     public java.util.Map<UUID, Patient> mapByIds(UUID doctorId, java.util.Collection<UUID> ids) {

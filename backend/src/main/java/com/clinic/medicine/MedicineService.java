@@ -42,6 +42,13 @@ interface MedicineRepository extends JpaRepository<Medicine, UUID> {
         order by m.stockBaseQty asc
         """)
     List<Medicine> findLowStock(@Param("doctorId") UUID doctorId);
+
+    @Query("""
+        select m from Medicine m
+        where m.doctorId = :doctorId and m.deletedAt is null
+        order by m.stockBaseQty asc
+        """)
+    List<Medicine> findByStockAsc(@Param("doctorId") UUID doctorId, Pageable pageable);
 }
 
 @Service
@@ -92,6 +99,20 @@ public class MedicineService {
     @Transactional(readOnly = true)
     public List<MedicineDto> lowStock(UUID doctorId) {
         return repository.findLowStock(doctorId).stream().map(this::toDto).toList();
+    }
+
+    /** Tóm tắt thuốc tồn thấp nhất — cho trợ lý chat (LOWEST_STOCK). Tính display TRONG transaction. */
+    public record LowestStockInfo(String name, String stockDisplay, BigDecimal stockBaseQty,
+                                  String baseUnitLabel, int threshold, boolean below) {}
+
+    @Transactional(readOnly = true)
+    public Optional<LowestStockInfo> lowestStock(UUID doctorId) {
+        var list = repository.findByStockAsc(doctorId, PageRequest.of(0, 1));
+        if (list.isEmpty()) return Optional.empty();
+        var m = list.get(0);
+        return Optional.of(new LowestStockInfo(m.getName(), stockDisplay(m), m.getStockBaseQty(),
+            UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()), m.getLowStockThreshold(),
+            m.getStockBaseQty().compareTo(BigDecimal.valueOf(m.getLowStockThreshold())) < 0));
     }
 
     @Transactional
