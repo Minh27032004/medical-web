@@ -27,6 +27,17 @@ interface PatientRepository extends JpaRepository<Patient, UUID> {
     Page<Patient> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
 
     Optional<Patient> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
+
+    /** Id các bệnh nhân (chưa xóa) trùng CẢ tên (không phân biệt hoa/thường, bỏ khoảng thừa) LẪN SĐT. */
+    @Query("""
+        select p.id from Patient p
+        where p.doctorId = :doctorId and p.deletedAt is null
+          and lower(trim(p.fullName)) = lower(trim(:fullName))
+          and trim(p.phone) = trim(:phone)
+        """)
+    java.util.List<UUID> findDuplicateIds(@Param("doctorId") UUID doctorId,
+                                          @Param("fullName") String fullName,
+                                          @Param("phone") String phone);
 }
 
 @Service
@@ -64,6 +75,7 @@ public class PatientService {
         var p = new Patient();
         p.setDoctorId(doctorId);
         apply(p, req);
+        checkDuplicate(doctorId, p.getFullName(), p.getPhone(), null);
         return toDto(repository.save(p));
     }
 
@@ -71,7 +83,23 @@ public class PatientService {
     public PatientDto update(UUID doctorId, UUID id, UpsertRequest req) {
         var p = findOwned(doctorId, id);
         apply(p, req);
+        checkDuplicate(doctorId, p.getFullName(), p.getPhone(), id); // loại trừ chính mình
         return toDto(repository.save(p));
+    }
+
+    /**
+     * Chống trùng "cùng người đăng ký lại": chặn khi TÊN + SĐT đều trùng một bệnh nhân khác.
+     * KHÔNG chặn theo tên đơn thuần — trùng tên nhưng khác SĐT là hai người khác nhau, vẫn cho tạo.
+     * Bỏ qua khi chưa nhập SĐT (không đủ định danh để khẳng định là trùng).
+     */
+    private void checkDuplicate(UUID doctorId, String fullName, String phone, UUID excludeId) {
+        if (phone == null || phone.isBlank()) return;
+        boolean dup = repository.findDuplicateIds(doctorId, fullName, phone).stream()
+            .anyMatch(existing -> !existing.equals(excludeId));
+        if (dup) {
+            throw ApiException.conflict(
+                "Đã có bệnh nhân trùng tên và số điện thoại. Kiểm tra lại, hoặc nhập SĐT khác nếu là người khác.");
+        }
     }
 
     @Transactional
