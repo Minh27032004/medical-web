@@ -6,173 +6,151 @@ export interface Page<T> {
   size: number;
 }
 
-export interface MedicinePublic {
+export interface Me {
   id: string;
-  name: string;
-  description: string | null;
-  imageUrl: string | null;
-  salePrice: number;
-  expiryDate: string | null;
-}
-
-export interface MedicineDoctor extends MedicinePublic {
-  imagePath: string | null;
-  costPrice: number;
-  inStock: boolean;
-}
-
-export interface MedicineSuggestion {
-  id: string;
-  name: string;
-  imageUrl: string | null;
-  salePrice: number;
-}
-
-export interface Profile {
-  id: string;
-  role: "PATIENT" | "DOCTOR";
+  role: "ADMIN" | "DOCTOR";
+  username: string;
   fullName: string | null;
   phone: string | null;
+  clinicName: string | null;
 }
 
-export type OrderStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "READY"
-  | "COMPLETED"
-  | "CANCELLED";
-
-export interface OrderItem {
-  medicineName: string;
-  quantity: number;
-  salePrice: number;
-  costPrice?: number; // chỉ có ở response cho Doctor
-}
-
-export interface Order {
+export interface DoctorRow {
   id: string;
-  pickupCode: string;
-  status: OrderStatus;
-  totalAmount: number;
+  username: string;
+  fullName: string;
+  phone: string | null;
+  clinicName: string | null;
+  blocked: boolean;
   createdAt: string;
-  items: OrderItem[];
-  buyerName?: string | null; // chỉ Doctor
-  buyerPhone?: string | null;
 }
-
-export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  PENDING: "Chờ xác nhận",
-  CONFIRMED: "Đã xác nhận",
-  READY: "Chờ đến lấy",
-  COMPLETED: "Hoàn tất",
-  CANCELLED: "Đã hủy",
-};
-
-export interface Slot {
-  start: string;
-  end: string;
-  available: boolean;
-}
-
-export type AppointmentStatus = "BOOKED" | "CONFIRMED" | "DONE" | "CANCELLED";
-
-export interface AppointmentDocument {
-  id: string;
-  url: string;
-}
-
-export interface Appointment {
-  id: string;
-  profileId?: string; // chỉ Doctor — để liên kết khi tạo hồ sơ bệnh nhân
-  slotStart: string;
-  slotEnd: string;
-  status: AppointmentStatus;
-  note: string | null;
-  documents: AppointmentDocument[];
-  patientName?: string | null; // chỉ Doctor
-  patientPhone?: string | null;
-}
-
-export interface AvailabilityRow {
-  weekday: number; // 0 = Chủ nhật
-  startTime: string; // "08:00:00"
-  endTime: string;
-  slotMinutes: number;
-}
-
-export const APPT_STATUS_LABEL: Record<AppointmentStatus, string> = {
-  BOOKED: "Chờ xác nhận",
-  CONFIRMED: "Đã xác nhận",
-  DONE: "Đã khám",
-  CANCELLED: "Đã hủy",
-};
-
-export const APPT_STATUS_COLOR: Record<AppointmentStatus, string> = {
-  BOOKED: "bg-amber-50 text-amber-700",
-  CONFIRMED: "bg-blue-50 text-blue-700",
-  DONE: "bg-blue-50 text-blue-700",
-  CANCELLED: "bg-gray-100 text-gray-500",
-};
 
 export interface Patient {
   id: string;
   fullName: string;
   phone: string | null;
-  age: number | null;
-  photoUrl: string | null;
-  note: string | null;
-  profileId: string | null;
+  gender: "male" | "female" | "other" | null;
+  address: string | null;
+  hasDrugAllergy: boolean;
+  drugAllergyNote: string | null;
+  hasChronicCondition: boolean;
+  chronicConditionNote: string | null;
   createdAt: string;
 }
 
-export interface PrescriptionItem {
-  medicineName: string;
-  quantity: number;
-  dosage: string | null;
-  costPrice: number | null; // null với Patient
-  salePrice: number;
+export interface MedicineUnitDto {
+  unitName: string;
+  label: string;
+  levelOrder: number;
+  factorToBase: number;
 }
 
-export interface PrescriptionImage {
+export interface Medicine {
   id: string;
-  kind: "XRAY" | "ECG" | "OTHER";
-  url: string;
+  name: string;
+  injection: boolean;
+  baseUnit: string;
+  baseUnitLabel: string;
+  stockBaseQty: number;
+  stockDisplay: string;
+  lowStockThreshold: number;
+  lowStock: boolean;
+  units: MedicineUnitDto[];
 }
 
-export interface Prescription {
+export interface Template {
   id: string;
+  name: string;
+  medicineId: string | null;
+  medicineName: string | null;
+  stockDisplay: string | null;
+  doseMorning: number;
+  doseNoon: number;
+  doseAfternoon: number;
+  doseEvening: number;
+  usageNote: string | null;
+  numDays: number | null;
+}
+
+export interface Suggestion {
+  type: "TEMPLATE" | "MEDICINE";
+  templateId: string | null;
+  medicineId: string | null;
+  name: string;
+  baseUnit: string | null;
+  baseUnitLabel: string | null;
+  stockDisplay: string | null;
+  injection: boolean;
+  doseMorning: number | null;
+  doseNoon: number | null;
+  doseAfternoon: number | null;
+  doseEvening: number | null;
+  usageNote: string | null;
+  numDays: number | null;
+}
+
+export interface Icd10 {
+  code: string;
+  name: string;
+}
+
+export interface VisitRow {
+  id: string;
+  visitDate: string;
   patientId: string;
-  patientName: string | null;
-  symptoms: string | null;
-  diagnosis: string | null;
-  examFee: number;
-  medicineTotal: number;
-  costTotal: number | null; // null với Patient
-  createdAt: string;
-  items: PrescriptionItem[];
-  images: PrescriptionImage[];
+  patientName: string;
+  diagnosisCode: string;
+  diagnosisName: string;
+  hasInjection: boolean;
 }
 
-export const IMAGE_KIND_LABEL: Record<string, string> = {
-  XRAY: "X-quang",
-  ECG: "Điện tim",
-  OTHER: "Khác",
+export interface RxItem {
+  medicineId: string | null;
+  medicineName: string;
+  baseUnit: string;
+  baseUnitLabel: string;
+  doseMorning: number;
+  doseNoon: number;
+  doseAfternoon: number;
+  doseEvening: number;
+  specialDoseText: string | null;
+  usageNote: string | null;
+  numDays: number | null;
+  totalQuantityBase: number;
+  injection: boolean;
+}
+
+export interface VisitDetail {
+  id: string;
+  visitDate: string;
+  diagnosisCode: string;
+  diagnosisName: string;
+  note: string | null;
+  patient: Patient;
+  doctor: { fullName: string | null; clinicName: string | null; phone: string | null };
+  prescriptionId: string | null;
+  printedAt: string | null;
+  items: RxItem[];
+}
+
+export interface ChatResponse {
+  intent: string;
+  title: string | null;
+  rows: Record<string, unknown>[];
+  message: string | null;
+}
+
+export const GENDER_LABEL: Record<string, string> = {
+  male: "Nam",
+  female: "Nữ",
+  other: "Khác",
 };
 
-export const WEEKDAY_LABEL = [
-  "Chủ nhật",
-  "Thứ 2",
-  "Thứ 3",
-  "Thứ 4",
-  "Thứ 5",
-  "Thứ 6",
-  "Thứ 7",
+/** Đơn vị chuẩn theo đặc tả §6.1 — lớn → nhỏ; ống dùng riêng cho thuốc tiêm. */
+export const UNIT_OPTIONS = [
+  { value: "chai", label: "chai" },
+  { value: "hop", label: "hộp" },
+  { value: "vi", label: "vĩ" },
+  { value: "vien", label: "viên" },
+  { value: "goi", label: "gói" },
 ];
-
-export const ORDER_STATUS_COLOR: Record<OrderStatus, string> = {
-  PENDING: "bg-amber-50 text-amber-700",
-  CONFIRMED: "bg-blue-50 text-blue-700",
-  READY: "bg-purple-50 text-purple-700",
-  COMPLETED: "bg-blue-50 text-blue-700",
-  CANCELLED: "bg-gray-100 text-gray-500",
-};

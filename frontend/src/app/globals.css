@@ -79,11 +79,34 @@ body {
   animation: blob-float 9s ease-in-out infinite;
 }
 
-/* Tôn trọng người dùng giảm chuyển động */
+/* Blob nền trôi nhẹ vẫn dùng cho login/mascot nếu cần */
 @media (prefers-reduced-motion: reduce) {
-  .animate-marquee,
-  .shimmer-btn::after,
   .animate-blob {
     animation: none;
+  }
+}
+
+/* ===== In đơn thuốc (§5.4) — chỉ in vùng .print-area ===== */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  /* Ẩn mọi thứ, chỉ hiện vùng đơn thuốc */
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0 12mm;
   }
 }

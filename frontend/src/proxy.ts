@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * (Next 16: middleware.ts đã đổi tên thành proxy.ts)
- * Chặn UX cho vùng cần đăng nhập. Đây KHÔNG phải lớp bảo mật —
- * bảo mật thật nằm ở Spring Boot (verify JWT + role). Proxy chỉ
- * kiểm tra cookie session Supabase có tồn tại để redirect sớm về /login.
+ * Hệ NỘI BỘ (D13): mọi trang đều cần đăng nhập, chỉ /login là public.
+ * Đây là chặn UX — bảo mật thật nằm ở Spring Boot (JWT + role + doctor_id).
  */
 export function proxy(request: NextRequest) {
   const hasSession = request.cookies
@@ -20,5 +18,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/account/:path*", "/doctor/:path*", "/booking/:path*"],
+  // chặn tất cả trừ login và tài nguyên tĩnh
+  matcher: ["/((?!login|_next|favicon\\.ico|icon\\.png|images).*)"],
 };

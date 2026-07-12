@@ -2,17 +2,16 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import ChatWidget from "@/components/ChatWidget";
 
 const inter = Inter({
-  variable: "--font-geist-sans", // giữ tên biến để khớp globals.css của scaffold
+  variable: "--font-geist-sans",
   subsets: ["latin", "vietnamese"],
 });
 
 export const metadata: Metadata = {
-  title: "Phòng khám gia đình",
-  description: "Đặt lịch khám, mua thuốc và tư vấn sức khỏe",
+  title: "Quản lý phòng khám",
+  description: "Hệ thống quản lý phòng khám nội bộ dành cho bác sĩ",
+  robots: { index: false, follow: false }, // hệ nội bộ — không cho index
 };
 
 export default function RootLayout({
@@ -25,8 +24,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
         <Header />
         <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">{children}</main>
-        <Footer />
-        <ChatWidget />
       </body>
     </html>
   );

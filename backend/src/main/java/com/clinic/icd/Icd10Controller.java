@@ -65,6 +65,11 @@ interface Icd10Repository extends JpaRepository<Icd10Code, String> {
     @Query("select c from Icd10Code c where lower(c.code) like lower(concat(:q, '%')) order by c.code")
     List<Icd10Code> searchByCodePrefix(@Param("q") String q, Pageable pageable);
 
-    @Query("select c from Icd10Code c where lower(c.name) like lower(concat('%', :q, '%')) order by c.code")
+    /** Tìm theo tên KHÔNG PHÂN BIỆT DẤU: unaccent 2 vế (native vì JPQL không có unaccent). */
+    @Query(value = """
+        select code, name from icd10_codes
+        where extensions.unaccent(lower(name)) like extensions.unaccent(lower('%' || :q || '%'))
+        order by code
+        """, nativeQuery = true)
     List<Icd10Code> searchByName(@Param("q") String q, Pageable pageable);
 }

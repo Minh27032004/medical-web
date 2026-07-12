@@ -1,184 +1,145 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { formatChatHtml } from "@/lib/chat-format";
-import { createSupabaseClient } from "@/lib/supabase";
+import type { ChatResponse } from "@/lib/types";
 
-interface ChatMessage {
-  id: string;
-  sender: "USER" | "AI" | "DOCTOR";
-  content: string;
-  createdAt: string;
+interface Turn {
+  question: string;
+  response?: ChatResponse;
+  error?: string;
 }
 
-interface ChatState {
-  conversationId: string | null;
-  status: "AI" | "WAITING_DOCTOR" | "WITH_DOCTOR" | "CLOSED";
-  messages: ChatMessage[];
-}
-
-function getAnonKey(): string {
-  let key = localStorage.getItem("chat_anon_key");
-  if (!key) {
-    key = crypto.randomUUID();
-    localStorage.setItem("chat_anon_key", key);
-  }
-  return key;
-}
-
-const STATUS_NOTICE: Record<string, string> = {
-  WAITING_DOCTOR: "⏳ Đã chuyển cho bác sĩ — vui lòng chờ trả lời",
-  WITH_DOCTOR: "👨‍⚕️ Bạn đang chat trực tiếp với bác sĩ",
-};
+const EXAMPLES = [
+  "Bệnh nhân khám hôm nay",
+  "Các đơn có tiêm thuốc hôm nay",
+  "Thuốc nào sắp hết",
+  "Lịch sử khám của Nguyễn Văn A",
+];
 
 export default function ChatPage() {
-  const [state, setState] = useState<ChatState | null>(null);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const s = await api<ChatState>(`/api/chat?anonKey=${getAnonKey()}`);
-      setState(s);
-    } catch {
-      /* giữ state cũ khi poll lỗi */
-    }
-  }, []);
-
-  useEffect(() => {
-    createSupabaseClient()
-      .auth.getSession()
-      .then(({ data }) => setLoggedIn(!!data.session));
-    load();
-  }, [load]);
-
-  // Poll 5s khi chờ/đang chat với bác sĩ
-  useEffect(() => {
-    if (!state || state.status === "AI" || state.status === "CLOSED") return;
-    const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
-  }, [state, load]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [state?.messages.length]);
-
-  async function send() {
-    const content = input.trim();
-    if (!content || sending) return;
-    setSending(true);
-    setError("");
+  async function ask(question: string) {
+    const q = question.trim();
+    if (!q || loading) return;
     setInput("");
-    // hiển thị tin nhắn của mình ngay, chờ AI trả lời
-    setState((s) =>
-      s
-        ? {
-            ...s,
-            messages: [
-              ...s.messages,
-              { id: `tmp-${Date.now()}`, sender: "USER", content, createdAt: new Date().toISOString() },
-            ],
-          }
-        : s
-    );
+    setLoading(true);
+    const idx = turns.length;
+    setTurns((t) => [...t, { question: q }]);
     try {
-      const s = await api<ChatState>("/api/chat/messages", {
+      const response = await api<ChatResponse>("/api/doctor/chat", {
         method: "POST",
-        body: JSON.stringify({ content, anonKey: getAnonKey() }),
+        body: JSON.stringify({ question: q }),
       });
-      setState(s);
+      setTurns((t) => t.map((turn, i) => (i === idx ? { ...turn, response } : turn)));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Gửi thất bại, thử lại");
+      const msg = err instanceof ApiError ? err.message : "Lỗi truy vấn";
+      setTurns((t) => t.map((turn, i) => (i === idx ? { ...turn, error: msg } : turn)));
     } finally {
-      setSending(false);
-    }
-  }
-
-  async function meetDoctor() {
-    try {
-      const s = await api<ChatState>("/api/chat/meet-doctor", { method: "POST" });
-      setState(s);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Không gửi được yêu cầu");
+      setLoading(false);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
   }
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col" style={{ height: "calc(100vh - 8rem)" }}>
-      <div className="flex items-center justify-between mb-3">
-        <h1 className="text-xl font-bold">Tư vấn</h1>
-        {loggedIn && state?.status === "AI" && (
-          <button
-            onClick={meetDoctor}
-            className="text-sm border border-blue-600 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50"
-          >
-            👨‍⚕️ Gặp bác sĩ
-          </button>
-        )}
-      </div>
+    <div className="max-w-3xl mx-auto">
+      <h1 className="text-xl font-bold mb-1">Tra cứu nhanh</h1>
+      <p className="text-sm text-gray-500 mb-4">
+        Hỏi bằng tiếng Việt về dữ liệu phòng khám của bạn. Trợ lý chỉ đọc dữ liệu, không chẩn đoán.
+      </p>
 
-      {state && STATUS_NOTICE[state.status] && (
-        <p className="text-sm bg-blue-50 text-blue-700 rounded-lg px-3 py-2 mb-3">
-          {STATUS_NOTICE[state.status]}
-        </p>
+      {turns.length === 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex}
+              onClick={() => ask(ex)}
+              className="text-sm border border-blue-300 text-blue-700 rounded-full px-3 py-1.5 hover:bg-blue-50"
+            >
+              {ex}
+            </button>
+          ))}
+        </div>
       )}
 
-      <div className="flex-1 overflow-y-auto bg-white border rounded-xl p-4 space-y-3">
-        {(!state || state.messages.length === 0) && (
-          <div className="text-center text-gray-500 text-sm py-8 space-y-2">
-            <p className="text-3xl">💬</p>
-            <p>Xin chào! Tôi có thể trả lời về phòng khám, giờ làm việc, dịch vụ, thuốc...</p>
-            <p className="text-xs">
-              Lưu ý: trợ lý AI không chẩn đoán bệnh — câu hỏi sức khỏe sẽ được chuyển tới bác sĩ.
-            </p>
-          </div>
-        )}
-        {state?.messages.map((m) => (
-          <div key={m.id} className={m.sender === "USER" ? "flex justify-end" : "flex justify-start"}>
-            <div
-              className={
-                m.sender === "USER"
-                  ? "bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
-                  : m.sender === "DOCTOR"
-                    ? "bg-blue-50 border border-blue-200 rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
-                    : "bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2 max-w-[80%] text-sm whitespace-pre-line"
-              }
-            >
-              {m.sender === "DOCTOR" && <p className="text-xs font-medium text-blue-700 mb-0.5">👨‍⚕️ Bác sĩ</p>}
-              {m.sender === "USER" ? (
-                m.content
-              ) : (
-                <div dangerouslySetInnerHTML={{ __html: formatChatHtml(m.content) }} />
-              )}
+      <div className="space-y-4 mb-4">
+        {turns.map((turn, i) => (
+          <div key={i}>
+            <div className="flex justify-end mb-2">
+              <span className="bg-blue-600 text-white rounded-2xl rounded-br-sm px-4 py-2 text-sm">
+                {turn.question}
+              </span>
             </div>
+            {turn.error && <p className="text-red-600 text-sm">{turn.error}</p>}
+            {turn.response && <ResultBlock r={turn.response} />}
           </div>
         ))}
-        {sending && <p className="text-sm text-gray-400">Đang trả lời...</p>}
+        {loading && <p className="text-gray-400 text-sm">Đang tra cứu...</p>}
         <div ref={bottomRef} />
       </div>
 
-      {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
-      <div className="flex gap-2 mt-3">
+      <div className="flex gap-2 sticky bottom-4 bg-gray-50 pt-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
+          onKeyDown={(e) => e.key === "Enter" && ask(input)}
           placeholder="Nhập câu hỏi..."
-          className="flex-1 border rounded-lg px-4 py-2.5 text-sm"
-          disabled={sending}
+          className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white"
+          disabled={loading}
         />
         <button
-          onClick={send}
-          disabled={sending || !input.trim()}
+          onClick={() => ask(input)}
+          disabled={loading || !input.trim()}
           className="bg-blue-600 text-white px-5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
         >
           Gửi
         </button>
       </div>
+    </div>
+  );
+}
+
+function ResultBlock({ r }: { r: ChatResponse }) {
+  if (r.message && r.rows.length === 0) {
+    return <div className="bg-white border rounded-xl px-4 py-3 text-sm text-gray-700">{r.message}</div>;
+  }
+  const columns = r.rows.length > 0 ? Object.keys(r.rows[0]).filter((c) => c !== "visitId") : [];
+  return (
+    <div className="bg-white border rounded-xl overflow-hidden">
+      {r.title && <p className="px-4 py-2 bg-blue-50 text-sm font-medium text-blue-900">{r.title}</p>}
+      {r.rows.length === 0 ? (
+        <p className="px-4 py-3 text-sm text-gray-500">Không có kết quả.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left">
+              <tr>
+                {columns.map((c) => <th key={c} className="p-2.5">{c}</th>)}
+                <th></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {r.rows.map((row, i) => (
+                <tr key={i}>
+                  {columns.map((c) => <td key={c} className="p-2.5">{String(row[c] ?? "")}</td>)}
+                  <td className="p-2.5 text-right">
+                    {row.visitId != null && (
+                      <Link href={`/visits/${row.visitId}`} className="text-blue-700 hover:underline text-xs whitespace-nowrap">
+                        Xem →
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

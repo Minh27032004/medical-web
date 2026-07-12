@@ -1,20 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { api } from "@/lib/api";
 import { createSupabaseClient } from "@/lib/supabase";
-import { mergeToServer } from "@/lib/cart";
+import type { Me } from "@/lib/types";
 
-/** Bác sĩ gõ "admin" — map thành email nội bộ vì Supabase Auth yêu cầu email. */
-const DOCTOR_ALIAS: Record<string, string> = {
-  admin: "admin@clinic.local",
-};
+/** Username ⇔ email ảo @clinic.local (D15). */
+const EMAIL_DOMAIN = "@clinic.local";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [identifier, setIdentifier] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,53 +20,56 @@ function LoginForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const email =
-      DOCTOR_ALIAS[identifier.trim().toLowerCase()] ?? identifier.trim();
-    if (!email.includes("@")) {
-      setError("Vui lòng nhập email hợp lệ");
-      return;
-    }
     setLoading(true);
     const supabase = createSupabaseClient();
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: username.trim().toLowerCase() + EMAIL_DOMAIN,
       password,
     });
     if (authError) {
       setLoading(false);
-      setError("Sai tài khoản hoặc mật khẩu");
+      setError("Sai tên đăng nhập hoặc mật khẩu");
       return;
     }
+    // Lấy role để điều hướng; backend cũng là nơi chặn tài khoản bị khóa
     try {
-      await mergeToServer(); // gộp giỏ hàng localStorage vào DB (D9)
+      const me = await api<Me>("/api/me/profile");
+      const next = searchParams.get("next");
+      router.push(next && next !== "/" ? next : me.role === "ADMIN" ? "/admin/doctors" : "/patients");
+      router.refresh();
     } catch {
-      // merge lỗi không chặn đăng nhập — giỏ local vẫn còn
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError("Tài khoản đã bị khóa hoặc không có quyền truy cập");
     }
-    router.push(searchParams.get("next") ?? "/");
-    router.refresh();
   }
 
   return (
-    <div className="max-w-sm mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-6 text-center">Đăng nhập</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="max-w-sm mx-auto py-16">
+      <div className="text-center mb-8">
+        <div className="text-5xl mb-2">⚕</div>
+        <h1 className="text-2xl font-bold text-blue-900">Quản lý phòng khám</h1>
+        <p className="text-sm text-gray-500 mt-1">Hệ thống nội bộ dành cho bác sĩ</p>
+      </div>
+      <form onSubmit={handleSubmit} className="bg-white border rounded-2xl p-6 space-y-4 shadow-sm">
         <div>
-          <label className="block text-sm mb-1">Email</label>
+          <label className="block text-sm mb-1 font-medium">Tên đăng nhập</label>
           <input
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             className="w-full border rounded-lg px-3 py-2"
-            placeholder="email@example.com"
+            autoComplete="username"
             required
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Mật khẩu</label>
+          <label className="block text-sm mb-1 font-medium">Mật khẩu</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border rounded-lg px-3 py-2"
+            autoComplete="current-password"
             required
           />
         </div>
@@ -80,13 +81,10 @@ function LoginForm() {
         >
           {loading ? "Đang đăng nhập..." : "Đăng nhập"}
         </button>
+        <p className="text-xs text-gray-400 text-center">
+          Chưa có tài khoản? Liên hệ quản trị viên để được cấp.
+        </p>
       </form>
-      <p className="text-sm text-center mt-4 text-gray-600">
-        Chưa có tài khoản?{" "}
-        <Link href="/register" className="text-blue-700 hover:underline">
-          Đăng ký
-        </Link>
-      </p>
     </div>
   );
 }

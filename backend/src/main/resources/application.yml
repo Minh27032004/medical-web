@@ -20,6 +20,11 @@ spring:
       ddl-auto: validate # schema do Flyway quản lý, JPA chỉ kiểm tra khớp
     open-in-view: false
 
+  jackson:
+    deserialization:
+      # Field boolean/số nguyên thủy trong DTO record: JSON thiếu/null → coi là giá trị mặc định
+      fail-on-null-for-primitives: false
+
   flyway:
     enabled: true
     locations: classpath:db/migration
