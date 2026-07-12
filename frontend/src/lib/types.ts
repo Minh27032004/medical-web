@@ -17,7 +17,8 @@ export interface Me {
 
 export interface DoctorRow {
   id: string;
-  username: string;
+  username: string | null;
+  email: string | null;
   fullName: string;
   phone: string | null;
   clinicName: string | null;
@@ -56,6 +57,8 @@ export interface Medicine {
   lowStockThreshold: number;
   lowStock: boolean;
   units: MedicineUnitDto[];
+  imagePath: string | null;
+  imageUrl: string | null;
 }
 
 export interface Template {
@@ -64,6 +67,7 @@ export interface Template {
   medicineId: string | null;
   medicineName: string | null;
   stockDisplay: string | null;
+  injection: boolean;
   doseMorning: number;
   doseNoon: number;
   doseAfternoon: number;
@@ -90,6 +94,12 @@ export interface Suggestion {
 }
 
 export interface Icd10 {
+  code: string;
+  name: string;
+}
+
+/** Cặp mã + tên ICD-10 (dùng cho chẩn đoán phụ). */
+export interface Diagnosis {
   code: string;
   name: string;
 }
@@ -125,6 +135,7 @@ export interface VisitDetail {
   visitDate: string;
   diagnosisCode: string;
   diagnosisName: string;
+  secondaryDiagnoses: Diagnosis[];
   note: string | null;
   patient: Patient;
   doctor: { fullName: string | null; clinicName: string | null; phone: string | null };
@@ -154,3 +165,7 @@ export const UNIT_OPTIONS = [
   { value: "vien", label: "viên" },
   { value: "goi", label: "gói" },
 ];
+
+export const UNIT_LABEL: Record<string, string> = {
+  chai: "chai", hop: "hộp", vi: "vĩ", vien: "viên", goi: "gói", ong: "ống",
+};

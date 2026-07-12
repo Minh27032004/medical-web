@@ -4,11 +4,13 @@ import com.clinic.common.ApiException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,6 +33,8 @@ interface MedicineRepository extends JpaRepository<Medicine, UUID> {
 
     Optional<Medicine> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
 
+    List<Medicine> findByIdInAndDoctorIdAndDeletedAtIsNull(Collection<UUID> ids, UUID doctorId);
+
     @Query("""
         select m from Medicine m
         where m.doctorId = :doctorId and m.deletedAt is null
@@ -52,6 +56,7 @@ public class MedicineService {
         "chai", "chai", "hop", "hộp", "vi", "vĩ", "vien", "viên", "goi", "gói", "ong", "ống");
 
     private final MedicineRepository repository;
+    private final com.clinic.storage.SupabaseStorageService storage;
 
     // ===== DTO =====
 
@@ -60,13 +65,16 @@ public class MedicineService {
     public record UnitInput(String unitName, BigDecimal factorToNext) {}
 
     public record UpsertRequest(String name, boolean injection, Integer lowStockThreshold,
-                                List<UnitInput> units) {}
+                                List<UnitInput> units, String imagePath,
+                                // Tồn ban đầu khi TẠO mới (bỏ qua khi cập nhật): số lượng theo initialStockUnit
+                                String initialStockUnit, BigDecimal initialStockQty) {}
 
     public record UnitDto(String unitName, String label, int levelOrder, BigDecimal factorToBase) {}
 
     public record MedicineDto(UUID id, String name, boolean injection, String baseUnit,
                               String baseUnitLabel, BigDecimal stockBaseQty, String stockDisplay,
-                              int lowStockThreshold, boolean lowStock, List<UnitDto> units) {}
+                              int lowStockThreshold, boolean lowStock, List<UnitDto> units,
+                              String imagePath, String imageUrl) {}
 
     public record StockEntry(String unitName, BigDecimal qty) {}
 
@@ -78,12 +86,12 @@ public class MedicineService {
     public Page<MedicineDto> search(UUID doctorId, String q, int page, int size) {
         return repository.search(doctorId, q == null ? "" : q.trim(),
                 PageRequest.of(page, Math.min(size, 100)))
-            .map(MedicineService::toDto);
+            .map(this::toDto);
     }
 
     @Transactional(readOnly = true)
     public List<MedicineDto> lowStock(UUID doctorId) {
-        return repository.findLowStock(doctorId).stream().map(MedicineService::toDto).toList();
+        return repository.findLowStock(doctorId).stream().map(this::toDto).toList();
     }
 
     @Transactional
@@ -91,6 +99,12 @@ public class MedicineService {
         var m = new Medicine();
         m.setDoctorId(doctorId);
         apply(m, req);
+        // Tồn ban đầu: quy về đơn vị nhỏ nhất qua factor (đơn vị lớn nhất người dùng nhập số lượng)
+        if (req.initialStockQty() != null && req.initialStockQty().signum() > 0) {
+            var unit = req.initialStockUnit() != null && !req.initialStockUnit().isBlank()
+                ? req.initialStockUnit() : m.getBaseUnit();
+            m.setStockBaseQty(req.initialStockQty().multiply(factorOf(m, unit)));
+        }
         return toDto(repository.save(m));
     }
 
@@ -133,6 +147,14 @@ public class MedicineService {
         return repository.findByIdAndDoctorIdAndDeletedAtIsNull(id, doctorId).orElse(null);
     }
 
+    /** Nạp NHIỀU thuốc theo id trong 1 query — tránh N+1 khi map danh sách thuốc mẫu (§5.4). */
+    @Transactional(readOnly = true)
+    public Map<UUID, Medicine> mapByIds(UUID doctorId, Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return Map.of();
+        return repository.findByIdInAndDoctorIdAndDeletedAtIsNull(ids, doctorId).stream()
+            .collect(Collectors.toMap(Medicine::getId, m -> m));
+    }
+
     public List<Medicine> searchEntities(UUID doctorId, String q, int limit) {
         return repository.search(doctorId, q, PageRequest.of(0, limit)).getContent();
     }
@@ -160,6 +182,7 @@ public class MedicineService {
         }
         m.setName(req.name().trim());
         m.setInjection(req.injection());
+        m.setImagePath(req.imagePath());
         if (req.lowStockThreshold() != null && req.lowStockThreshold() >= 0) {
             m.setLowStockThreshold(req.lowStockThreshold());
         }
@@ -240,7 +263,7 @@ public class MedicineService {
         return String.join(" ", parts);
     }
 
-    static MedicineDto toDto(Medicine m) {
+    MedicineDto toDto(Medicine m) {
         return new MedicineDto(m.getId(), m.getName(), m.isInjection(), m.getBaseUnit(),
             UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()),
             m.getStockBaseQty(), stockDisplay(m), m.getLowStockThreshold(),
@@ -249,6 +272,7 @@ public class MedicineService {
                 .sorted(Comparator.comparingInt(MedicineUnit::getLevelOrder))
                 .map(u -> new UnitDto(u.getUnitName(), UNIT_LABEL.get(u.getUnitName()),
                     u.getLevelOrder(), u.getFactorToBase()))
-                .toList());
+                .toList(),
+            m.getImagePath(), storage.publicUrl(m.getImagePath()));
     }
 }

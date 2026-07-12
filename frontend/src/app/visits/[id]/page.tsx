@@ -40,6 +40,14 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
           >
             ← Hồ sơ bệnh nhân
           </Link>
+          {visit.items.length > 0 && (
+            <Link
+              href={`/patients/${visit.patient.id}/new-visit?copyFrom=${visit.id}`}
+              className="border border-blue-400 text-blue-700 px-4 py-2 rounded-lg text-sm hover:bg-blue-50"
+            >
+              ⟳ Tạo lại đơn
+            </Link>
+          )}
           <button
             onClick={printRx}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
@@ -71,9 +79,18 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
           {visit.patient.hasDrugAllergy && (
             <p className="text-red-700">⚠ Dị ứng thuốc: {visit.patient.drugAllergyNote}</p>
           )}
+          {visit.patient.hasChronicCondition && (
+            <p className="text-amber-800">⚠ Bệnh nền: {visit.patient.chronicConditionNote}</p>
+          )}
           <p>
             Chẩn đoán: <strong>{visit.diagnosisCode} — {visit.diagnosisName}</strong>
           </p>
+          {visit.secondaryDiagnoses.length > 0 && (
+            <p>
+              Chẩn đoán phụ:{" "}
+              {visit.secondaryDiagnoses.map((d) => `${d.code} — ${d.name}`).join("; ")}
+            </p>
+          )}
           {visit.note && <p>Ghi chú: {visit.note}</p>}
         </div>
 

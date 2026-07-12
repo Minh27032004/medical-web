@@ -7,11 +7,15 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.type.SqlTypes;
 
 /** Lần khám (§4.3) — chẩn đoán ICD-10 bắt buộc, lưu snapshot cả mã lẫn tên. */
 @Entity
@@ -40,6 +44,11 @@ public class Visit {
 
     @Column(name = "diagnosis_name", nullable = false)
     private String diagnosisName;
+
+    /** Chẩn đoán phụ — nhiều mã ICD-10 (snapshot code+name), lưu jsonb. Có thể rỗng. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "secondary_diagnoses", nullable = false)
+    private List<Diagnosis> secondaryDiagnoses = new ArrayList<>();
 
     private String note;
 

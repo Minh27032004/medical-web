@@ -33,6 +33,10 @@ public class User {
     @Column(unique = true)
     private String username;
 
+    /** Gmail (đăng nhập Google). Có Gmail → email auth Supabase = Gmail này. Null = tài khoản chỉ username. */
+    @Column(unique = true)
+    private String email;
+
     @Column(name = "full_name")
     private String fullName;
 

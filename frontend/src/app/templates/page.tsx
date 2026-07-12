@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { Medicine, Page, Template } from "@/lib/types";
+import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
+
+const PAGE_SIZE = 10;
+type StockFilter = "all" | "oral" | "injection";
 
 interface FormState {
   id: string | null;
@@ -13,14 +17,14 @@ interface FormState {
   doseNoon: string;
   doseAfternoon: string;
   doseEvening: string;
-  usageNote: string;
-  numDays: string;
+  usageMode: UsageMode;
+  usageCustom: string;
 }
 
 const emptyForm = (): FormState => ({
   id: null, name: "", medicineId: null, medicineName: "",
   doseMorning: "", doseNoon: "", doseAfternoon: "", doseEvening: "",
-  usageNote: "", numDays: "",
+  usageMode: "", usageCustom: "",
 });
 
 export default function TemplatesPage() {
@@ -29,11 +33,32 @@ export default function TemplatesPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Filter + phân trang (client-side trên danh sách đã tải).
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<StockFilter>("all");
+  const [page, setPage] = useState(0);
+
   const load = useCallback(() => {
     api<Template[]>("/api/doctor/templates").then(setTemplates).catch(() => {});
   }, []);
 
   useEffect(load, [load]);
+
+  // Lọc theo tên + loại thuốc; reset về trang đầu khi đổi điều kiện.
+  const filtered = useMemo(() => {
+    const kw = q.trim().toLowerCase();
+    return templates.filter((t) => {
+      if (kw && !t.name.toLowerCase().includes(kw)) return false;
+      if (filter === "oral" && t.injection) return false;
+      if (filter === "injection" && !t.injection) return false;
+      return true;
+    });
+  }, [templates, q, filter]);
+
+  useEffect(() => setPage(0), [q, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   function editTemplate(t: Template) {
     setForm({
@@ -42,7 +67,7 @@ export default function TemplatesPage() {
       doseNoon: t.doseNoon ? String(t.doseNoon) : "",
       doseAfternoon: t.doseAfternoon ? String(t.doseAfternoon) : "",
       doseEvening: t.doseEvening ? String(t.doseEvening) : "",
-      usageNote: t.usageNote ?? "", numDays: t.numDays ? String(t.numDays) : "",
+      ...deriveUsage(t.usageNote),
     });
   }
 
@@ -58,8 +83,8 @@ export default function TemplatesPage() {
       doseNoon: Number(form.doseNoon) || 0,
       doseAfternoon: Number(form.doseAfternoon) || 0,
       doseEvening: Number(form.doseEvening) || 0,
-      usageNote: form.usageNote || null,
-      numDays: Number(form.numDays) || null,
+      usageNote: usageModeToNote(form.usageMode, form.usageCustom),
+      numDays: null, // số ngày thuộc về cả đơn thuốc, không lưu ở thuốc mẫu nữa
     });
     try {
       if (form.id) await api(`/api/doctor/templates/${form.id}`, { method: "PUT", body });
@@ -114,34 +139,64 @@ export default function TemplatesPage() {
               />
             </div>
           </div>
-          <div className="flex items-end gap-2 flex-wrap">
-            {(["doseMorning", "doseNoon", "doseAfternoon", "doseEvening"] as const).map((f, i) => (
-              <div key={f} className="text-center">
-                <input
-                  type="number" min={0} step="any"
-                  value={form[f]}
-                  onChange={(e) => setForm({ ...form, [f]: e.target.value })}
-                  className="w-16 border rounded-lg px-1 py-2 text-sm text-center"
-                />
-                <p className="text-[10px] text-gray-500">{["Sáng", "Trưa", "Chiều", "Tối"][i]}</p>
-              </div>
-            ))}
-            <div className="text-center">
-              <input
-                type="number" min={1}
-                value={form.numDays}
-                onChange={(e) => setForm({ ...form, numDays: e.target.value })}
-                className="w-16 border rounded-lg px-1 py-2 text-sm text-center"
-              />
-              <p className="text-[10px] text-gray-500">Số ngày</p>
+
+          {/* Liều mặc định: tick buổi nào mới hiện ô nhập */}
+          <div>
+            <p className="text-sm mb-1">Liều mặc định mỗi buổi</p>
+            <div className="flex items-start gap-3 flex-wrap">
+              {SESSIONS.map(([f, label]) => {
+                const checked = form[f] !== "";
+                return (
+                  <div key={f} className="text-center">
+                    <label className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer justify-center h-9">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => setForm({ ...form, [f]: e.target.checked ? "1" : "" })}
+                      />
+                      {label}
+                    </label>
+                    {checked && (
+                      <input
+                        type="number" min={0} step="any"
+                        value={form[f]}
+                        onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+                        className="w-14 border rounded-lg px-1 py-1.5 text-sm text-center"
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <input
-              value={form.usageNote}
-              onChange={(e) => setForm({ ...form, usageNote: e.target.value })}
-              placeholder="Cách dùng mặc định"
-              className="flex-1 min-w-40 border rounded-lg px-3 py-2 text-sm"
-            />
           </div>
+
+          {/* Cách dùng mặc định: 3 nút, "Khác" mở ô nhập */}
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-sm text-gray-600">Cách dùng:</span>
+            {USAGE_OPTIONS.map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setForm({ ...form, usageMode: form.usageMode === m ? "" : m })}
+                className={`text-xs px-2.5 py-1 rounded-full border ${
+                  form.usageMode === m
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            {form.usageMode === "other" && (
+              <input
+                value={form.usageCustom}
+                onChange={(e) => setForm({ ...form, usageCustom: e.target.value })}
+                className="flex-1 min-w-40 border rounded-lg px-3 py-1.5 text-sm"
+                autoFocus
+              />
+            )}
+          </div>
+
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
@@ -152,17 +207,41 @@ export default function TemplatesPage() {
         </form>
       )}
 
+      {/* Filter: tìm kiếm + loại thuốc */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Tìm thuốc mẫu..."
+          className="border rounded-lg px-3 py-2 text-sm flex-1 min-w-48"
+        />
+        <div className="flex gap-1 text-sm">
+          {([["all", "Tất cả"], ["oral", "💊 Uống"], ["injection", "💉 Tiêm"]] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setFilter(v)}
+              className={`px-3 py-2 rounded-lg border ${
+                filter === v ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="space-y-2">
-        {templates.length === 0 && !form && (
-          <p className="text-gray-500 text-sm py-6 text-center">Chưa có thuốc mẫu nào.</p>
+        {filtered.length === 0 && !form && (
+          <p className="text-gray-500 text-sm py-6 text-center">
+            {templates.length === 0 ? "Chưa có thuốc mẫu nào." : "Không có thuốc mẫu khớp bộ lọc."}
+          </p>
         )}
-        {templates.map((t) => (
+        {pageItems.map((t) => (
           <div key={t.id} className="bg-white border rounded-xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <span className="font-medium">★ {t.name}</span>
+              <span className="font-medium">{t.injection ? "💉" : "★"} {t.name}</span>
               <span className="text-sm text-gray-500 ml-2">
                 {[t.doseMorning, t.doseNoon, t.doseAfternoon, t.doseEvening].join("-")}
-                {t.numDays && ` × ${t.numDays} ngày`}
                 {t.usageNote && ` · ${t.usageNote}`}
               </span>
               {t.medicineName && (
@@ -178,6 +257,27 @@ export default function TemplatesPage() {
           </div>
         ))}
       </div>
+
+      {/* Phân trang 10 sp / trang */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-center gap-3 mt-4 text-sm">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="border px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+          >
+            ← Trước
+          </button>
+          <span className="text-gray-600">Trang {page + 1}/{totalPages}</span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+            className="border px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+          >
+            Sau →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -191,12 +291,13 @@ function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine
   useEffect(() => {
     const q = input.trim();
     if (!q) { setOptions([]); return; }
+    const ctrl = new AbortController();
     const timer = setTimeout(() => {
-      api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(q)}&size=8`)
+      api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(q)}&size=8`, { signal: ctrl.signal })
         .then((p) => { setOptions(p.content); setOpen(p.content.length > 0); })
         .catch(() => {});
     }, 250);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); ctrl.abort(); };
   }, [input]);
 
   useEffect(() => {
@@ -224,7 +325,7 @@ function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine
               onClick={() => { onPick(m); setInput(m.name); setOpen(false); }}
               className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
             >
-              {m.name} <span className="text-xs text-gray-500">({m.stockDisplay})</span>
+              {m.injection ? "💉 " : ""}{m.name} <span className="text-xs text-gray-500">({m.stockDisplay})</span>
             </button>
           ))}
         </div>

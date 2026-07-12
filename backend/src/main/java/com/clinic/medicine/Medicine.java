@@ -47,6 +47,10 @@ public class Medicine {
     @Column(name = "base_unit", nullable = false)
     private String baseUnit;
 
+    /** Ảnh minh họa — path trong bucket public medicine-images. */
+    @Column(name = "image_path")
+    private String imagePath;
+
     /** Có thể ÂM (D16) — sổ sách lệch không được chặn kê đơn. */
     @Column(name = "stock_base_qty", nullable = false)
     private BigDecimal stockBaseQty = BigDecimal.ZERO;

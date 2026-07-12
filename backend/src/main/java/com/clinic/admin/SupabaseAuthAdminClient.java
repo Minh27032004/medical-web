@@ -32,17 +32,28 @@ public class SupabaseAuthAdminClient {
             .build();
     }
 
-    /** Tạo auth user, trả về id. Email tự xác nhận (hệ nội bộ, không có luồng email). */
-    @SuppressWarnings("unchecked")
+    /** Tạo auth user bằng username (email ảo <username>@clinic.local). Giữ tương thích cũ. */
     public UUID createUser(String username, String password) {
+        return createAuthUser(username + EMAIL_DOMAIN, password);
+    }
+
+    /**
+     * Tạo auth user với EMAIL thật (Gmail) + mật khẩu TÙY CHỌN (null = chỉ đăng nhập Google).
+     * Email tự xác nhận để Google auto-link đúng user này khi bác sĩ đăng nhập bằng Gmail đó.
+     */
+    @SuppressWarnings("unchecked")
+    public UUID createAuthUser(String email, String password) {
         try {
+            var body = new java.util.HashMap<String, Object>();
+            body.put("email", email);
+            body.put("email_confirm", true);
+            if (password != null && !password.isBlank()) {
+                body.put("password", password);
+            }
             var resp = rest.post()
                 .uri("/auth/v1/admin/users")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of(
-                    "email", username + EMAIL_DOMAIN,
-                    "password", password,
-                    "email_confirm", true))
+                .body(body)
                 .retrieve()
                 .body(Map.class);
             var id = (String) resp.get("id");
@@ -51,9 +62,9 @@ public class SupabaseAuthAdminClient {
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Tạo auth user thất bại cho username={}", username, e);
+            log.error("Tạo auth user thất bại cho email={}", email, e);
             throw new ApiException(HttpStatus.BAD_GATEWAY, "AUTH_PROVIDER_ERROR",
-                "Không tạo được tài khoản đăng nhập (username có thể đã tồn tại)");
+                "Không tạo được tài khoản đăng nhập (email/username có thể đã tồn tại)");
         }
     }
 }

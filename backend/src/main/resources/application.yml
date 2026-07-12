@@ -19,6 +19,13 @@ spring:
     hibernate:
       ddl-auto: validate # schema do Flyway quản lý, JPA chỉ kiểm tra khớp
     open-in-view: false
+    properties:
+      hibernate:
+        # Gộp lazy-load (units, prescription_items...) thành 1 query IN thay vì N+1 —
+        # giảm mạnh số round-trip tới DB Supabase ở xa. Xem MedicineService.toDto/stockDisplay.
+        default_batch_fetch_size: 100
+        # Log số câu SQL/round-trip mỗi request khi cần soi hiệu năng (tắt mặc định).
+        # generate_statistics: true
 
   jackson:
     deserialization:

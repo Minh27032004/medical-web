@@ -12,7 +12,6 @@ const DOCTOR_NAV = [
   { href: "/history", label: "Lịch sử khám" },
   { href: "/inventory", label: "Kho thuốc" },
   { href: "/templates", label: "Thuốc mẫu" },
-  { href: "/chat", label: "Tra cứu nhanh" },
 ];
 
 const ADMIN_NAV = [{ href: "/admin/doctors", label: "Quản lý bác sĩ" }];

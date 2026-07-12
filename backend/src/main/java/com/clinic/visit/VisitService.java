@@ -69,6 +69,7 @@ public class VisitService {
                               BigDecimal totalQuantityBase, boolean injection) {}
 
     public record CreateRequest(UUID patientId, String diagnosisCode, String diagnosisName,
+                                List<Diagnosis> secondaryDiagnoses,
                                 String note, List<ItemRequest> items) {}
 
     public record ItemDto(UUID medicineId, String medicineName, String baseUnit, String baseUnitLabel,
@@ -87,6 +88,7 @@ public class VisitService {
     public record DoctorInfo(String fullName, String clinicName, String phone) {}
 
     public record VisitDetail(UUID id, Instant visitDate, String diagnosisCode, String diagnosisName,
+                              List<Diagnosis> secondaryDiagnoses,
                               String note, PatientInfo patient, DoctorInfo doctor,
                               UUID prescriptionId, Instant printedAt, List<ItemDto> items) {}
 
@@ -104,6 +106,18 @@ public class VisitService {
         visit.setPatientId(patient.getId());
         visit.setDiagnosisCode(req.diagnosisCode().trim().toUpperCase());
         visit.setDiagnosisName(req.diagnosisName().trim());
+        // Chẩn đoán phụ: lọc rỗng, chuẩn hóa mã hoa, bỏ trùng mã (giữ thứ tự nhập).
+        if (req.secondaryDiagnoses() != null) {
+            var seen = new java.util.LinkedHashSet<String>();
+            var sec = new java.util.ArrayList<Diagnosis>();
+            for (var d : req.secondaryDiagnoses()) {
+                if (d == null || isBlank(d.code()) || isBlank(d.name())) continue;
+                var code = d.code().trim().toUpperCase();
+                if (code.equalsIgnoreCase(visit.getDiagnosisCode()) || !seen.add(code)) continue;
+                sec.add(new Diagnosis(code, d.name().trim()));
+            }
+            visit.setSecondaryDiagnoses(sec);
+        }
         visit.setNote(req.note());
         visit = visitRepository.save(visit);
 
@@ -185,7 +199,8 @@ public class VisitService {
         var prescription = prescriptionRepository.findByVisitId(visit.getId()).orElse(null);
 
         return new VisitDetail(visit.getId(), visit.getVisitDate(),
-            visit.getDiagnosisCode(), visit.getDiagnosisName(), visit.getNote(),
+            visit.getDiagnosisCode(), visit.getDiagnosisName(),
+            visit.getSecondaryDiagnoses(), visit.getNote(),
             toPatientInfo(patient),
             new DoctorInfo(doctor.getFullName(), doctor.getClinicName(), doctor.getPhone()),
             prescription != null ? prescription.getId() : null,

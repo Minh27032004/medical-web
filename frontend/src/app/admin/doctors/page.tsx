@@ -7,7 +7,7 @@ import type { DoctorRow } from "@/lib/types";
 export default function AdminDoctorsPage() {
   const [doctors, setDoctors] = useState<DoctorRow[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ username: "", password: "", fullName: "", phone: "", clinicName: "" });
+  const [form, setForm] = useState({ email: "", username: "", password: "", fullName: "", phone: "", clinicName: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -24,7 +24,7 @@ export default function AdminDoctorsPage() {
     try {
       await api("/api/admin/doctors", { method: "POST", body: JSON.stringify(form) });
       setShowForm(false);
-      setForm({ username: "", password: "", fullName: "", phone: "", clinicName: "" });
+      setForm({ email: "", username: "", password: "", fullName: "", phone: "", clinicName: "" });
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Tạo thất bại");
@@ -35,7 +35,8 @@ export default function AdminDoctorsPage() {
 
   async function toggleBlock(d: DoctorRow) {
     const action = d.blocked ? "unblock" : "block";
-    if (!d.blocked && !confirm(`Khóa tài khoản "${d.username}"? Bác sĩ sẽ không đăng nhập được.`)) return;
+    const who = d.username ?? d.email ?? d.fullName;
+    if (!d.blocked && !confirm(`Khóa tài khoản "${who}"? Bác sĩ sẽ không đăng nhập được.`)) return;
     await api(`/api/admin/doctors/${d.id}/${action}`, { method: "PATCH" });
     load();
   }
@@ -54,24 +55,36 @@ export default function AdminDoctorsPage() {
 
       {showForm && (
         <form onSubmit={create} className="bg-white border rounded-xl p-4 mb-4 grid sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2 text-xs text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2">
+            Cách đăng nhập: nhập <b>Gmail</b> để bác sĩ đăng nhập bằng Google (để trống username/mật khẩu = chỉ Google).
+            Có thể thêm username + mật khẩu để đăng nhập được cả 2 cách.
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm mb-1">Gmail (đăng nhập Google)</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full border rounded-lg px-3 py-2 text-sm"
+              placeholder="vd: bacsi.teo@gmail.com"
+            />
+          </div>
           <div>
-            <label className="block text-sm mb-1">Tên đăng nhập *</label>
+            <label className="block text-sm mb-1">Tên đăng nhập</label>
             <input
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
               className="w-full border rounded-lg px-3 py-2 text-sm"
-              placeholder="chữ thường, số, 3-30 ký tự"
-              required
+              placeholder="tùy chọn — chữ thường, số, 3-30 ký tự"
             />
           </div>
           <div>
-            <label className="block text-sm mb-1">Mật khẩu tạm *</label>
+            <label className="block text-sm mb-1">Mật khẩu tạm</label>
             <input
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               className="w-full border rounded-lg px-3 py-2 text-sm"
-              placeholder="tối thiểu 8 ký tự"
-              required
+              placeholder="tùy chọn — tối thiểu 8 ký tự"
             />
           </div>
           <div>
@@ -116,7 +129,7 @@ export default function AdminDoctorsPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left">
             <tr>
-              <th className="p-3">Tên đăng nhập</th>
+              <th className="p-3">Đăng nhập</th>
               <th className="p-3">Họ tên</th>
               <th className="p-3">Phòng khám</th>
               <th className="p-3">SĐT</th>
@@ -127,7 +140,11 @@ export default function AdminDoctorsPage() {
           <tbody className="divide-y">
             {doctors.map((d) => (
               <tr key={d.id} className={d.blocked ? "opacity-60" : ""}>
-                <td className="p-3 font-mono">{d.username}</td>
+                <td className="p-3">
+                  {d.username && <div className="font-mono">{d.username}</div>}
+                  {d.email && <div className="text-xs text-blue-700">✉ {d.email}</div>}
+                  {!d.username && !d.email && "—"}
+                </td>
                 <td className="p-3 font-medium">{d.fullName}</td>
                 <td className="p-3">{d.clinicName ?? "—"}</td>
                 <td className="p-3">{d.phone ?? "—"}</td>

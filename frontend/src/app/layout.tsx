@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import AssistantWidget from "@/components/AssistantWidget";
 import Header from "@/components/Header";
 
 const inter = Inter({
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
         <Header />
         <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-6">{children}</main>
+        <AssistantWidget />
       </body>
     </html>
   );

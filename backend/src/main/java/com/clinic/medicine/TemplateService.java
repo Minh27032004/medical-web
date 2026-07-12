@@ -5,8 +5,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,7 +45,7 @@ public class TemplateService {
                                 String usageNote, Integer numDays) {}
 
     public record TemplateDto(UUID id, String name, UUID medicineId, String medicineName,
-                              String stockDisplay,
+                              String stockDisplay, boolean injection,
                               BigDecimal doseMorning, BigDecimal doseNoon,
                               BigDecimal doseAfternoon, BigDecimal doseEvening,
                               String usageNote, Integer numDays) {}
@@ -57,8 +60,14 @@ public class TemplateService {
 
     @Transactional(readOnly = true)
     public List<TemplateDto> list(UUID doctorId, String q) {
-        return repository.search(doctorId, q == null ? "" : q.trim(), PageRequest.of(0, 100))
-            .stream().map(t -> toDto(doctorId, t)).toList();
+        var templates = repository.search(doctorId, q == null ? "" : q.trim(), PageRequest.of(0, 100));
+        var medMap = medicineService.mapByIds(doctorId, medicineIds(templates)); // 1 query thay N
+        return templates.stream().map(t -> toDto(t, medMap.get(t.getMedicineId()))).toList();
+    }
+
+    private static Set<UUID> medicineIds(List<MedicineTemplate> templates) {
+        return templates.stream().map(MedicineTemplate::getMedicineId)
+            .filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     @Transactional
@@ -91,9 +100,10 @@ public class TemplateService {
         if (query.isEmpty()) return List.of();
         var out = new ArrayList<Suggestion>();
 
-        for (var t : repository.search(doctorId, query, PageRequest.of(0, 5))) {
-            Medicine m = t.getMedicineId() == null ? null
-                : medicineService.findOwnedOrNull(doctorId, t.getMedicineId());
+        var templates = repository.search(doctorId, query, PageRequest.of(0, 5));
+        var medMap = medicineService.mapByIds(doctorId, medicineIds(templates)); // tránh N+1
+        for (var t : templates) {
+            Medicine m = t.getMedicineId() == null ? null : medMap.get(t.getMedicineId());
             out.add(new Suggestion("TEMPLATE", t.getId(), t.getMedicineId(), t.getName(),
                 m != null ? m.getBaseUnit() : null,
                 m != null ? MedicineService.UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()) : null,
@@ -137,11 +147,15 @@ public class TemplateService {
     }
 
     private TemplateDto toDto(UUID doctorId, MedicineTemplate t) {
-        Medicine m = t.getMedicineId() == null ? null
-            : medicineService.findOwnedOrNull(doctorId, t.getMedicineId());
+        return toDto(t, t.getMedicineId() == null ? null
+            : medicineService.findOwnedOrNull(doctorId, t.getMedicineId()));
+    }
+
+    private static TemplateDto toDto(MedicineTemplate t, Medicine m) {
         return new TemplateDto(t.getId(), t.getName(), t.getMedicineId(),
             m != null ? m.getName() : null,
             m != null ? MedicineService.stockDisplay(m) : null,
+            m != null && m.isInjection(),
             t.getDefaultDoseMorning(), t.getDefaultDoseNoon(),
             t.getDefaultDoseAfternoon(), t.getDefaultDoseEvening(),
             t.getDefaultUsageNote(), t.getDefaultNumDays());

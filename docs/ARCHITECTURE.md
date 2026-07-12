@@ -89,11 +89,17 @@ Trang `/print/prescriptions/{id}` phía Next.js: render đơn (tên phòng khám
 tên bác sĩ, bệnh nhân, chẩn đoán, bảng thuốc liều 4 buổi + cách dùng + số ngày) với CSS
 `@media print`; nút In gọi `window.print()` và POST /printed để lưu printed_at.
 
-## Trạng thái triển khai
+## Trạng thái triển khai — HOÀN THÀNH (2026-07-12)
 
 - [x] Docs cập nhật theo đặc tả mới
-- [ ] V4 migration + seed ICD-10
-- [ ] Backend: auth admin/doctor + is_blocked, admin quản lý bác sĩ
-- [ ] Backend: patients, medicines+units, icd10, visits+prescriptions (+trừ kho, copy đơn), templates, history, chat
-- [ ] Frontend: login-only public + app doctor/admin + trang in
-- [ ] Test cô lập doctor_id + quy đổi kho, deploy
+- [x] V4 migration (drop bảng cũ + schema mới) + seed 84 mã ICD-10 + V5 unaccent
+- [x] Backend: auth admin/doctor + is_blocked (hiệu lực tức thì), admin quản lý bác sĩ
+- [x] Backend: patients, medicines+units (quy đổi), icd10 (2 chiều + không dấu),
+      visits+prescriptions (trừ kho trong transaction, copy đơn), templates, history, chat template
+- [x] Frontend: login-only + app doctor/admin + trang in @media print
+- [x] Test cô lập doctor_id (chéo 404, kho 0/0) + quy đổi kho (3 hộp→150→kê 15→"2 hộp 3 vĩ 5 viên")
+- [x] Đã push, CI deploy (Cloud Run + Vercel)
+
+**Tài khoản test đã tạo trên DB prod:** admin/0907729127 (ADMIN), teo/teo123456 +
+nam/nam123456 (DOCTOR test — user có thể khóa/xóa). teo có sẵn 1 bệnh nhân + 1 thuốc
+Paracetamol + 1 lần khám mẫu.

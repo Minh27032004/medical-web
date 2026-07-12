@@ -4,10 +4,6 @@ import com.clinic.auth.User;
 import com.clinic.auth.UserRepository;
 import com.clinic.auth.UserRoleConverter;
 import com.clinic.common.ApiException;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -36,46 +32,71 @@ public class AdminDoctorController {
     private final SupabaseAuthAdminClient authAdmin;
     private final UserRoleConverter roleConverter;
 
-    public record CreateDoctorRequest(
-        @NotBlank @Pattern(regexp = "^[a-z0-9_.-]{3,30}$",
-            message = "Username 3-30 ký tự: chữ thường, số, dấu chấm/gạch") String username,
-        @NotBlank @Size(min = 8, message = "Mật khẩu tối thiểu 8 ký tự") String password,
-        @NotBlank String fullName,
-        String phone,
-        String clinicName
-    ) {}
+    public record CreateDoctorRequest(String username, String password, String email,
+                                      String fullName, String phone, String clinicName) {}
 
-    public record DoctorRow(UUID id, String username, String fullName, String phone,
+    public record DoctorRow(UUID id, String username, String email, String fullName, String phone,
                             String clinicName, boolean blocked, Instant createdAt) {}
+
+    private static DoctorRow toRow(User u) {
+        return new DoctorRow(u.getId(), u.getUsername(), u.getEmail(), u.getFullName(),
+            u.getPhone(), u.getClinicName(), u.isBlocked(), u.getCreatedAt());
+    }
 
     @GetMapping
     public List<DoctorRow> list() {
         return userRepository.findByRoleOrderByCreatedAtDesc(User.ROLE_DOCTOR).stream()
-            .map(u -> new DoctorRow(u.getId(), u.getUsername(), u.getFullName(),
-                u.getPhone(), u.getClinicName(), u.isBlocked(), u.getCreatedAt()))
+            .map(AdminDoctorController::toRow)
             .toList();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public DoctorRow create(@Valid @RequestBody CreateDoctorRequest req) {
-        var username = req.username().trim().toLowerCase();
-        if (userRepository.findByUsername(username).isPresent()) {
+    public DoctorRow create(@RequestBody CreateDoctorRequest req) {
+        var fullName = req.fullName() == null ? "" : req.fullName().trim();
+        if (fullName.isBlank()) throw ApiException.badRequest("Thiếu họ tên bác sĩ");
+
+        var username = req.username() == null ? "" : req.username().trim().toLowerCase();
+        var email = req.email() == null ? "" : req.email().trim().toLowerCase();
+        var password = req.password() == null ? "" : req.password();
+        boolean hasUsername = !username.isBlank();
+        boolean hasEmail = !email.isBlank();
+        boolean hasPassword = !password.isBlank();
+
+        // Đăng nhập được ít nhất 1 cách: Gmail (Google) HOẶC username + mật khẩu.
+        if (!hasEmail && !(hasUsername && hasPassword)) {
+            throw ApiException.badRequest("Cần Gmail (đăng nhập Google) hoặc username + mật khẩu");
+        }
+        if (hasUsername && !username.matches("^[a-z0-9_.-]{3,30}$")) {
+            throw ApiException.badRequest("Username 3-30 ký tự: chữ thường, số, dấu chấm/gạch");
+        }
+        if (hasPassword && password.length() < 8) {
+            throw ApiException.badRequest("Mật khẩu tối thiểu 8 ký tự");
+        }
+        if (hasEmail && !email.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+            throw ApiException.badRequest("Gmail không hợp lệ");
+        }
+        if (hasUsername && userRepository.findByUsername(username).isPresent()) {
             throw ApiException.conflict("Username đã tồn tại");
         }
-        var authId = authAdmin.createUser(username, req.password());
+        if (hasEmail && userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            throw ApiException.conflict("Gmail đã được cấp cho tài khoản khác");
+        }
+
+        // Email auth Supabase: ưu tiên Gmail (để Google auto-link đúng user); else email ảo theo username.
+        var authEmail = hasEmail ? email : username + SupabaseAuthAdminClient.EMAIL_DOMAIN;
+        var authId = authAdmin.createAuthUser(authEmail, hasPassword ? password : null);
 
         var u = new User();
         u.setId(authId);
         u.setRole(User.ROLE_DOCTOR);
-        u.setUsername(username);
-        u.setFullName(req.fullName().trim());
+        u.setUsername(hasUsername ? username : null);
+        u.setEmail(hasEmail ? email : null);
+        u.setFullName(fullName);
         u.setPhone(req.phone());
         u.setClinicName(req.clinicName());
-        var saved = userRepository.save(u);
-        return new DoctorRow(saved.getId(), saved.getUsername(), saved.getFullName(),
-            saved.getPhone(), saved.getClinicName(), saved.isBlocked(), saved.getCreatedAt());
+        return toRow(userRepository.save(u));
     }
 
     @PatchMapping("/{id}/block")

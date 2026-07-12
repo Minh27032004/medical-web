@@ -2,20 +2,26 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import Pager from "@/components/Pager";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type Page, type Patient } from "@/lib/types";
 
 export default function PatientsPage() {
   const [q, setQ] = useState("");
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
-    api<Page<Patient>>(`/api/doctor/patients?q=${encodeURIComponent(q)}&size=50`)
-      .then((p) => setPatients(p.content))
+    api<Page<Patient>>(`/api/doctor/patients?q=${encodeURIComponent(q)}&page=${page}&size=10`)
+      .then((p) => { setPatients(p.content); setTotalPages(p.totalPages); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [q]);
+  }, [q, page]);
+
+  // Đổi từ khóa → về trang đầu.
+  useEffect(() => setPage(0), [q]);
 
   useEffect(() => {
     const timer = setTimeout(load, 300);
@@ -95,6 +101,8 @@ export default function PatientsPage() {
           </table>
         )}
       </div>
+
+      <Pager page={page} totalPages={totalPages} onPage={setPage} />
     </div>
   );
 }
