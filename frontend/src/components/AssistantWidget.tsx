@@ -38,6 +38,21 @@ export default function AssistantWidget() {
     setPos({ x: window.innerWidth - BTN - 20, y: window.innerHeight - BTN - 20 });
   }, []);
 
+  // Khi đổi kích thước cửa sổ / zoom: kéo nút về trong màn hình để KHÔNG bao giờ bị khuất.
+  useEffect(() => {
+    const clamp = () =>
+      setPos((p) =>
+        p
+          ? {
+              x: Math.max(8, Math.min(p.x, window.innerWidth - BTN - 8)),
+              y: Math.max(8, Math.min(p.y, window.innerHeight - BTN - 8)),
+            }
+          : p
+      );
+    window.addEventListener("resize", clamp);
+    return () => window.removeEventListener("resize", clamp);
+  }, []);
+
   if (role !== "DOCTOR" || pathname === "/login" || pathname === "/chat" || pathname.startsWith("/print")) {
     return null;
   }
@@ -106,22 +121,27 @@ export default function AssistantWidget() {
       <button
         onPointerDown={onPointerDown}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); } }}
-        className={`fixed z-40 w-16 h-16 rounded-full bg-white shadow-lg border-2 border-blue-100 overflow-hidden no-print select-none ${
+        className={`fixed z-40 w-16 h-16 rounded-full bg-white shadow-xl ring-2 ring-blue-400 hover:ring-blue-500 no-print select-none ${
           pos ? "" : "bottom-5 right-5"
         } ${dragging ? "cursor-grabbing scale-105" : "cursor-grab"}`}
         style={pos ? { left: pos.x, top: pos.y, touchAction: "none" } : { touchAction: "none" }}
         title="Trợ lý — bấm để mở, kéo để di chuyển"
         aria-label={open ? "Đóng trợ lý" : "Mở trợ lý"}
       >
-        <Image
-          src="/images/assistant.png"
-          alt="Trợ lý"
-          fill
-          sizes="64px"
-          unoptimized
-          draggable={false}
-          className="object-contain p-1 pointer-events-none"
-        />
+        <span className="absolute inset-0 rounded-full overflow-hidden">
+          <Image
+            src="/images/assistant.png"
+            alt="Trợ lý"
+            fill
+            sizes="64px"
+            unoptimized
+            draggable={false}
+            className="object-contain p-1 pointer-events-none"
+          />
+        </span>
+        <span className="absolute -top-1 -right-1 px-1 h-4 min-w-[16px] rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white pointer-events-none">
+          AI
+        </span>
       </button>
     </>
   );

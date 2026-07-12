@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { api } from "@/lib/api";
@@ -75,9 +76,16 @@ function LoginForm() {
   return (
     <div className="max-w-sm mx-auto py-16">
       <div className="text-center mb-8">
-        <div className="text-5xl mb-2">⚕</div>
-        <h1 className="text-2xl font-bold text-blue-900">Quản lý phòng khám</h1>
-        <p className="text-sm text-gray-500 mt-1">Hệ thống nội bộ dành cho bác sĩ</p>
+        <Image
+          src="/images/logo.jpg"
+          alt="Phòng khám"
+          width={280}
+          height={157}
+          priority
+          unoptimized
+          className="mx-auto w-auto h-28 object-contain"
+        />
+        <p className="text-sm text-gray-500 mt-2">Hệ thống nội bộ dành cho bác sĩ</p>
       </div>
 
       <div className="bg-white border rounded-2xl p-6 space-y-4 shadow-sm">
