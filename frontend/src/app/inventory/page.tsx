@@ -34,6 +34,18 @@ const emptyForm = (): FormState => ({
   injectionStock: "",
 });
 
+/** Dựng lại payload đơn vị (factorToNext) từ 1 thuốc đã có — để PUT cập nhật mà GIỮ NGUYÊN cấu trúc kho. */
+function unitsPayload(m: Medicine) {
+  if (m.injection) return [];
+  return m.units.map((u, i) => ({
+    unitName: u.unitName,
+    factorToNext:
+      i < m.units.length - 1
+        ? Number(m.units[i].factorToBase) / Number(m.units[i + 1].factorToBase)
+        : null,
+  }));
+}
+
 export default function InventoryPage() {
   const [q, setQ] = useState("");
   const [items, setItems] = useState<Medicine[]>([]);
@@ -44,6 +56,7 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [adjustFor, setAdjustFor] = useState<Medicine | null>(null);
+  const [editing, setEditing] = useState<Medicine | null>(null); // thuốc đang sửa (null = đang thêm mới)
   const [filter, setFilter] = useState<StockFilter>("all");
   const [page, setPage] = useState(0);
 
@@ -98,9 +111,52 @@ export default function InventoryPage() {
     }
   }
 
+  /** Mở form ở chế độ SỬA — pre-fill từ thuốc; đơn vị & loại khóa lại (bảo toàn tồn kho). */
+  function startEdit(m: Medicine) {
+    setEditing(m);
+    setForm({
+      name: m.name,
+      injection: m.injection,
+      lowStockThreshold: String(m.lowStockThreshold),
+      imagePath: m.imagePath,
+      imageUrl: m.imageUrl,
+      ticked: m.units.map((u) => u.unitName),
+      values: {},
+      injectionStock: "",
+    });
+    setError("");
+    setShowForm(true);
+  }
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    // Sửa: chỉ đổi tên/ngưỡng/ảnh; giữ nguyên đơn vị & loại (gửi lại cấu trúc cũ). Không đụng tồn kho.
+    if (editing) {
+      setSaving(true);
+      try {
+        await api(`/api/doctor/medicines/${editing.id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: form.name,
+            injection: editing.injection,
+            lowStockThreshold: Number(form.lowStockThreshold) || 30,
+            units: unitsPayload(editing),
+            imagePath: form.imagePath,
+          }),
+        });
+        setShowForm(false);
+        setEditing(null);
+        setForm(emptyForm());
+        load();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "Lưu thất bại");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
 
     let body: Record<string, unknown>;
     if (form.injection) {
@@ -188,7 +244,7 @@ export default function InventoryPage() {
             className="border rounded-lg px-3 py-2 w-56 text-sm"
           />
           <button
-            onClick={() => { setShowForm(!showForm); setForm(emptyForm()); }}
+            onClick={() => { const wasEditing = editing; setEditing(null); setForm(emptyForm()); setShowForm(wasEditing ? true : !showForm); }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 shrink-0"
           >
             + Thêm thuốc
@@ -212,6 +268,7 @@ export default function InventoryPage() {
 
       {showForm && (
         <form onSubmit={save} className="bg-white border rounded-xl p-5 mb-4 space-y-4">
+          <p className="font-medium">{editing ? `Sửa thuốc: ${editing.name}` : "Thêm thuốc mới"}</p>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1 font-medium">Tên thuốc *</label>
@@ -248,16 +305,29 @@ export default function InventoryPage() {
             </label>
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.injection}
-              onChange={(e) => setForm({ ...form, injection: e.target.checked })}
-            />
-            💉 Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
-          </label>
+          {!editing && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.injection}
+                onChange={(e) => setForm({ ...form, injection: e.target.checked })}
+              />
+              💉 Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
+            </label>
+          )}
 
-          {form.injection ? (
+          {editing ? (
+            <div className="border rounded-lg p-3 bg-gray-50 text-sm">
+              <p className="font-medium mb-1">
+                {editing.injection
+                  ? "💉 Thuốc tiêm (đơn vị: ống)"
+                  : `Đơn vị: ${editing.units.map((u) => u.label).join(" › ")}`}
+              </p>
+              <p className="text-xs text-gray-500">
+                Không đổi loại/đơn vị ở đây để bảo toàn tồn kho hiện có. Cần chỉnh tồn thì dùng nút &quot;Nhập / chỉnh&quot;.
+              </p>
+            </div>
+          ) : form.injection ? (
             <div className="border rounded-lg p-3 bg-purple-50/40">
               <label className="block text-sm mb-1 font-medium">Số lượng nhập ban đầu (ống)</label>
               <input
@@ -341,7 +411,7 @@ export default function InventoryPage() {
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button type="submit" disabled={saving || uploading} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-            {saving ? "Đang lưu..." : "Lưu thuốc"}
+            {saving ? "Đang lưu..." : editing ? "Cập nhật thuốc" : "Lưu thuốc"}
           </button>
         </form>
       )}
@@ -386,6 +456,7 @@ export default function InventoryPage() {
                   </td>
                   <td className="p-3 text-gray-500 text-xs">{m.units.map((u) => u.label).join(" › ")}</td>
                   <td className="p-3 text-right whitespace-nowrap">
+                    <button onClick={() => startEdit(m)} className="text-blue-700 hover:underline mr-3">Sửa</button>
                     <button onClick={() => setAdjustFor(m)} className="text-blue-700 hover:underline mr-3">Nhập / chỉnh</button>
                     <button onClick={() => remove(m)} className="text-red-600 hover:underline">Xóa</button>
                   </td>
