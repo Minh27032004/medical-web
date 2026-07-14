@@ -74,70 +74,72 @@ function LoginForm() {
   }
 
   return (
-    <div className="max-w-sm mx-auto py-16">
-      <div className="text-center mb-8">
-        <Image
-          src="/images/logo.jpg"
-          alt="Phòng khám"
-          width={280}
-          height={157}
-          priority
-          unoptimized
-          className="mx-auto w-auto h-28 object-contain"
-        />
-        <p className="text-sm text-gray-500 mt-2">Hệ thống nội bộ dành cho bác sĩ</p>
-      </div>
-
-      <div className="bg-white border rounded-2xl p-6 space-y-4 shadow-sm">
-        <button
-          onClick={loginGoogle}
-          className="w-full border rounded-lg py-2.5 flex items-center justify-center gap-2 hover:bg-gray-50 font-medium"
-        >
-          <GoogleIcon />
-          Đăng nhập bằng Google
-        </button>
-
-        <div className="flex items-center gap-3 text-xs text-gray-400">
-          <div className="flex-1 border-t" />
-          hoặc
-          <div className="flex-1 border-t" />
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-[#f5f5f5]">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <Image
+            src="/images/logo.jpg"
+            alt="Phòng khám"
+            width={280}
+            height={157}
+            priority
+            unoptimized
+            className="mx-auto w-auto h-28 object-contain"
+          />
+          <p className="text-sm text-gray-500 mt-2">Hệ thống nội bộ dành cho bác sĩ</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm mb-1 font-medium">Tên đăng nhập hoặc Gmail</label>
-            <input
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
-              autoComplete="username"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm mb-1 font-medium">Mật khẩu</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+        <div className="card p-7 space-y-5">
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            onClick={loginGoogle}
+            className="btn-ghost w-full py-2.5"
           >
-            {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+            <GoogleIcon />
+            Đăng nhập bằng Google
           </button>
-        </form>
 
-        <p className="text-xs text-gray-400 text-center">
-          Chưa có tài khoản? Liên hệ quản trị viên để được cấp.
-        </p>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <div className="flex-1 border-t border-gray-100" />
+            hoặc
+            <div className="flex-1 border-t border-gray-100" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm mb-1.5 font-medium text-gray-600">Tên đăng nhập hoặc Gmail</label>
+              <input
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+                className="input"
+                autoComplete="username"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm mb-1.5 font-medium text-gray-600">Mật khẩu</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            {error && <p className="text-red-600 text-sm">{error}</p>}
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary w-full py-2.5"
+            >
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+            </button>
+          </form>
+
+          <p className="text-xs text-gray-400 text-center">
+            Chưa có tài khoản? Liên hệ quản trị viên để được cấp.
+          </p>
+        </div>
       </div>
     </div>
   );

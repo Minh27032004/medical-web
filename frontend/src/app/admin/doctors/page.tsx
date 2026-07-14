@@ -43,18 +43,15 @@ export default function AdminDoctorsPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold">Quản lý bác sĩ</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
-        >
+      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-[#1b2559]">Quản lý bác sĩ</h1>
+        <button onClick={() => setShowForm(!showForm)} className="btn-primary">
           + Tạo tài khoản bác sĩ
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={create} className="bg-white border rounded-xl p-4 mb-4 grid sm:grid-cols-2 gap-3">
+        <form onSubmit={create} className="card p-5 mb-4 grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2 text-xs text-gray-500 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2">
             Cách đăng nhập: nhập <b>Gmail</b> để bác sĩ đăng nhập bằng Google (để trống username/mật khẩu = chỉ Google).
             Có thể thêm username + mật khẩu để đăng nhập được cả 2 cách.
@@ -65,7 +62,7 @@ export default function AdminDoctorsPage() {
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="input"
               placeholder="vd: bacsi.teo@gmail.com"
             />
           </div>
@@ -74,7 +71,7 @@ export default function AdminDoctorsPage() {
             <input
               value={form.username}
               onChange={(e) => setForm({ ...form, username: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="input"
               placeholder="tùy chọn — chữ thường, số, 3-30 ký tự"
             />
           </div>
@@ -83,7 +80,7 @@ export default function AdminDoctorsPage() {
             <input
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="input"
               placeholder="tùy chọn — tối thiểu 8 ký tự"
             />
           </div>
@@ -92,7 +89,7 @@ export default function AdminDoctorsPage() {
             <input
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="input"
               required
             />
           </div>
@@ -101,7 +98,7 @@ export default function AdminDoctorsPage() {
             <input
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="input"
             />
           </div>
           <div className="sm:col-span-2">
@@ -109,71 +106,69 @@ export default function AdminDoctorsPage() {
             <input
               value={form.clinicName}
               onChange={(e) => setForm({ ...form, clinicName: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
+              className="input"
             />
           </div>
           {error && <p className="text-red-600 text-sm sm:col-span-2">{error}</p>}
           <div className="sm:col-span-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50"
-            >
+            <button type="submit" disabled={saving} className="btn-primary">
               {saving ? "Đang tạo..." : "Tạo tài khoản"}
             </button>
           </div>
         </form>
       )}
 
-      <div className="bg-white border rounded-xl overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left">
-            <tr>
-              <th className="p-3">Đăng nhập</th>
-              <th className="p-3">Họ tên</th>
-              <th className="p-3">Phòng khám</th>
-              <th className="p-3">SĐT</th>
-              <th className="p-3">Trạng thái</th>
-              <th className="p-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {doctors.map((d) => (
-              <tr key={d.id} className={d.blocked ? "opacity-60" : ""}>
-                <td className="p-3">
-                  {d.username && <div className="font-mono">{d.username}</div>}
-                  {d.email && <div className="text-xs text-blue-700">✉ {d.email}</div>}
-                  {!d.username && !d.email && "—"}
-                </td>
-                <td className="p-3 font-medium">{d.fullName}</td>
-                <td className="p-3">{d.clinicName ?? "—"}</td>
-                <td className="p-3">{d.phone ?? "—"}</td>
-                <td className="p-3">
-                  {d.blocked ? (
-                    <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs">Đã khóa</span>
-                  ) : (
-                    <span className="text-blue-700 bg-blue-50 px-2 py-1 rounded text-xs">Hoạt động</span>
-                  )}
-                </td>
-                <td className="p-3 text-right">
-                  <button
-                    onClick={() => toggleBlock(d)}
-                    className={d.blocked ? "text-blue-700 hover:underline" : "text-red-600 hover:underline"}
-                  >
-                    {d.blocked ? "Mở khóa" : "Khóa"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {doctors.length === 0 && (
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={6} className="p-6 text-center text-gray-500">
-                  Chưa có bác sĩ nào.
-                </td>
+                <th>Đăng nhập</th>
+                <th>Họ tên</th>
+                <th>Phòng khám</th>
+                <th>SĐT</th>
+                <th>Trạng thái</th>
+                <th></th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {doctors.map((d) => (
+                <tr key={d.id} className={d.blocked ? "opacity-60" : ""}>
+                  <td>
+                    {d.username && <div className="font-mono">{d.username}</div>}
+                    {d.email && <div className="text-xs text-blue-700">✉ {d.email}</div>}
+                    {!d.username && !d.email && "—"}
+                  </td>
+                  <td className="font-semibold text-[#1b2559]">{d.fullName}</td>
+                  <td className="text-gray-600">{d.clinicName ?? "—"}</td>
+                  <td className="text-gray-600">{d.phone ?? "—"}</td>
+                  <td>
+                    {d.blocked ? (
+                      <span className="text-red-600 bg-red-50 px-2.5 py-1 rounded-full text-xs font-medium">Đã khóa</span>
+                    ) : (
+                      <span className="text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full text-xs font-medium">Hoạt động</span>
+                    )}
+                  </td>
+                  <td className="text-right">
+                    <button
+                      onClick={() => toggleBlock(d)}
+                      className={`font-medium ${d.blocked ? "text-blue-700 hover:underline" : "text-red-600 hover:underline"}`}
+                    >
+                      {d.blocked ? "Mở khóa" : "Khóa"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {doctors.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-6 text-center text-gray-500">
+                    Chưa có bác sĩ nào.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

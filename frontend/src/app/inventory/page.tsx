@@ -235,31 +235,29 @@ export default function InventoryPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h1 className="text-xl font-bold">Kho thuốc</h1>
+        <h1 className="text-2xl font-bold text-[#1b2559]">Kho thuốc</h1>
         <div className="flex gap-3">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Tìm thuốc..."
-            className="border rounded-lg px-3 py-2 w-56 text-sm"
+            className="input w-56"
           />
           <button
             onClick={() => { const wasEditing = editing; setEditing(null); setForm(emptyForm()); setShowForm(wasEditing ? true : !showForm); }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 shrink-0"
+            className="btn-primary shrink-0"
           >
             + Thêm thuốc
           </button>
         </div>
       </div>
 
-      <div className="flex gap-1.5 mb-4 text-sm">
+      <div className="flex gap-2 mb-4 text-sm">
         {([["all", "Tất cả"], ["oral", "💊 Uống"], ["injection", "💉 Tiêm"]] as const).map(([v, label]) => (
           <button
             key={v}
             onClick={() => setFilter(v)}
-            className={`px-3 py-1.5 rounded-lg border ${
-              filter === v ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 hover:bg-gray-50"
-            }`}
+            className={`chip ${filter === v ? "chip-active" : ""}`}
           >
             {label}
           </button>
@@ -267,15 +265,15 @@ export default function InventoryPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={save} className="bg-white border rounded-xl p-5 mb-4 space-y-4">
-          <p className="font-medium">{editing ? `Sửa thuốc: ${editing.name}` : "Thêm thuốc mới"}</p>
+        <form onSubmit={save} className="card p-5 mb-4 space-y-4">
+          <p className="font-semibold text-[#1b2559]">{editing ? `Sửa thuốc: ${editing.name}` : "Thêm thuốc mới"}</p>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1 font-medium">Tên thuốc *</label>
               <input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2"
+                className="input"
                 required
               />
             </div>
@@ -285,7 +283,7 @@ export default function InventoryPage() {
                 type="number" min={0}
                 value={form.lowStockThreshold}
                 onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2"
+                className="input"
               />
             </div>
           </div>
@@ -410,7 +408,7 @@ export default function InventoryPage() {
           )}
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button type="submit" disabled={saving || uploading} className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+          <button type="submit" disabled={saving || uploading} className="btn-primary">
             {saving ? "Đang lưu..." : editing ? "Cập nhật thuốc" : "Lưu thuốc"}
           </button>
         </form>
@@ -424,46 +422,48 @@ export default function InventoryPage() {
       )}
 
       {filtered.length > 0 && (
-        <div className="bg-white border rounded-xl overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left">
-              <tr>
-                <th className="p-3">Thuốc</th>
-                <th className="p-3">Tồn kho</th>
-                <th className="p-3">Đơn vị</th>
-                <th className="p-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {pageItems.map((m) => (
-                <tr key={m.id} className={m.lowStock ? "bg-red-50/50" : ""}>
-                  <td className="p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded overflow-hidden shrink-0 relative">
-                        {m.imageUrl ? (
-                          <Image src={m.imageUrl} alt="" fill className="object-cover" unoptimized />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">{m.injection ? "💉" : "💊"}</div>
-                        )}
-                      </div>
-                      <span className="font-medium">{m.name}</span>
-                      {m.lowStock && <span className="text-xs text-red-600 font-medium">⚠ sắp hết</span>}
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    {m.stockDisplay}
-                    <span className="text-xs text-gray-400 ml-1">({m.stockBaseQty} {m.baseUnitLabel})</span>
-                  </td>
-                  <td className="p-3 text-gray-500 text-xs">{m.units.map((u) => u.label).join(" › ")}</td>
-                  <td className="p-3 text-right whitespace-nowrap">
-                    <button onClick={() => startEdit(m)} className="text-blue-700 hover:underline mr-3">Sửa</button>
-                    <button onClick={() => setAdjustFor(m)} className="text-blue-700 hover:underline mr-3">Nhập / chỉnh</button>
-                    <button onClick={() => remove(m)} className="text-red-600 hover:underline">Xóa</button>
-                  </td>
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Thuốc</th>
+                  <th>Tồn kho</th>
+                  <th>Đơn vị</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pageItems.map((m) => (
+                  <tr key={m.id} className={m.lowStock ? "bg-red-50/50" : ""}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden shrink-0 relative">
+                          {m.imageUrl ? (
+                            <Image src={m.imageUrl} alt="" fill className="object-cover" unoptimized />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">{m.injection ? "💉" : "💊"}</div>
+                          )}
+                        </div>
+                        <span className="font-semibold text-[#1b2559]">{m.name}</span>
+                        {m.lowStock && <span className="text-xs text-red-600 font-medium">⚠ sắp hết</span>}
+                      </div>
+                    </td>
+                    <td>
+                      {m.stockDisplay}
+                      <span className="text-xs text-gray-400 ml-1">({m.stockBaseQty} {m.baseUnitLabel})</span>
+                    </td>
+                    <td className="text-gray-500 text-xs">{m.units.map((u) => u.label).join(" › ")}</td>
+                    <td className="text-right whitespace-nowrap">
+                      <button onClick={() => startEdit(m)} className="font-medium text-blue-700 hover:underline mr-3">Sửa</button>
+                      <button onClick={() => setAdjustFor(m)} className="font-medium text-blue-700 hover:underline mr-3">Nhập / chỉnh</button>
+                      <button onClick={() => remove(m)} className="font-medium text-red-600 hover:underline">Xóa</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -510,8 +510,8 @@ function AdjustModal({ medicine, onClose, onDone }: { medicine: Medicine; onClos
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-5 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-bold mb-1">Nhập kho / chỉnh tồn</h3>
+      <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-bold mb-1 text-[#1b2559]">Nhập kho / chỉnh tồn</h3>
         <p className="text-sm text-gray-600 mb-3">{medicine.name} — tồn: {medicine.stockDisplay}</p>
         <p className="text-xs text-gray-500 mb-2">Nhập số dương để cộng, số âm để trừ (VD -1 hộp khi bỏ thuốc hết hạn).</p>
         <div className="space-y-2">
@@ -532,14 +532,14 @@ function AdjustModal({ medicine, onClose, onDone }: { medicine: Medicine; onClos
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Lý do (tùy chọn): nhập hàng, kiểm kê, hết hạn..."
-          className="w-full border rounded-lg px-3 py-2 text-sm mt-3"
+          className="input mt-3"
         />
         {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
         <div className="flex gap-2 mt-4">
-          <button onClick={submit} disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={submit} disabled={saving} className="btn-primary">
             {saving ? "Đang lưu..." : "Cập nhật tồn"}
           </button>
-          <button onClick={onClose} className="border px-4 py-2 rounded-lg text-sm">Hủy</button>
+          <button onClick={onClose} className="btn-ghost">Hủy</button>
         </div>
       </div>
     </div>

@@ -32,33 +32,27 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4 no-print flex-wrap gap-2">
-        <h1 className="text-xl font-bold">Chi tiết lần khám</h1>
+        <h1 className="text-2xl font-bold text-[#1b2559]">Chi tiết lần khám</h1>
         <div className="flex gap-2">
-          <Link
-            href={`/patients/${visit.patient.id}`}
-            className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50"
-          >
+          <Link href={`/patients/${visit.patient.id}`} className="btn-ghost">
             ← Hồ sơ bệnh nhân
           </Link>
           {visit.items.length > 0 && (
             <Link
               href={`/patients/${visit.patient.id}/new-visit?copyFrom=${visit.id}`}
-              className="border border-blue-400 text-blue-700 px-4 py-2 rounded-lg text-sm hover:bg-blue-50"
+              className="inline-flex items-center gap-2 border border-blue-300 text-blue-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-50 transition"
             >
               ⟳ Tạo lại đơn
             </Link>
           )}
-          <button
-            onClick={printRx}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
-          >
+          <button onClick={printRx} className="btn-primary">
             🖨 In đơn thuốc
           </button>
         </div>
       </div>
 
       {/* ===== Vùng in — cũng là vùng xem ===== */}
-      <div className="print-area bg-white border rounded-xl p-6 print:border-0 print:p-0">
+      <div className="print-area card p-6 print:shadow-none print:border-0 print:p-0 print:rounded-none">
         <div className="text-center border-b pb-3 mb-4">
           <h2 className="text-lg font-bold uppercase">{visit.doctor.clinicName || "Phòng khám"}</h2>
           <p className="text-sm">

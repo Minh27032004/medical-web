@@ -108,19 +108,19 @@ export default function AssistantChat() {
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex gap-2 pt-2 border-t mt-2">
+      <div className="flex gap-2 pt-2 border-t border-gray-100 mt-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask(input)}
           placeholder="Nhập câu hỏi..."
-          className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white"
+          className="input flex-1"
           disabled={loading}
         />
         <button
           onClick={() => ask(input)}
           disabled={loading || !input.trim()}
-          className="bg-blue-600 text-white px-5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="btn-primary px-5"
         >
           Gửi
         </button>
@@ -132,11 +132,11 @@ export default function AssistantChat() {
 /** Kết quả dạng THẺ xếp dọc (nhãn — giá trị) để luôn gọn trong khung, không cần cuộn ngang. */
 function ResultBlock({ r }: { r: ChatResponse }) {
   if (r.message && r.rows.length === 0) {
-    return <div className="bg-white border rounded-xl px-4 py-3 text-sm text-gray-700 break-words">{r.message}</div>;
+    return <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-700 break-words shadow-sm">{r.message}</div>;
   }
   const columns = r.rows.length > 0 ? Object.keys(r.rows[0]).filter((c) => c !== "visitId") : [];
   return (
-    <div className="bg-white border rounded-xl overflow-hidden">
+    <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
       {r.title && <p className="px-4 py-2 bg-blue-50 text-sm font-medium text-blue-900 break-words">{r.title}</p>}
       {r.rows.length === 0 ? (
         <p className="px-4 py-3 text-sm text-gray-500">Không có kết quả.</p>

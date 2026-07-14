@@ -39,31 +39,31 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
   }
 
   return (
-    <form onSubmit={submit} className="max-w-lg bg-white border rounded-xl p-6 space-y-4">
+    <form onSubmit={submit} className="max-w-lg card p-6 space-y-4">
       <div>
-        <label className="block text-sm mb-1 font-medium">Họ tên *</label>
+        <label className="block text-sm mb-1.5 font-medium text-gray-600">Họ tên *</label>
         <input
           value={form.fullName}
           onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2"
+          className="input"
           required
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm mb-1 font-medium">Số điện thoại</label>
+          <label className="block text-sm mb-1.5 font-medium text-gray-600">Số điện thoại</label>
           <input
             value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2"
+            className="input"
           />
         </div>
         <div>
-          <label className="block text-sm mb-1 font-medium">Giới tính</label>
+          <label className="block text-sm mb-1.5 font-medium text-gray-600">Giới tính</label>
           <select
             value={form.gender}
             onChange={(e) => setForm({ ...form, gender: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2"
+            className="input"
           >
             <option value="">—</option>
             <option value="male">Nam</option>
@@ -73,15 +73,15 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
         </div>
       </div>
       <div>
-        <label className="block text-sm mb-1 font-medium">Địa chỉ</label>
+        <label className="block text-sm mb-1.5 font-medium text-gray-600">Địa chỉ</label>
         <input
           value={form.address}
           onChange={(e) => setForm({ ...form, address: e.target.value })}
-          className="w-full border rounded-lg px-3 py-2"
+          className="input"
         />
       </div>
 
-      <div className="border rounded-lg p-3 bg-red-50/40">
+      <div className="border border-gray-200 rounded-xl p-3 bg-red-50/40">
         <label className="flex items-center gap-2 text-sm font-medium">
           <input
             type="checkbox"
@@ -95,12 +95,12 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
             value={form.drugAllergyNote}
             onChange={(e) => setForm({ ...form, drugAllergyNote: e.target.value })}
             placeholder="Dị ứng thuốc gì? Biểu hiện?"
-            className="w-full border rounded-lg px-3 py-2 mt-2 text-sm"
+            className="input mt-2"
           />
         )}
       </div>
 
-      <div className="border rounded-lg p-3 bg-amber-50/40">
+      <div className="border border-gray-200 rounded-xl p-3 bg-amber-50/40">
         <label className="flex items-center gap-2 text-sm font-medium">
           <input
             type="checkbox"
@@ -114,21 +114,17 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
             value={form.chronicConditionNote}
             onChange={(e) => setForm({ ...form, chronicConditionNote: e.target.value })}
             placeholder="Bệnh nền gì? Đang dùng thuốc gì?"
-            className="w-full border rounded-lg px-3 py-2 mt-2 text-sm"
+            className="input mt-2"
           />
         )}
       </div>
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          className="bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving} className="btn-primary">
           {saving ? "Đang lưu..." : initial ? "Cập nhật" : "Tạo bệnh nhân"}
         </button>
-        <button type="button" onClick={() => router.back()} className="border px-5 py-2.5 rounded-lg hover:bg-gray-50">
+        <button type="button" onClick={() => router.back()} className="btn-ghost">
           Hủy
         </button>
       </div>

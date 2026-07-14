@@ -106,12 +106,9 @@ export default function TemplatesPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-xl font-bold">Thuốc mẫu</h1>
-        <button
-          onClick={() => setForm(emptyForm())}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
-        >
+      <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-[#1b2559]">Thuốc mẫu</h1>
+        <button onClick={() => setForm(emptyForm())} className="btn-primary">
           + Thêm thuốc mẫu
         </button>
       </div>
@@ -120,19 +117,19 @@ export default function TemplatesPage() {
       </p>
 
       {form && (
-        <form onSubmit={save} className="bg-white border rounded-xl p-5 mb-4 space-y-3">
+        <form onSubmit={save} className="card p-5 mb-4 space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm mb-1">Tên hiển thị *</label>
+              <label className="block text-sm mb-1.5 font-medium text-gray-600">Tên hiển thị *</label>
               <input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="input"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Liên kết thuốc trong kho (để trừ tồn)</label>
+              <label className="block text-sm mb-1.5 font-medium text-gray-600">Liên kết thuốc trong kho (để trừ tồn)</label>
               <MedicinePicker
                 value={form.medicineName}
                 onPick={(m) => setForm({ ...form, medicineId: m?.id ?? null, medicineName: m?.name ?? "" })}
@@ -199,10 +196,10 @@ export default function TemplatesPage() {
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <div className="flex gap-2">
-            <button type="submit" disabled={saving} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={saving} className="btn-primary">
               {saving ? "Đang lưu..." : "Lưu"}
             </button>
-            <button type="button" onClick={() => setForm(null)} className="border px-4 py-2 rounded-lg text-sm">Hủy</button>
+            <button type="button" onClick={() => setForm(null)} className="btn-ghost">Hủy</button>
           </div>
         </form>
       )}
@@ -213,16 +210,14 @@ export default function TemplatesPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Tìm thuốc mẫu..."
-          className="border rounded-lg px-3 py-2 text-sm flex-1 min-w-48"
+          className="input flex-1 min-w-48"
         />
-        <div className="flex gap-1 text-sm">
+        <div className="flex gap-1.5 text-sm">
           {([["all", "Tất cả"], ["oral", "💊 Uống"], ["injection", "💉 Tiêm"]] as const).map(([v, label]) => (
             <button
               key={v}
               onClick={() => setFilter(v)}
-              className={`px-3 py-2 rounded-lg border ${
-                filter === v ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 hover:bg-gray-50"
-              }`}
+              className={`chip ${filter === v ? "chip-active" : ""}`}
             >
               {label}
             </button>
@@ -237,7 +232,7 @@ export default function TemplatesPage() {
           </p>
         )}
         {pageItems.map((t) => (
-          <div key={t.id} className="bg-white border rounded-xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div key={t.id} className="card px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div>
               <span className="font-medium">{t.injection ? "💉" : "★"} {t.name}</span>
               <span className="text-sm text-gray-500 ml-2">
@@ -264,7 +259,7 @@ export default function TemplatesPage() {
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="border px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+            className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
           >
             ← Trước
           </button>
@@ -272,7 +267,7 @@ export default function TemplatesPage() {
           <button
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={page >= totalPages - 1}
-            className="border px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+            className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
           >
             Sau →
           </button>
@@ -314,10 +309,10 @@ function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine
         value={input}
         onChange={(e) => { setInput(e.target.value); onPick(null); }}
         placeholder="(tùy chọn) gõ tên thuốc kho..."
-        className="w-full border rounded-lg px-3 py-2 text-sm"
+        className="input"
       />
       {open && (
-        <div className="absolute z-20 top-full left-0 right-0 bg-white border rounded-lg shadow-lg mt-1 max-h-52 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
           {options.map((m) => (
             <button
               key={m.id}

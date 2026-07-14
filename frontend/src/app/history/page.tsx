@@ -67,23 +67,21 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-        <h1 className="text-xl font-bold">Lịch sử khám</h1>
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-[#1b2559]">Lịch sử khám</h1>
         <div className="flex items-center gap-2 text-sm">
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border rounded-lg px-2 py-1.5" />
-          <span>→</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border rounded-lg px-2 py-1.5" />
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 bg-white" />
+          <span className="text-gray-400">→</span>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 bg-white" />
         </div>
       </div>
 
-      <div className="flex gap-1.5 mb-4 text-sm flex-wrap">
+      <div className="flex gap-2 mb-4 text-sm flex-wrap">
         {QUICK.map(([label, n]) => (
           <button
             key={label}
             onClick={() => pickPreset(n)}
-            className={`px-3 py-1.5 rounded-lg border ${
-              activePreset === n ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 hover:bg-gray-50"
-            }`}
+            className={`chip ${activePreset === n ? "chip-active" : ""}`}
           >
             {label}
           </button>
@@ -110,7 +108,7 @@ export default function HistoryPage() {
                 <Link
                   key={v.id}
                   href={`/visits/${v.id}`}
-                  className="block bg-white border rounded-xl px-4 py-3 hover:border-blue-400"
+                  className="card block px-4 py-3.5 hover:border-blue-300 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>

@@ -30,20 +30,17 @@ export default function PatientsPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h1 className="text-xl font-bold">Bệnh nhân</h1>
+      <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold text-[#1b2559]">Bệnh nhân</h1>
         <div className="flex gap-3">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Tìm theo tên hoặc SĐT..."
-            className="border rounded-lg px-3 py-2 w-64 text-sm"
+            className="input w-64"
             autoFocus
           />
-          <Link
-            href="/patients/new"
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 shrink-0"
-          >
+          <Link href="/patients/new" className="btn-primary shrink-0">
             + Bệnh nhân mới
           </Link>
         </div>
@@ -56,51 +53,53 @@ export default function PatientsPage() {
         </p>
       )}
 
-      <div className="bg-white border rounded-xl overflow-x-auto">
-        {patients.length > 0 && (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left">
-              <tr>
-                <th className="p-3">Họ tên</th>
-                <th className="p-3">SĐT</th>
-                <th className="p-3">Giới tính</th>
-                <th className="p-3">Lưu ý</th>
-                <th className="p-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {patients.map((p) => (
-                <tr key={p.id} className="hover:bg-blue-50/40">
-                  <td className="p-3">
-                    <Link href={`/patients/${p.id}`} className="font-medium text-blue-800 hover:underline">
-                      {p.fullName}
-                    </Link>
-                  </td>
-                  <td className="p-3">{p.phone ?? "—"}</td>
-                  <td className="p-3">{p.gender ? GENDER_LABEL[p.gender] : "—"}</td>
-                  <td className="p-3 space-x-1">
-                    {p.hasDrugAllergy && (
-                      <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded text-xs" title={p.drugAllergyNote ?? ""}>
-                        ⚠ Dị ứng thuốc
-                      </span>
-                    )}
-                    {p.hasChronicCondition && (
-                      <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-xs" title={p.chronicConditionNote ?? ""}>
-                        Bệnh nền
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right whitespace-nowrap">
-                    <Link href={`/patients/${p.id}/new-visit`} className="text-blue-700 hover:underline">
-                      + Khám
-                    </Link>
-                  </td>
+      {patients.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Họ tên</th>
+                  <th>SĐT</th>
+                  <th>Giới tính</th>
+                  <th>Lưu ý</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {patients.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <Link href={`/patients/${p.id}`} className="font-semibold text-blue-800 hover:underline">
+                        {p.fullName}
+                      </Link>
+                    </td>
+                    <td className="text-gray-600">{p.phone ?? "—"}</td>
+                    <td className="text-gray-600">{p.gender ? GENDER_LABEL[p.gender] : "—"}</td>
+                    <td className="space-x-1">
+                      {p.hasDrugAllergy && (
+                        <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded-md text-xs" title={p.drugAllergyNote ?? ""}>
+                          ⚠ Dị ứng thuốc
+                        </span>
+                      )}
+                      {p.hasChronicCondition && (
+                        <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md text-xs" title={p.chronicConditionNote ?? ""}>
+                          Bệnh nền
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-right whitespace-nowrap">
+                      <Link href={`/patients/${p.id}/new-visit`} className="font-medium text-blue-700 hover:underline">
+                        + Khám
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <Pager page={page} totalPages={totalPages} onPage={setPage} />
     </div>

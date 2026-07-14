@@ -4,19 +4,19 @@ export default function Pager({
 }: { page: number; totalPages: number; onPage: (p: number) => void }) {
   if (totalPages <= 1) return null;
   return (
-    <div className="flex items-center justify-center gap-3 mt-4 text-sm">
+    <div className="flex items-center justify-center gap-3 mt-5 text-sm">
       <button
         onClick={() => onPage(Math.max(0, page - 1))}
         disabled={page === 0}
-        className="border px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+        className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
       >
         ← Trước
       </button>
-      <span className="text-gray-600">Trang {page + 1}/{totalPages}</span>
+      <span className="text-gray-500 font-medium">Trang {page + 1}/{totalPages}</span>
       <button
         onClick={() => onPage(Math.min(totalPages - 1, page + 1))}
         disabled={page >= totalPages - 1}
-        className="border px-3 py-1.5 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+        className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
       >
         Sau →
       </button>

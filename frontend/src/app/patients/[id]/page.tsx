@@ -53,7 +53,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   if (editing) {
     return (
       <div className="max-w-lg mx-auto">
-        <h1 className="text-xl font-bold mb-4">Sửa hồ sơ: {patient.fullName}</h1>
+        <h1 className="text-2xl font-bold text-[#1b2559] mb-4">Sửa hồ sơ: {patient.fullName}</h1>
         <PatientForm initial={patient} />
         <button onClick={() => setEditing(false)} className="text-sm text-gray-600 mt-3 hover:underline">
           ← Quay lại
@@ -64,10 +64,10 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="bg-white border rounded-xl p-5">
+      <div className="card p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold">{patient.fullName}</h1>
+            <h1 className="text-2xl font-bold text-[#1b2559]">{patient.fullName}</h1>
             <p className="text-sm text-gray-600 mt-0.5">
               {patient.gender ? GENDER_LABEL[patient.gender] : ""}
               {patient.gender && patient.phone && " · "}
@@ -88,33 +88,30 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
           <div className="flex flex-col gap-2 shrink-0">
-            <Link
-              href={`/patients/${patient.id}/new-visit`}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 text-center"
-            >
+            <Link href={`/patients/${patient.id}/new-visit`} className="btn-primary text-center">
               + Tạo lần khám
             </Link>
-            <button onClick={() => setEditing(true)} className="border px-4 py-2 rounded-lg text-sm hover:bg-gray-50">
+            <button onClick={() => setEditing(true)} className="btn-ghost">
               Sửa hồ sơ
             </button>
           </div>
         </div>
       </div>
 
-      <h2 className="font-bold mt-6 mb-3">
-        Lịch sử khám <span className="text-gray-400 font-normal">({visits.length} lượt · {byDay.length} ngày)</span>
+      <h2 className="font-bold text-lg text-[#1b2559] mt-6 mb-3">
+        Lịch sử khám <span className="text-gray-400 font-normal text-sm">({visits.length} lượt · {byDay.length} ngày)</span>
       </h2>
       {visits.length === 0 && <p className="text-gray-500 text-sm">Chưa có lần khám nào.</p>}
 
       {visits.length > 0 && (
-        <div className="bg-white border rounded-xl overflow-hidden">
+        <div className="card overflow-hidden">
           {/* Hiện ~10 ngày gần nhất; cuộn để xem cũ hơn. */}
           <div className="max-h-[30rem] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left sticky top-0 z-10">
+              <thead className="bg-gray-50/70 text-left sticky top-0 z-10 text-xs uppercase tracking-wide text-gray-400">
                 <tr>
-                  <th className="p-3 w-32">Ngày</th>
-                  <th className="p-3">Lượt khám trong ngày</th>
+                  <th className="px-4 py-3 w-32">Ngày</th>
+                  <th className="px-4 py-3">Lượt khám trong ngày</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

@@ -107,11 +107,11 @@ function IcdPicker({
         value={input}
         onChange={(e) => { setInput(e.target.value); onPick("", ""); }}
         onKeyDown={onKey}
-        className={`w-full border rounded-lg px-3 py-2 ${code ? "border-blue-400 bg-blue-50/40" : ""}`}
+        className={`input ${code ? "border-blue-400 bg-blue-50/40" : ""}`}
         required={!code}
       />
       {open && (
-        <div className="absolute z-20 top-full left-0 right-0 bg-white border rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-lg mt-1 max-h-60 overflow-y-auto">
           {options.map((o) => (
             <button
               key={o.code}
@@ -188,10 +188,10 @@ function IcdMultiPicker({
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={onKey}
-        className="w-full border rounded-lg px-3 py-2 text-sm"
+        className="input"
       />
       {open && (
-        <div className="absolute z-20 top-full left-0 right-0 bg-white border rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-lg mt-1 max-h-56 overflow-y-auto">
           {options.map((o) => (
             <button
               key={o.code}
@@ -264,13 +264,13 @@ function MedicineInput({
         value={item.medicineName}
         onChange={(e) => onChange({ medicineName: e.target.value, medicineId: null, stockDisplay: null })}
         placeholder={item.injection ? "Tên thuốc tiêm..." : "Tên thuốc..."}
-        className="w-full border rounded-lg px-3 py-2 text-sm"
+        className="input"
       />
       {item.stockDisplay && (
         <p className="text-[11px] text-gray-500 mt-0.5">Tồn: {item.stockDisplay}</p>
       )}
       {open && (
-        <div className="absolute z-20 top-full left-0 right-0 bg-white border rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto">
+        <div className="absolute z-20 top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-lg mt-1 max-h-56 overflow-y-auto">
           {options.map((s, i) => (
             <button
               key={i}
@@ -440,13 +440,13 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   return (
     <form onSubmit={submit} className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold">
-          Lần khám mới {patient && <span className="text-blue-800">— {patient.fullName}</span>}
+        <h1 className="text-2xl font-bold text-[#1b2559]">
+          Lần khám mới {patient && <span className="text-blue-700">— {patient.fullName}</span>}
         </h1>
         <button
           type="button"
           onClick={copyLast}
-          className="text-sm border border-blue-400 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-50"
+          className="text-sm border border-blue-300 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-50 transition font-medium"
         >
           ⟳ Tạo lại đơn gần nhất
         </button>
@@ -463,14 +463,14 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
         </p>
       )}
 
-      <div className="bg-white border rounded-xl p-5 space-y-4">
+      <div className="card p-5 space-y-4">
         <div>
-          <label className="block text-sm mb-1 font-medium">Chẩn đoán chính (ICD-10) *</label>
+          <label className="block text-sm mb-1.5 font-medium text-gray-600">Chẩn đoán chính (ICD-10) *</label>
           <IcdPicker code={diagCode} name={diagName} onPick={(c, n) => { setDiagCode(c); setDiagName(n); }} />
         </div>
         <div>
-          <label className="block text-sm mb-1 font-medium">
-            Chẩn đoán phụ <span className="text-gray-500 font-normal">(có thể nhiều mã)</span>
+          <label className="block text-sm mb-1.5 font-medium text-gray-600">
+            Chẩn đoán phụ <span className="text-gray-400 font-normal">(có thể nhiều mã)</span>
           </label>
           <IcdMultiPicker
             items={secondary}
@@ -479,12 +479,12 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1 font-medium">Ghi chú khám</label>
+          <label className="block text-sm mb-1.5 font-medium text-gray-600">Ghi chú khám</label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            className="w-full border rounded-lg px-3 py-2 text-sm"
+            className="input"
           />
           <div className="flex flex-wrap gap-1.5 mt-2">
             {QUICK_NOTES.map((term) => (
@@ -501,9 +501,9 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
 
-      <div className="bg-white border rounded-xl p-5">
+      <div className="card p-5">
         <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-medium">Đơn thuốc</label>
+          <label className="text-sm font-semibold text-[#1b2559]">Đơn thuốc</label>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -516,7 +516,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
 
         <div className="space-y-4">
           {items.map((it, idx) => (
-            <div key={idx} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : ""}`}>
+            <div key={idx} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : "border-gray-200"}`}>
               <div className="flex items-start gap-2 flex-wrap">
                 {it.injection && <span className="text-purple-700 text-sm py-2">💉</span>}
                 <MedicineInput item={it} onChange={(p) => updateItem(idx, p)} />
@@ -625,14 +625,10 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
         <p className="text-red-600 text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2">⚠ {error}</p>
       )}
       <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving} className="btn-primary px-6">
           {saving ? "Đang lưu..." : "Lưu lần khám + đơn thuốc"}
         </button>
-        <button type="button" onClick={() => router.back()} className="border px-5 py-2.5 rounded-lg hover:bg-gray-50">
+        <button type="button" onClick={() => router.back()} className="btn-ghost">
           Hủy
         </button>
       </div>
