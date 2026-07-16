@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
+import { IconAlert, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Diagnosis, Icd10, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
 import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
@@ -179,7 +180,7 @@ function IcdMultiPicker({
           {items.map((d) => (
             <span key={d.code} className="inline-flex items-center gap-1 bg-blue-50 border border-blue-200 text-blue-800 rounded-full pl-2.5 pr-1 py-0.5 text-xs">
               <span className="font-mono font-semibold">{d.code}</span> — {d.name}
-              <button type="button" onClick={() => onRemove(d.code)} className="text-blue-500 hover:text-red-600 px-1" aria-label="Bỏ">✕</button>
+              <button type="button" onClick={() => onRemove(d.code)} className="text-blue-500 hover:text-red-600 px-1" aria-label="Bỏ"><IconX size={12} /></button>
             </span>
           ))}
         </div>
@@ -278,8 +279,8 @@ function MedicineInput({
               onClick={() => pick(s)}
               className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm flex justify-between gap-2"
             >
-              <span>
-                {s.type === "TEMPLATE" && <span className="text-amber-600 mr-1" title="Thuốc mẫu">★</span>}
+              <span className="inline-flex items-center gap-1.5">
+                {s.type === "TEMPLATE" && <span className="text-amber-500" title="Thuốc mẫu"><IconStar size={13} /></span>}
                 {s.name}
               </span>
               {s.stockDisplay && <span className="text-xs text-gray-500 shrink-0">{s.stockDisplay}</span>}
@@ -440,26 +441,29 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   return (
     <form onSubmit={submit} className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold text-[#1b2559]">
+        <h1 className="page-title">
           Lần khám mới {patient && <span className="text-blue-700">— {patient.fullName}</span>}
         </h1>
         <button
           type="button"
           onClick={copyLast}
-          className="text-sm border border-blue-300 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-50 transition font-medium"
+          className="inline-flex items-center gap-2 text-sm border border-blue-300 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-50 transition font-medium"
         >
-          ⟳ Tạo lại đơn gần nhất
+          <IconRefresh size={15} />
+          Tạo lại đơn gần nhất
         </button>
       </div>
 
       {patient?.hasDrugAllergy && (
-        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          ⚠ Bệnh nhân DỊ ỨNG THUỐC: {patient.drugAllergyNote || "(chưa ghi chú)"}
+        <p className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <IconAlert size={15} />
+          Bệnh nhân DỊ ỨNG THUỐC: {patient.drugAllergyNote || "(chưa ghi chú)"}
         </p>
       )}
       {patient?.hasChronicCondition && (
-        <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          ⚠ Bệnh nền: {patient.chronicConditionNote || "(chưa ghi chú)"}
+        <p className="flex items-center gap-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <IconAlert size={15} />
+          Bệnh nền: {patient.chronicConditionNote || "(chưa ghi chú)"}
         </p>
       )}
 
@@ -503,14 +507,15 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
 
       <div className="card p-5">
         <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-semibold text-[#1b2559]">Đơn thuốc</label>
+          <label className="text-sm font-semibold text-ink">Đơn thuốc</label>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={hasInjectionRow}
               onChange={(e) => toggleInjection(e.target.checked)}
             />
-            💉 Có tiêm thuốc
+            <span className="text-purple-600"><IconSyringe size={15} /></span>
+            Có tiêm thuốc
           </label>
         </div>
 
@@ -518,7 +523,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
           {items.map((it, idx) => (
             <div key={idx} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : "border-gray-200"}`}>
               <div className="flex items-start gap-2 flex-wrap">
-                {it.injection && <span className="text-purple-700 text-sm py-2">💉</span>}
+                {it.injection && <span className="text-purple-600 py-2.5"><IconSyringe size={16} /></span>}
                 <MedicineInput item={it} onChange={(p) => updateItem(idx, p)} />
                 {it.injection ? (
                   <div className="text-center">
@@ -526,7 +531,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                       type="number" min={0} step="any"
                       value={it.doseMorning}
                       onChange={(e) => updateItem(idx, { doseMorning: e.target.value })}
-                      className="w-24 border rounded-lg px-2 py-2 text-sm text-center"
+                      className="input-sm w-24 py-2 text-center"
                     />
                     <p className="text-[10px] text-gray-500">Số ống</p>
                   </div>
@@ -549,7 +554,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                               type="number" min={0} step="any"
                               value={it[f]}
                               onChange={(e) => updateItem(idx, { [f]: e.target.value })}
-                              className="w-14 border rounded-lg px-1 py-1.5 text-sm text-center"
+                              className="input-sm w-14 px-1 text-center"
                             />
                           )}
                         </div>
@@ -561,9 +566,10 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                   <button
                     type="button"
                     onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                    className="text-red-600 py-2 text-sm ml-auto"
+                    className="text-gray-400 hover:text-red-600 py-2.5 ml-auto transition-colors"
+                    aria-label="Bỏ thuốc này"
                   >
-                    ✕
+                    <IconX size={16} />
                   </button>
                 )}
               </div>
@@ -587,7 +593,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                   <input
                     value={it.usageCustom}
                     onChange={(e) => updateItem(idx, { usageCustom: e.target.value })}
-                    className="flex-1 min-w-40 border rounded-lg px-3 py-1.5 text-sm"
+                    className="input-sm flex-1 min-w-40"
                     autoFocus
                   />
                 )}
@@ -615,14 +621,17 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
             type="number" min={1}
             value={numDays}
             onChange={(e) => setNumDays(e.target.value)}
-            className="w-20 border rounded-lg px-2 py-1.5 text-sm text-center"
+            className="input-sm w-20 text-center"
           />
           <span className="text-xs text-gray-500">ngày — nhân với liều mỗi buổi để ra tổng thuốc trừ kho</span>
         </div>
       </div>
 
       {error && (
-        <p className="text-red-600 text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2">⚠ {error}</p>
+        <p className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          <IconAlert size={15} />
+          {error}
+        </p>
       )}
       <div className="flex gap-3">
         <button type="submit" disabled={saving} className="btn-primary px-6">

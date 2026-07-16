@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Badge, IconMail, IconPlus } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { DoctorRow } from "@/lib/types";
 
@@ -44,9 +45,10 @@ export default function AdminDoctorsPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-[#1b2559]">Quản lý bác sĩ</h1>
+        <h1 className="page-title">Quản lý bác sĩ</h1>
         <button onClick={() => setShowForm(!showForm)} className="btn-primary">
-          + Tạo tài khoản bác sĩ
+          <IconPlus />
+          Tạo tài khoản bác sĩ
         </button>
       </div>
 
@@ -136,17 +138,22 @@ export default function AdminDoctorsPage() {
                 <tr key={d.id} className={d.blocked ? "opacity-60" : ""}>
                   <td>
                     {d.username && <div className="font-mono">{d.username}</div>}
-                    {d.email && <div className="text-xs text-blue-700">✉ {d.email}</div>}
+                    {d.email && (
+                      <div className="flex items-center gap-1 text-xs text-blue-700">
+                        <IconMail size={12} />
+                        {d.email}
+                      </div>
+                    )}
                     {!d.username && !d.email && "—"}
                   </td>
-                  <td className="font-semibold text-[#1b2559]">{d.fullName}</td>
+                  <td className="font-semibold text-ink">{d.fullName}</td>
                   <td className="text-gray-600">{d.clinicName ?? "—"}</td>
                   <td className="text-gray-600">{d.phone ?? "—"}</td>
                   <td>
                     {d.blocked ? (
-                      <span className="text-red-600 bg-red-50 px-2.5 py-1 rounded-full text-xs font-medium">Đã khóa</span>
+                      <Badge tone="red">Đã khóa</Badge>
                     ) : (
-                      <span className="text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full text-xs font-medium">Hoạt động</span>
+                      <Badge tone="blue">Hoạt động</Badge>
                     )}
                   </td>
                   <td className="text-right">

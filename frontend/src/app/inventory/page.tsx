@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Pager from "@/components/Pager";
+import { Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSyringe, Loading } from "@/components/ui";
 import { api, apiForm, ApiError } from "@/lib/api";
 import { UNIT_LABEL, UNIT_OPTIONS, type Medicine, type Page } from "@/lib/types";
 
@@ -235,7 +236,7 @@ export default function InventoryPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-[#1b2559]">Kho thuốc</h1>
+        <h1 className="page-title">Kho thuốc</h1>
         <div className="flex gap-3">
           <input
             value={q}
@@ -247,18 +248,20 @@ export default function InventoryPage() {
             onClick={() => { const wasEditing = editing; setEditing(null); setForm(emptyForm()); setShowForm(wasEditing ? true : !showForm); }}
             className="btn-primary shrink-0"
           >
-            + Thêm thuốc
+            <IconPlus />
+            Thêm thuốc
           </button>
         </div>
       </div>
 
       <div className="flex gap-2 mb-4 text-sm">
-        {([["all", "Tất cả"], ["oral", "💊 Uống"], ["injection", "💉 Tiêm"]] as const).map(([v, label]) => (
+        {([["all", "Tất cả", null], ["oral", "Uống", <IconPill key="o" size={14} />], ["injection", "Tiêm", <IconSyringe key="i" size={14} />]] as const).map(([v, label, icon]) => (
           <button
             key={v}
             onClick={() => setFilter(v)}
-            className={`chip ${filter === v ? "chip-active" : ""}`}
+            className={`chip inline-flex items-center gap-1.5 ${filter === v ? "chip-active" : ""}`}
           >
+            {icon}
             {label}
           </button>
         ))}
@@ -266,7 +269,7 @@ export default function InventoryPage() {
 
       {showForm && (
         <form onSubmit={save} className="card p-5 mb-4 space-y-4">
-          <p className="font-semibold text-[#1b2559]">{editing ? `Sửa thuốc: ${editing.name}` : "Thêm thuốc mới"}</p>
+          <p className="font-semibold text-ink">{editing ? `Sửa thuốc: ${editing.name}` : "Thêm thuốc mới"}</p>
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm mb-1 font-medium">Tên thuốc *</label>
@@ -294,7 +297,7 @@ export default function InventoryPage() {
               {form.imageUrl ? (
                 <Image src={form.imageUrl} alt="" fill className="object-cover" unoptimized />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-2xl">💊</div>
+                <div className="w-full h-full flex items-center justify-center text-gray-400"><IconPill size={26} /></div>
               )}
             </div>
             <label className="text-sm border rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
@@ -310,7 +313,8 @@ export default function InventoryPage() {
                 checked={form.injection}
                 onChange={(e) => setForm({ ...form, injection: e.target.checked })}
               />
-              💉 Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
+              <span className="text-purple-600"><IconSyringe size={15} /></span>
+              Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
             </label>
           )}
 
@@ -318,7 +322,7 @@ export default function InventoryPage() {
             <div className="border rounded-lg p-3 bg-gray-50 text-sm">
               <p className="font-medium mb-1">
                 {editing.injection
-                  ? "💉 Thuốc tiêm (đơn vị: ống)"
+                  ? "Thuốc tiêm (đơn vị: ống)"
                   : `Đơn vị: ${editing.units.map((u) => u.label).join(" › ")}`}
               </p>
               <p className="text-xs text-gray-500">
@@ -332,7 +336,7 @@ export default function InventoryPage() {
                 type="number" min={0}
                 value={form.injectionStock}
                 onChange={(e) => setForm({ ...form, injectionStock: e.target.value })}
-                className="w-40 border rounded-lg px-3 py-2"
+                className="input-sm w-40"
                 placeholder="VD: 50"
               />
             </div>
@@ -370,7 +374,7 @@ export default function InventoryPage() {
                               type="number" min={0}
                               value={form.values[u] ?? ""}
                               onChange={(e) => setForm({ ...form, values: { ...form.values, [u]: e.target.value } })}
-                              className="w-24 border rounded-lg px-2 py-1.5"
+                              className="input-sm w-24"
                               placeholder="VD 10"
                             />
                             <span className="text-gray-500">{UNIT_LABEL[u]}</span>
@@ -382,7 +386,7 @@ export default function InventoryPage() {
                               type="number" min={1}
                               value={form.values[u] ?? ""}
                               onChange={(e) => setForm({ ...form, values: { ...form.values, [u]: e.target.value } })}
-                              className="w-24 border rounded-lg px-2 py-1.5"
+                              className="input-sm w-24"
                               placeholder="số"
                               required
                             />
@@ -414,11 +418,13 @@ export default function InventoryPage() {
         </form>
       )}
 
-      {loading && <p className="text-gray-500 py-8 text-center">Đang tải...</p>}
+      {loading && <Loading />}
       {!loading && filtered.length === 0 && !showForm && (
-        <p className="text-gray-500 py-8 text-center">
-          {items.length === 0 ? "Kho trống — bấm \"+ Thêm thuốc\"." : "Không có thuốc khớp bộ lọc."}
-        </p>
+        <EmptyState
+          icon={<IconPill size={22} />}
+          title={items.length === 0 ? "Kho thuốc trống" : "Không có thuốc khớp bộ lọc"}
+          hint={items.length === 0 ? "Thêm thuốc đầu tiên để quản lý tồn kho và trừ kho khi kê đơn." : "Thử đổi từ khóa hoặc bộ lọc uống/tiêm."}
+        />
       )}
 
       {filtered.length > 0 && (
@@ -442,11 +448,13 @@ export default function InventoryPage() {
                           {m.imageUrl ? (
                             <Image src={m.imageUrl} alt="" fill className="object-cover" unoptimized />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center">{m.injection ? "💉" : "💊"}</div>
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              {m.injection ? <IconSyringe size={18} /> : <IconPill size={18} />}
+                            </div>
                           )}
                         </div>
-                        <span className="font-semibold text-[#1b2559]">{m.name}</span>
-                        {m.lowStock && <span className="text-xs text-red-600 font-medium">⚠ sắp hết</span>}
+                        <span className="font-semibold text-ink">{m.name}</span>
+                        {m.lowStock && <Badge tone="red" icon={<IconAlert size={13} />}>sắp hết</Badge>}
                       </div>
                     </td>
                     <td>
@@ -511,7 +519,7 @@ function AdjustModal({ medicine, onClose, onDone }: { medicine: Medicine; onClos
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-bold mb-1 text-[#1b2559]">Nhập kho / chỉnh tồn</h3>
+        <h3 className="font-bold mb-1 text-ink">Nhập kho / chỉnh tồn</h3>
         <p className="text-sm text-gray-600 mb-3">{medicine.name} — tồn: {medicine.stockDisplay}</p>
         <p className="text-xs text-gray-500 mb-2">Nhập số dương để cộng, số âm để trừ (VD -1 hộp khi bỏ thuốc hết hạn).</p>
         <div className="space-y-2">
@@ -521,7 +529,7 @@ function AdjustModal({ medicine, onClose, onDone }: { medicine: Medicine; onClos
                 type="number" step="any"
                 value={entries[u.unitName] ?? ""}
                 onChange={(e) => setEntries({ ...entries, [u.unitName]: e.target.value })}
-                className="w-24 border rounded-lg px-2 py-1.5 text-sm"
+                className="input-sm w-24"
                 placeholder="0"
               />
               <span className="text-sm">{u.label}</span>

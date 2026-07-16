@@ -19,6 +19,9 @@
  * nên chỉ cần đổi token ở đây là toàn bộ nút / chip / link / active state đổi tông theo Figma.
  */
 @theme {
+  /* Màu chữ đậm chủ đạo (tiêu đề, tên) — thay cho text-[#1b2559] rải rác */
+  --color-ink: #1b2559;
+
   --color-blue-50: #eef4fd;
   --color-blue-100: #d8e6fa;
   --color-blue-200: #b7d0f4;
@@ -92,6 +95,40 @@ body {
   .data-table tbody tr:hover td {
     @apply bg-blue-50/40;
   }
+
+  /* Tiêu đề trang — một kiểu duy nhất cho mọi màn hình */
+  .page-title {
+    @apply text-2xl font-bold text-ink;
+  }
+
+  /* Ô nhập cỡ nhỏ (số liều, quy đổi đơn vị…) — cùng ngôn ngữ focus với .input */
+  .input-sm {
+    @apply bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-900
+      placeholder:text-gray-400 outline-none transition
+      focus:border-blue-400 focus:ring-2 focus:ring-blue-100;
+  }
+
+  /* Badge trạng thái/cảnh báo — MỘT hình dáng duy nhất toàn app */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap;
+  }
+  .badge-red    { @apply bg-red-50 text-red-700; }
+  .badge-amber  { @apply bg-amber-50 text-amber-700; }
+  .badge-blue   { @apply bg-blue-50 text-blue-700; }
+  .badge-purple { @apply bg-purple-50 text-purple-700; }
+  .badge-gray   { @apply bg-gray-100 text-gray-600; }
+
+  /* Khối xám nhấp nháy cho trạng thái đang tải */
+  .skeleton {
+    @apply bg-gray-200/60 rounded-lg animate-pulse;
+  }
+}
+
+/* Checkbox đồng bộ màu primary, to hơn mặc định cho dễ bấm */
+input[type="checkbox"] {
+  accent-color: var(--color-blue-600);
+  width: 1rem;
+  height: 1rem;
 }
 
 /* ===== Hiệu ứng kiểu Magic UI ===== */

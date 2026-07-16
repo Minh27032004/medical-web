@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { IconAlert } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Patient } from "@/lib/types";
 
@@ -88,7 +89,8 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
             checked={form.hasDrugAllergy}
             onChange={(e) => setForm({ ...form, hasDrugAllergy: e.target.checked })}
           />
-          ⚠ Có dị ứng thuốc
+          <span className="text-red-600"><IconAlert size={15} /></span>
+          Có dị ứng thuốc
         </label>
         {form.hasDrugAllergy && (
           <input

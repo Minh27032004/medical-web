@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { IconPrinter, IconRefresh, IconSyringe, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type VisitDetail } from "@/lib/types";
 
@@ -25,14 +26,14 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   if (error) return <p className="text-red-600 py-8 text-center">{error}</p>;
-  if (!visit) return <p className="text-gray-500 py-8 text-center">Đang tải...</p>;
+  if (!visit) return <div className="max-w-3xl mx-auto"><Loading /></div>;
 
   const doseLabel = (n: number) => (n > 0 ? String(n) : "–");
 
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4 no-print flex-wrap gap-2">
-        <h1 className="text-2xl font-bold text-[#1b2559]">Chi tiết lần khám</h1>
+        <h1 className="page-title">Chi tiết lần khám</h1>
         <div className="flex gap-2">
           <Link href={`/patients/${visit.patient.id}`} className="btn-ghost">
             ← Hồ sơ bệnh nhân
@@ -42,11 +43,13 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
               href={`/patients/${visit.patient.id}/new-visit?copyFrom=${visit.id}`}
               className="inline-flex items-center gap-2 border border-blue-300 text-blue-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-50 transition"
             >
-              ⟳ Tạo lại đơn
+              <IconRefresh size={15} />
+              Tạo lại đơn
             </Link>
           )}
           <button onClick={printRx} className="btn-primary">
-            🖨 In đơn thuốc
+            <IconPrinter size={16} />
+            In đơn thuốc
           </button>
         </div>
       </div>
@@ -107,7 +110,9 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                 <td className="py-2 px-2">{idx + 1}</td>
                 <td className="py-2 px-2">
                   <span className="font-medium">
-                    {it.injection && "💉 "}
+                    {it.injection && (
+                      <span className="text-purple-600 inline-block align-text-bottom mr-1"><IconSyringe size={14} /></span>
+                    )}
                     {it.medicineName}
                   </span>
                   {(it.usageNote || it.specialDoseText) && (

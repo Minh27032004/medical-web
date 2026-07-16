@@ -1,3 +1,5 @@
+import { IconChevronLeft, IconChevronRight } from "@/components/ui";
+
 /** Phân trang đơn giản: ← Trước / Trang x/y / Sau →. Ẩn khi chỉ 1 trang. */
 export default function Pager({
   page, totalPages, onPage,
@@ -8,17 +10,19 @@ export default function Pager({
       <button
         onClick={() => onPage(Math.max(0, page - 1))}
         disabled={page === 0}
-        className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
+        className="btn-ghost disabled:opacity-40 disabled:pointer-events-none"
       >
-        ← Trước
+        <IconChevronLeft />
+        Trước
       </button>
       <span className="text-gray-500 font-medium">Trang {page + 1}/{totalPages}</span>
       <button
         onClick={() => onPage(Math.min(totalPages - 1, page + 1))}
         disabled={page >= totalPages - 1}
-        className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
+        className="btn-ghost disabled:opacity-40 disabled:pointer-events-none"
       >
-        Sau →
+        Sau
+        <IconChevronRight />
       </button>
     </div>
   );

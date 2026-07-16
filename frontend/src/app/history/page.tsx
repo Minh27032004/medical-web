@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Pager from "@/components/Pager";
+import { Badge, EmptyState, IconSyringe, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { VisitRow } from "@/lib/types";
 
@@ -68,11 +69,11 @@ export default function HistoryPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-[#1b2559]">Lịch sử khám</h1>
+        <h1 className="page-title">Lịch sử khám</h1>
         <div className="flex items-center gap-2 text-sm">
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 bg-white" />
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input w-auto" />
           <span className="text-gray-400">→</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 bg-white" />
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input w-auto" />
         </div>
       </div>
 
@@ -88,9 +89,12 @@ export default function HistoryPage() {
         ))}
       </div>
 
-      {loading && <p className="text-gray-500 py-8 text-center">Đang tải...</p>}
+      {loading && <Loading />}
       {!loading && visits.length === 0 && (
-        <p className="text-gray-500 py-8 text-center">Không có lần khám nào trong khoảng này.</p>
+        <EmptyState
+          title="Không có lần khám nào trong khoảng này"
+          hint="Thử mở rộng khoảng ngày, hoặc chọn nhanh 30 ngày ở trên."
+        />
       )}
 
       {!loading && visits.length > 0 && (
@@ -111,13 +115,13 @@ export default function HistoryPage() {
                   className="card block px-4 py-3.5 hover:border-blue-300 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <span className="font-medium">{v.patientName}</span>
-                      <span className="text-gray-500 text-sm ml-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-ink">{v.patientName}</span>
+                      <span className="text-gray-500 text-sm">
                         {v.diagnosisCode} — {v.diagnosisName}
                       </span>
                       {v.hasInjection && (
-                        <span className="ml-2 text-xs text-purple-700 bg-purple-50 px-2 py-0.5 rounded">💉 tiêm</span>
+                        <Badge tone="purple" icon={<IconSyringe size={12} />}>tiêm</Badge>
                       )}
                     </div>
                     <span className="text-sm text-gray-400">

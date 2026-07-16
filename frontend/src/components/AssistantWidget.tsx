@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { createSupabaseClient } from "@/lib/supabase";
 import type { Me } from "@/lib/types";
 import AssistantChat from "./AssistantChat";
+import { IconX } from "./ui";
 
 const BTN = 64;
 const PANEL_W = 360;
@@ -103,13 +104,13 @@ export default function AssistantWidget() {
           style={panelStyle()}
         >
           <div className="flex items-center justify-between px-4 py-2.5 border-b bg-blue-600 text-white rounded-t-2xl">
-            <span className="font-medium text-sm">🩺 Trợ lý</span>
+            <span className="font-medium text-sm">Trợ lý</span>
             <button
               onClick={() => setOpen(false)}
-              className="hover:bg-white/20 rounded w-6 h-6 leading-none text-xl flex items-center justify-center"
+              className="hover:bg-white/20 rounded w-6 h-6 flex items-center justify-center"
               aria-label="Đóng"
             >
-              ×
+              <IconX size={15} />
             </button>
           </div>
           <div className="flex-1 min-h-0 p-3">

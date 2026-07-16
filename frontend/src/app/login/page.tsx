@@ -78,10 +78,10 @@ function LoginForm() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <Image
-            src="/images/logo.jpg"
+            src="/images/logo.png"
             alt="Phòng khám"
-            width={280}
-            height={157}
+            width={490}
+            height={410}
             priority
             unoptimized
             className="mx-auto w-auto h-28 object-contain"

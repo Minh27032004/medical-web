@@ -134,8 +134,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <header className="hidden md:flex items-center justify-between h-20 px-8 shrink-0 no-print">
           <div className="min-w-0">
             <p className="text-xs text-gray-400">{greeting()},</p>
-            <h2 className="text-xl font-bold text-[#1b2559] truncate">
-              {displayName || me?.clinicName || "Quản lý phòng khám"} 👋
+            <h2 className="text-xl font-bold text-ink truncate">
+              {displayName || me?.clinicName || "Quản lý phòng khám"}
             </h2>
           </div>
           <div className="flex items-center gap-3">
@@ -179,7 +179,7 @@ function SidebarBody({
       <Link href="/" className="flex flex-col items-center gap-2.5 px-4 pt-7 pb-5 shrink-0">
         <BrandMark />
         <span className="text-center min-w-0 max-w-full">
-          <span className="block font-bold text-[#1b2559] leading-tight truncate">
+          <span className="block font-bold text-ink leading-tight truncate">
             {me?.clinicName || "Phòng khám"}
           </span>
           <span className="block text-xs text-gray-400 mt-0.5">Hệ thống nội bộ</span>
@@ -212,7 +212,7 @@ function SidebarBody({
               {initial}
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-[#1b2559] truncate">{me.fullName ?? me.username}</span>
+              <span className="block text-sm font-semibold text-ink truncate">{me.fullName ?? me.username}</span>
               <span className="block text-xs text-gray-400">{me.role === "ADMIN" ? "Quản trị viên" : "Bác sĩ"}</span>
             </span>
           </div>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Pager from "@/components/Pager";
+import { Badge, EmptyState, IconPill, IconPlus, IconStar, IconSyringe } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Medicine, Page, Template } from "@/lib/types";
 import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
@@ -107,9 +109,10 @@ export default function TemplatesPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-[#1b2559]">Thuốc mẫu</h1>
+        <h1 className="page-title">Thuốc mẫu</h1>
         <button onClick={() => setForm(emptyForm())} className="btn-primary">
-          + Thêm thuốc mẫu
+          <IconPlus />
+          Thêm thuốc mẫu
         </button>
       </div>
       <p className="text-sm text-gray-500 mb-4">
@@ -158,7 +161,7 @@ export default function TemplatesPage() {
                         type="number" min={0} step="any"
                         value={form[f]}
                         onChange={(e) => setForm({ ...form, [f]: e.target.value })}
-                        className="w-14 border rounded-lg px-1 py-1.5 text-sm text-center"
+                        className="input-sm w-14 px-1 text-center"
                       />
                     )}
                   </div>
@@ -188,7 +191,7 @@ export default function TemplatesPage() {
               <input
                 value={form.usageCustom}
                 onChange={(e) => setForm({ ...form, usageCustom: e.target.value })}
-                className="flex-1 min-w-40 border rounded-lg px-3 py-1.5 text-sm"
+                className="input-sm flex-1 min-w-40"
                 autoFocus
               />
             )}
@@ -213,12 +216,13 @@ export default function TemplatesPage() {
           className="input flex-1 min-w-48"
         />
         <div className="flex gap-1.5 text-sm">
-          {([["all", "Tất cả"], ["oral", "💊 Uống"], ["injection", "💉 Tiêm"]] as const).map(([v, label]) => (
+          {([["all", "Tất cả", null], ["oral", "Uống", <IconPill key="o" size={14} />], ["injection", "Tiêm", <IconSyringe key="i" size={14} />]] as const).map(([v, label, icon]) => (
             <button
               key={v}
               onClick={() => setFilter(v)}
-              className={`chip ${filter === v ? "chip-active" : ""}`}
+              className={`chip inline-flex items-center gap-1.5 ${filter === v ? "chip-active" : ""}`}
             >
+              {icon}
               {label}
             </button>
           ))}
@@ -227,22 +231,25 @@ export default function TemplatesPage() {
 
       <div className="space-y-2">
         {filtered.length === 0 && !form && (
-          <p className="text-gray-500 text-sm py-6 text-center">
-            {templates.length === 0 ? "Chưa có thuốc mẫu nào." : "Không có thuốc mẫu khớp bộ lọc."}
-          </p>
+          <EmptyState
+            icon={<IconStar size={20} />}
+            title={templates.length === 0 ? "Chưa có thuốc mẫu nào" : "Không có thuốc mẫu khớp bộ lọc"}
+            hint={templates.length === 0 ? "Lưu các thuốc hay kê kèm liều mặc định để kê đơn nhanh hơn." : "Thử đổi từ khóa hoặc bộ lọc uống/tiêm."}
+          />
         )}
         {pageItems.map((t) => (
           <div key={t.id} className="card px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <span className="font-medium">{t.injection ? "💉" : "★"} {t.name}</span>
-              <span className="text-sm text-gray-500 ml-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={t.injection ? "text-purple-600" : "text-amber-500"}>
+                {t.injection ? <IconSyringe size={15} /> : <IconStar size={15} />}
+              </span>
+              <span className="font-medium text-ink">{t.name}</span>
+              <span className="text-sm text-gray-500">
                 {[t.doseMorning, t.doseNoon, t.doseAfternoon, t.doseEvening].join("-")}
                 {t.usageNote && ` · ${t.usageNote}`}
               </span>
               {t.medicineName && (
-                <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded ml-2">
-                  kho: {t.medicineName}
-                </span>
+                <Badge tone="blue">kho: {t.medicineName}</Badge>
               )}
             </div>
             <div className="text-sm shrink-0">
@@ -253,26 +260,7 @@ export default function TemplatesPage() {
         ))}
       </div>
 
-      {/* Phân trang 10 sp / trang */}
-      {filtered.length > PAGE_SIZE && (
-        <div className="flex items-center justify-center gap-3 mt-4 text-sm">
-          <button
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-            className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
-          >
-            ← Trước
-          </button>
-          <span className="text-gray-600">Trang {page + 1}/{totalPages}</span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-            className="border border-gray-200 bg-white px-4 py-2 rounded-xl disabled:opacity-40 hover:bg-gray-50 transition"
-          >
-            Sau →
-          </button>
-        </div>
-      )}
+      <Pager page={page} totalPages={totalPages} onPage={setPage} />
     </div>
   );
 }
@@ -320,7 +308,8 @@ function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine
               onClick={() => { onPick(m); setInput(m.name); setOpen(false); }}
               className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
             >
-              {m.injection ? "💉 " : ""}{m.name} <span className="text-xs text-gray-500">({m.stockDisplay})</span>
+              {m.injection && <span className="text-purple-600 inline-block align-text-bottom mr-1"><IconSyringe size={13} /></span>}
+              {m.name} <span className="text-xs text-gray-500">({m.stockDisplay})</span>
             </button>
           ))}
         </div>

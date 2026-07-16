@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import PatientForm from "@/components/PatientForm";
+import { Badge, IconAlert, IconPlus, IconSyringe, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type Patient, type VisitRow } from "@/lib/types";
 
@@ -48,12 +49,12 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   }, [visits]);
 
   if (error) return <p className="text-red-600 py-8 text-center">{error}</p>;
-  if (!patient) return <p className="text-gray-500 py-8 text-center">Đang tải...</p>;
+  if (!patient) return <div className="max-w-3xl mx-auto"><Loading /></div>;
 
   if (editing) {
     return (
       <div className="max-w-lg mx-auto">
-        <h1 className="text-2xl font-bold text-[#1b2559] mb-4">Sửa hồ sơ: {patient.fullName}</h1>
+        <h1 className="page-title mb-4">Sửa hồ sơ: {patient.fullName}</h1>
         <PatientForm initial={patient} />
         <button onClick={() => setEditing(false)} className="text-sm text-gray-600 mt-3 hover:underline">
           ← Quay lại
@@ -67,29 +68,30 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
       <div className="card p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-[#1b2559]">{patient.fullName}</h1>
+            <h1 className="page-title">{patient.fullName}</h1>
             <p className="text-sm text-gray-600 mt-0.5">
               {patient.gender ? GENDER_LABEL[patient.gender] : ""}
               {patient.gender && patient.phone && " · "}
               {patient.phone}
               {patient.address && ` · ${patient.address}`}
             </p>
-            <div className="mt-2 space-y-1 text-sm">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {patient.hasDrugAllergy && (
-                <p className="text-red-700 bg-red-50 rounded px-2 py-1 inline-block">
-                  ⚠ Dị ứng thuốc: {patient.drugAllergyNote || "(chưa ghi chú)"}
-                </p>
+                <Badge tone="red" icon={<IconAlert size={13} />}>
+                  Dị ứng thuốc: {patient.drugAllergyNote || "(chưa ghi chú)"}
+                </Badge>
               )}
               {patient.hasChronicCondition && (
-                <p className="text-amber-700 bg-amber-50 rounded px-2 py-1 inline-block ml-1">
+                <Badge tone="amber">
                   Bệnh nền: {patient.chronicConditionNote || "(chưa ghi chú)"}
-                </p>
+                </Badge>
               )}
             </div>
           </div>
           <div className="flex flex-col gap-2 shrink-0">
             <Link href={`/patients/${patient.id}/new-visit`} className="btn-primary text-center">
-              + Tạo lần khám
+              <IconPlus />
+              Tạo lần khám
             </Link>
             <button onClick={() => setEditing(true)} className="btn-ghost">
               Sửa hồ sơ
@@ -98,7 +100,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <h2 className="font-bold text-lg text-[#1b2559] mt-6 mb-3">
+      <h2 className="font-bold text-lg text-ink mt-6 mb-3">
         Lịch sử khám <span className="text-gray-400 font-normal text-sm">({visits.length} lượt · {byDay.length} ngày)</span>
       </h2>
       {visits.length === 0 && <p className="text-gray-500 text-sm">Chưa có lần khám nào.</p>}
@@ -137,7 +139,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                               {v.diagnosisCode} — {v.diagnosisName}
                             </span>
                             {v.hasInjection && (
-                              <span className="text-xs text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded shrink-0">💉</span>
+                              <Badge tone="purple" icon={<IconSyringe size={12} />}>tiêm</Badge>
                             )}
                           </Link>
                         ))}
