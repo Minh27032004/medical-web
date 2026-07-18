@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSyringe, Loading } from "@/components/ui";
+import { useDebounced } from "@/hooks/useDebounced";
 import { api, apiForm, ApiError } from "@/lib/api";
 import { UNIT_LABEL, UNIT_OPTIONS, type Medicine, type Page } from "@/lib/types";
 
@@ -61,17 +62,17 @@ export default function InventoryPage() {
   const [filter, setFilter] = useState<StockFilter>("all");
   const [page, setPage] = useState(0);
 
+  // Chỉ trễ khi GÕ tìm kiếm; lần vào trang tải NGAY.
+  const dq = useDebounced(q, 300);
+
   const load = useCallback(() => {
-    api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(q)}&size=100`)
+    api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(dq)}&size=100`)
       .then((p) => setItems(p.content))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [q]);
+  }, [dq]);
 
-  useEffect(() => {
-    const timer = setTimeout(load, 300);
-    return () => clearTimeout(timer);
-  }, [load]);
+  useEffect(load, [load]);
 
   // Lọc uống/tiêm + phân trang client-side; đổi điều kiện → về trang đầu.
   const filtered = useMemo(() => items.filter((m) => {

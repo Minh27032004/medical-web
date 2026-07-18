@@ -1,84 +1,184 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* =====================================================================
+ * DESIGN SYSTEM — Untitled UI tokens + shadcn/ui variables
+ * Nguồn: hệ màu/bóng đổ/focus-ring chuẩn Untitled UI (Figma system nổi
+ * tiếng cho SaaS dashboard). Đổi token ở đây là toàn app đổi theo.
+ * ===================================================================== */
 
 :root {
-  /* Nền canvas + chữ theo template Figma Healthcare dashboard */
-  --background: #f5f5f5;
-  --foreground: #1b2559;
+  /* Canvas + chữ */
+  --background: #f9fafb; /* gray-50 */
+  --foreground: #101828; /* gray-900 */
+
+  /* shadcn/ui semantic variables */
+  --card: #ffffff;
+  --card-foreground: #101828;
+  --popover: #ffffff;
+  --popover-foreground: #101828;
+  --primary: #1570ef; /* blue-600 Untitled UI */
+  --primary-foreground: #ffffff;
+  --secondary: #f2f4f7;
+  --secondary-foreground: #344054;
+  --muted: #f2f4f7;
+  --muted-foreground: #667085;
+  --accent: #eff8ff; /* blue-50 */
+  --accent-foreground: #175cd3;
+  --destructive: #d92d20;
+  --destructive-foreground: #ffffff;
+  --border: #eaecf0; /* gray-200 */
+  --input: #d0d5dd; /* gray-300 */
+  --ring: #84caff; /* blue-300 */
+  --radius: 0.625rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-/*
- * Remap thang màu `blue` của Tailwind về đúng xanh chủ đạo Figma #3377DD.
- * Cả app dùng nhất quán bg-blue-600/700, text-blue-700/800, bg-blue-50, ring-blue-400…
- * nên chỉ cần đổi token ở đây là toàn bộ nút / chip / link / active state đổi tông theo Figma.
- */
 @theme {
-  /* Màu chữ đậm chủ đạo (tiêu đề, tên) — thay cho text-[#1b2559] rải rác */
-  --color-ink: #1b2559;
+  /* Màu chữ đậm chủ đạo (tiêu đề, tên) — alias dùng khắp app */
+  --color-ink: #101828;
 
-  --color-blue-50: #eef4fd;
-  --color-blue-100: #d8e6fa;
-  --color-blue-200: #b7d0f4;
-  --color-blue-300: #8bb2ea;
-  --color-blue-400: #5b8fe1;
-  --color-blue-500: #3377dd;
-  --color-blue-600: #3377dd; /* primary — khớp Figma tuyệt đối */
-  --color-blue-700: #2a63bd;
-  --color-blue-800: #244f96;
-  --color-blue-900: #1f4179;
+  /* ---- Gray scale Untitled UI (thay gray mặc định Tailwind) ---- */
+  --color-gray-25: #fcfcfd;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f2f4f7;
+  --color-gray-200: #eaecf0;
+  --color-gray-300: #d0d5dd;
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #182230;
+  --color-gray-900: #101828;
+  --color-gray-950: #0c111d;
 
-  /* Bóng đổ mềm dùng cho thẻ */
-  --shadow-card: 0 1px 2px rgba(16, 24, 64, 0.04), 0 8px 24px rgba(16, 24, 64, 0.05);
+  /* ---- Blue (brand) Untitled UI ---- */
+  --color-blue-25: #f5faff;
+  --color-blue-50: #eff8ff;
+  --color-blue-100: #d1e9ff;
+  --color-blue-200: #b2ddff;
+  --color-blue-300: #84caff;
+  --color-blue-400: #53b1fd;
+  --color-blue-500: #2e90fa;
+  --color-blue-600: #1570ef; /* primary */
+  --color-blue-700: #175cd3;
+  --color-blue-800: #1849a9;
+  --color-blue-900: #194185;
+  --color-blue-950: #102a56;
+
+  /* ---- Error (red) Untitled UI ---- */
+  --color-red-50: #fef3f2;
+  --color-red-100: #fee4e2;
+  --color-red-200: #fecdca;
+  --color-red-500: #f04438;
+  --color-red-600: #d92d20;
+  --color-red-700: #b42318;
+
+  /* ---- Warning (amber) Untitled UI ---- */
+  --color-amber-50: #fffaeb;
+  --color-amber-100: #fef0c7;
+  --color-amber-200: #fedf89;
+  --color-amber-500: #f79009;
+  --color-amber-600: #dc6803;
+  --color-amber-700: #b54708;
+
+  /* ---- Success (green) Untitled UI ---- */
+  --color-green-50: #ecfdf3;
+  --color-green-100: #dcfae6;
+  --color-green-200: #abefc6;
+  --color-green-500: #17b26a;
+  --color-green-600: #079455;
+  --color-green-700: #067647;
+
+  /* ---- Bóng đổ Untitled UI ---- */
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.1), 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.1), 0 2px 4px -2px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 12px 16px -4px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.03);
+  --shadow-xl: 0 20px 24px -4px rgba(16, 24, 40, 0.08), 0 8px 8px -4px rgba(16, 24, 40, 0.03);
+  /* Giữ tên cũ để class/style cũ không vỡ */
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), "Inter", system-ui, Arial, sans-serif;
+  font-feature-settings: "cv05", "cv11"; /* Inter: chữ l có chân + số 1 rõ — nét Untitled UI */
 }
 
-/* ===== Lớp component dùng chung — đồng bộ ngôn ngữ thiết kế Figma ===== */
+/* =====================================================================
+ * Lớp component dùng chung — ngôn ngữ Untitled UI
+ * (giữ nguyên TÊN class để mọi trang hiện có tự nâng cấp)
+ * ===================================================================== */
 @layer components {
-  /* Thẻ trắng bo góc lớn + viền nhạt + bóng mềm (thay cho "bg-white border rounded-xl") */
+  /* Thẻ trắng: viền gray-200 + bóng xs (tinh tế, không "nổi lềnh bềnh") */
   .card {
-    @apply bg-white rounded-2xl border border-gray-100;
-    box-shadow: var(--shadow-card);
+    @apply bg-white rounded-xl border border-gray-200;
+    box-shadow: var(--shadow-xs);
   }
 
-  /* Ô nhập / select / textarea đồng bộ: bo góc, viền nhạt, focus vòng xanh */
+  /* Ô nhập: bo 8px, viền gray-300, bóng xs; focus = viền brand + vòng 4px brand-100 */
   .input {
-    @apply w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-900
-      placeholder:text-gray-400 outline-none transition
-      focus:border-blue-400 focus:ring-2 focus:ring-blue-100;
+    @apply w-full bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900
+      placeholder:text-gray-400 outline-none transition-shadow
+      focus:border-blue-300 focus:ring-4 focus:ring-blue-100;
+    box-shadow: var(--shadow-xs);
   }
 
   /* Nút chính */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-medium
-      px-4 py-2.5 rounded-xl text-sm transition hover:bg-blue-700
+    @apply inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold
+      px-4 py-2.5 rounded-lg text-sm transition hover:bg-blue-700
+      focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-100
       disabled:opacity-50 disabled:pointer-events-none;
-    box-shadow: 0 6px 16px rgba(51, 119, 221, 0.25);
+    box-shadow: var(--shadow-xs);
   }
 
-  /* Nút phụ (viền) */
+  /* Nút phụ (secondary outline) */
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 bg-white text-gray-700 font-medium
-      px-4 py-2.5 rounded-xl text-sm border border-gray-200 transition hover:bg-gray-50;
+    @apply inline-flex items-center justify-center gap-2 bg-white text-gray-700 font-semibold
+      px-4 py-2.5 rounded-lg text-sm border border-gray-300 transition hover:bg-gray-50
+      focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-gray-100
+      disabled:opacity-50 disabled:pointer-events-none;
+    box-shadow: var(--shadow-xs);
   }
 
-  /* Chip lọc: mặc định + active */
+  /* Chip lọc: mặc định viền, active = nền brand nhạt (mềm hơn khối đặc) */
   .chip {
-    @apply px-3.5 py-1.5 rounded-full text-sm border border-gray-200 bg-white text-gray-600
+    @apply px-3.5 py-1.5 rounded-full text-sm font-medium border border-gray-300 bg-white text-gray-600
       transition hover:bg-gray-50 cursor-pointer;
+    box-shadow: var(--shadow-xs);
   }
   .chip-active {
-    @apply bg-blue-600 text-white border-blue-600 hover:bg-blue-600;
+    @apply bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50;
   }
 
   /* Bảng dữ liệu trong thẻ .card */
@@ -86,41 +186,47 @@ body {
     @apply w-full text-sm border-separate border-spacing-0;
   }
   .data-table thead th {
-    @apply text-left font-semibold text-xs uppercase tracking-wide text-gray-400
-      px-4 py-3 bg-gray-50/70 first:rounded-tl-2xl last:rounded-tr-2xl;
+    @apply text-left font-medium text-xs text-gray-500
+      px-5 py-3 bg-gray-50 border-b border-gray-200;
   }
   .data-table tbody td {
-    @apply px-4 py-3 border-t border-gray-100 align-middle;
+    @apply px-5 py-3.5 border-b border-gray-100 align-middle;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
   }
   .data-table tbody tr:hover td {
-    @apply bg-blue-50/40;
+    @apply bg-gray-50;
   }
 
   /* Tiêu đề trang — một kiểu duy nhất cho mọi màn hình */
   .page-title {
-    @apply text-2xl font-bold text-ink;
+    @apply text-2xl font-semibold text-gray-900 tracking-[-0.01em];
   }
 
-  /* Ô nhập cỡ nhỏ (số liều, quy đổi đơn vị…) — cùng ngôn ngữ focus với .input */
+  /* Ô nhập cỡ nhỏ (số liều, quy đổi đơn vị…) */
   .input-sm {
-    @apply bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-gray-900
-      placeholder:text-gray-400 outline-none transition
-      focus:border-blue-400 focus:ring-2 focus:ring-blue-100;
+    @apply bg-white border border-gray-300 rounded-lg px-2 py-1.5 text-sm text-gray-900
+      placeholder:text-gray-400 outline-none transition-shadow
+      focus:border-blue-300 focus:ring-2 focus:ring-blue-100;
+    box-shadow: var(--shadow-xs);
   }
 
-  /* Badge trạng thái/cảnh báo — MỘT hình dáng duy nhất toàn app */
+  /* Badge trạng thái — pill viền nhạt kiểu Untitled UI */
   .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium whitespace-nowrap;
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
+      whitespace-nowrap border;
   }
-  .badge-red    { @apply bg-red-50 text-red-700; }
-  .badge-amber  { @apply bg-amber-50 text-amber-700; }
-  .badge-blue   { @apply bg-blue-50 text-blue-700; }
-  .badge-purple { @apply bg-purple-50 text-purple-700; }
-  .badge-gray   { @apply bg-gray-100 text-gray-600; }
+  .badge-red    { @apply bg-red-50 text-red-700 border-red-200; }
+  .badge-amber  { @apply bg-amber-50 text-amber-700 border-amber-200; }
+  .badge-blue   { @apply bg-blue-50 text-blue-700 border-blue-200; }
+  .badge-purple { @apply bg-purple-50 text-purple-700 border-purple-200; }
+  .badge-gray   { @apply bg-gray-50 text-gray-600 border-gray-200; }
+  .badge-green  { @apply bg-green-50 text-green-700 border-green-200; }
 
   /* Khối xám nhấp nháy cho trạng thái đang tải */
   .skeleton {
-    @apply bg-gray-200/60 rounded-lg animate-pulse;
+    @apply bg-gray-100 rounded-md animate-pulse;
   }
 }
 
@@ -129,74 +235,6 @@ input[type="checkbox"] {
   accent-color: var(--color-blue-600);
   width: 1rem;
   height: 1rem;
-}
-
-/* ===== Hiệu ứng kiểu Magic UI ===== */
-
-/* Marquee: dải đánh giá chạy ngang vô hạn */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(calc(-100% - 1rem));
-  }
-}
-
-.animate-marquee {
-  animation: marquee 40s linear infinite;
-}
-
-.marquee-container:hover .animate-marquee {
-  animation-play-state: paused;
-}
-
-/* Shimmer: vệt sáng quét qua nút CTA */
-@keyframes shimmer-slide {
-  from {
-    transform: translateX(-150%) skewX(-15deg);
-  }
-  to {
-    transform: translateX(350%) skewX(-15deg);
-  }
-}
-
-.shimmer-btn {
-  position: relative;
-  overflow: hidden;
-}
-
-.shimmer-btn::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 35%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
-  animation: shimmer-slide 2.8s ease-in-out infinite;
-}
-
-/* Blob nền hero trôi nhẹ */
-@keyframes blob-float {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(12px, -18px) scale(1.06);
-  }
-}
-
-.animate-blob {
-  animation: blob-float 9s ease-in-out infinite;
-}
-
-/* Blob nền trôi nhẹ vẫn dùng cho login/mascot nếu cần */
-@media (prefers-reduced-motion: reduce) {
-  .animate-blob {
-    animation: none;
-  }
 }
 
 /* ===== In đơn thuốc (§5.4) — chỉ in vùng .print-area ===== */

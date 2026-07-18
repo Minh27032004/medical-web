@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconPlus, Loading } from "@/components/ui";
+import { useDebounced } from "@/hooks/useDebounced";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type Page, type Patient } from "@/lib/types";
 
@@ -13,21 +14,20 @@ export default function PatientsPage() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
+  // Chỉ trễ khi GÕ tìm kiếm; lần vào trang & bấm phân trang tải NGAY.
+  const dq = useDebounced(q, 300);
 
   const load = useCallback(() => {
-    api<Page<Patient>>(`/api/doctor/patients?q=${encodeURIComponent(q)}&page=${page}&size=10`)
+    api<Page<Patient>>(`/api/doctor/patients?q=${encodeURIComponent(dq)}&page=${page}&size=10`)
       .then((p) => { setPatients(p.content); setTotalPages(p.totalPages); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [q, page]);
+  }, [dq, page]);
 
   // Đổi từ khóa → về trang đầu.
-  useEffect(() => setPage(0), [q]);
+  useEffect(() => setPage(0), [dq]);
 
-  useEffect(() => {
-    const timer = setTimeout(load, 300);
-    return () => clearTimeout(timer);
-  }, [load]);
+  useEffect(load, [load]);
 
   return (
     <div className="max-w-4xl mx-auto">

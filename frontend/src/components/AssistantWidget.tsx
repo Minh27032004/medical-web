@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { getMe } from "@/lib/me";
 import { createSupabaseClient } from "@/lib/supabase";
 import type { Me } from "@/lib/types";
 import AssistantChat from "./AssistantChat";
@@ -26,7 +26,7 @@ export default function AssistantWidget() {
   useEffect(() => {
     const supabase = createSupabaseClient();
     const load = (has: boolean) => {
-      if (has) api<Me>("/api/me/profile").then((m) => setRole(m.role)).catch(() => setRole(null));
+      if (has) getMe().then((m) => setRole(m.role)).catch(() => setRole(null));
       else setRole(null);
     };
     supabase.auth.getSession().then(({ data }) => load(!!data.session));
@@ -100,10 +100,10 @@ export default function AssistantWidget() {
     <>
       {open && (
         <div
-          className="fixed z-40 bg-white border rounded-2xl shadow-2xl flex flex-col no-print"
+          className="fixed z-40 bg-white border border-gray-200 rounded-2xl shadow-xl flex flex-col no-print"
           style={panelStyle()}
         >
-          <div className="flex items-center justify-between px-4 py-2.5 border-b bg-blue-600 text-white rounded-t-2xl">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-blue-600 text-white rounded-t-2xl">
             <span className="font-medium text-sm">Trợ lý</span>
             <button
               onClick={() => setOpen(false)}
