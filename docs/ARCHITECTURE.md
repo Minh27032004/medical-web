@@ -8,7 +8,7 @@
    ├── Next.js (Vercel) — login + app quản lý; KHÔNG còn trang public nào khác
    │        │  REST HTTPS + JWT Bearer
    │        ▼
-   └── Spring Boot API (Cloud Run asia-southeast1) — mọi business logic
+   └── Spring Boot API (Render, Singapore) — mọi business logic
             │      MỌI QUERY DỮ LIỆU BÁC SĨ ĐỀU LỌC doctor_id TỪ JWT (tầng service)
             ├── PostgreSQL (Supabase, pooler session 5432)
             ├── Supabase Auth — identity (username ⇔ email ảo @clinic.local, xem D15)
@@ -16,8 +16,8 @@
                 (không RAG, không sinh SQL tự do)
 ```
 
-- Prod: FE https://medical-web-lime.vercel.app · BE https://clinic-backend-70334084165.asia-southeast1.run.app
-- CI/CD: push main → Vercel (FE) + GitHub Actions OIDC → Cloud Run (backend/**), xem docs/DEPLOY.md
+- Prod: FE https://medical-web-lime.vercel.app · BE https://clinic-backend-9e93.onrender.com
+- CI/CD: push main → Vercel (FE) + Render tự build Docker (backend/**), xem docs/DEPLOY.md
 
 ## ERD (V4)
 

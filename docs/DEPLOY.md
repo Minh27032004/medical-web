@@ -1,49 +1,43 @@
 # Hướng dẫn deploy & CI/CD
 
-Mục tiêu: push code lên GitHub → **backend tự deploy lên Cloud Run**, **frontend tự deploy lên Vercel**.
+Mục tiêu: push code lên GitHub → **backend tự deploy lên Render**, **frontend tự deploy lên Vercel**.
+
+> LỊCH SỬ (2026-07-18): backend từng chạy Cloud Run nhưng billing GCP hết hạn → chuyển sang
+> Render. Workflow GitHub Actions deploy Cloud Run đã gỡ. KHÔNG xóa project GCP
+> `project-0a96f6c2-d0b9-44ce-b28` — `GEMINI_API_KEY` (AI Studio) gắn với project này.
 
 ## Kiến trúc deploy
 
 ```
 git push main
- ├── thay đổi trong backend/**  → GitHub Actions → Cloud Build → Cloud Run (asia-southeast1)
+ ├── thay đổi trong backend/**  → Render tự build Docker → Web Service (Singapore)
  └── mọi thay đổi               → Vercel tự build frontend/ → CDN toàn cầu
 ```
 
-- Backend URL: https://clinic-backend-70334084165.asia-southeast1.run.app
-- GCP project: `project-0a96f6c2-d0b9-44ce-b28` · service `clinic-backend` · region `asia-southeast1`
-- Env vars/secrets của backend nằm TRÊN Cloud Run (set lần đầu bằng `scripts/deploy-backend-gcloud.sh`);
-  CI deploy không đụng tới nên không cần nhét secrets nghiệp vụ vào GitHub.
+- Backend URL: https://clinic-backend-9e93.onrender.com
+- Frontend URL: https://medical-web-lime.vercel.app
+- Database: Supabase Postgres (aws-1-ap-south-1, Supavisor SESSION port 5432 — D10)
 
-## A. Backend tự deploy (GitHub Actions) — ĐÃ THIẾT LẬP XONG (2026-07-11)
+## A. Backend trên Render — thiết lập 1 lần (đã làm 2026-07-18)
 
-Xác thực bằng **Workload Identity Federation (OIDC)** — không có key/secret nào trên GitHub.
-(Tài khoản GCP mới bị org policy `disableServiceAccountKeyCreation` cấm tạo key JSON,
-nên đây vừa là cách duy nhất vừa là cách an toàn nhất.)
+1. https://render.com → **New → Web Service** → nối repo `Minh27032004/medical-web`
+2. Cấu hình:
+   - **Name**: `clinic-backend` · **Language**: Docker · **Branch**: `main`
+   - **Region**: Singapore (gần VN + Supabase ap-south-1)
+   - **Root Directory**: `backend` ← monorepo; chỉ thay đổi trong `backend/` mới trigger deploy
+   - **Dockerfile Path**: `./Dockerfile` (mặc định, tương đối theo Root Directory)
+   - **Health Check Path**: `/actuator/health`
+3. **Environment Variables** — 11 biến, giá trị như `backend/.env`, RIÊNG `FRONTEND_ORIGIN`
+   phải là domain Vercel (không phải localhost):
+   `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `DB_POOL_SIZE`,
+   `SUPABASE_URL`, `SUPABASE_JWKS_URI`, `SUPABASE_SERVICE_ROLE_KEY`,
+   `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL`,
+   `FRONTEND_ORIGIN=https://medical-web-lime.vercel.app`
 
-Những gì đã tạo trên GCP (chỉ cần làm lại nếu đổi project):
+Cơ chế port: Render bơm env `PORT`, `application.yml` đọc `${PORT:8080}` — không cần chỉnh.
 
-```bash
-# 1. Service account deploy
-gcloud iam service-accounts create github-deployer --project=<PROJECT_ID>
-
-# 2. Quyền: run.admin, cloudbuild.builds.editor, storage.admin,
-#    serviceusage.serviceUsageConsumer (project-level)
-#    + iam.serviceAccountUser trên compute SA runtime
-
-# 3. Workload Identity pool + provider OIDC của GitHub,
-#    khóa chặt theo repo: assertion.repository=='Minh27032004/medical-web'
-gcloud iam workload-identity-pools create github-pool --location=global ...
-gcloud iam workload-identity-pools providers create-oidc github-provider ...
-
-# 4. Cho repo impersonate SA
-gcloud iam service-accounts add-iam-policy-binding github-deployer@... \
-  --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/projects/70334084165/locations/global/workloadIdentityPools/github-pool/attribute.repository/Minh27032004/medical-web"
-```
-
-Cơ chế: khi workflow chạy, GitHub phát token OIDC chứa tên repo → GCP kiểm tra token đúng
-repo này thì cấp quyền tạm thời của `github-deployer` (hết hạn sau job). Không có gì để lộ.
+Lưu ý gói **Free**: service ngủ sau 15 phút không hoạt động, request đầu mất ~30–60s đánh thức.
+Dùng thật hàng ngày nên cân nhắc gói Starter (chạy liên tục). Nâng cấp không cần cấu hình lại.
 
 ## B. Frontend tự deploy (Vercel) — thiết lập 1 lần
 
@@ -57,25 +51,23 @@ repo này thì cấp quyền tạm thời của `github-deployer` (hết hạn s
    |---|---|
    | `NEXT_PUBLIC_SUPABASE_URL` | `https://cgnwrbbrtqyqmlpyrudx.supabase.co` |
    | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | (publishable key — xem `frontend/.env.local`) |
-   | `NEXT_PUBLIC_API_URL` | `https://clinic-backend-70334084165.asia-southeast1.run.app` |
+   | `NEXT_PUBLIC_API_URL` | `https://clinic-backend-9e93.onrender.com` |
 5. **Deploy** → xong sẽ có domain dạng `https://<ten>.vercel.app`
 
 Từ giờ **mọi push lên `main` Vercel tự build + deploy** (mặc định), nhánh khác có Preview URL riêng.
 
-## C. Sau khi có domain Vercel — BẮT BUỘC
+`NEXT_PUBLIC_*` được **nướng vào bundle lúc build** — đổi giá trị xong phải **Redeploy**
+(Deployments → ⋯ → Redeploy) mới có tác dụng, không tự áp cho bản đang chạy.
 
-Backend đang chỉ cho phép CORS từ localhost. Cập nhật (1 lệnh, không cần build lại):
+## C. Checklist khi đổi domain/URL bất kỳ bên nào
 
-```bash
-gcloud run services update clinic-backend \
-  --region asia-southeast1 --project project-0a96f6c2-d0b9-44ce-b28 \
-  --update-env-vars "FRONTEND_ORIGIN=https://<ten-cua-ban>.vercel.app"
-```
+- Đổi domain Vercel → sửa `FRONTEND_ORIGIN` trên Render (Environment → Save; service tự restart).
+  Thiếu bước này frontend bị **CORS 403** khi gọi API.
+- Đổi URL backend → sửa `NEXT_PUBLIC_API_URL` trên Vercel + Redeploy.
 
-Thiếu bước này frontend production sẽ bị lỗi CORS khi gọi API.
+## Vận hành
 
-## Deploy tay (dự phòng)
-
-- Backend: `bash scripts/deploy-backend-gcloud.sh project-0a96f6c2-d0b9-44ce-b28`
-  (đọc secrets từ `backend/.env`, dùng khi cần đổi env vars)
-- Xem log backend: `gcloud run services logs read clinic-backend --region asia-southeast1 --limit 50`
+- Xem log backend: Render Dashboard → clinic-backend → **Logs** (realtime).
+- Deploy tay: Render Dashboard → **Manual Deploy → Deploy latest commit**.
+- Kiểm tra nhanh backend sống: `curl https://clinic-backend-9e93.onrender.com/actuator/health`
+  → `{"status":"UP"}`.
