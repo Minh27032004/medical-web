@@ -37,7 +37,7 @@ patients                                visits (lần khám)
 ├─ has_drug_allergy + drug_allergy_note├─ diagnosis_code + diagnosis_name (snapshot, BẮT BUỘC)
 ├─ has_chronic_condition + note        ├─ note
 └─ created_at                           └─ created_at
-   idx (doctor_id, full_name), (doctor_id, phone)      idx (doctor_id, visit_date desc)
+   idx (doctor_id, full_name) partial deleted_at null   idx (doctor_id, visit_date desc)
 
 prescriptions (1:1 visit)               prescription_items (snapshot)
 ├─ id, doctor_id, visit_id UNIQUE       ├─ prescription_id, medicine_id NULL
@@ -46,6 +46,7 @@ prescriptions (1:1 visit)               prescription_items (snapshot)
                                         ├─ special_dose_text, usage_note, num_days
                                         ├─ total_quantity_base numeric
                                         └─ is_injection bool
+                                           idx (prescription_id) — V10
 
 medicines (kho — MỖI bác sĩ riêng)      medicine_units (quy đổi)
 ├─ id, doctor_id, name                  ├─ medicine_id
@@ -53,7 +54,7 @@ medicines (kho — MỖI bác sĩ riêng)      medicine_units (quy đổi)
 ├─ base_unit text                       ├─ level_order int (lớn→nhỏ)
 ├─ stock_base_qty numeric (CÓ THỂ ÂM)   └─ factor_to_base numeric
 └─ low_stock_threshold int default 30
-   idx (doctor_id, name)
+   idx (doctor_id, name) partial deleted_at null
 
 medicine_templates (thuốc mẫu)
 ├─ id, doctor_id, medicine_id NULL, name
@@ -64,6 +65,7 @@ medicine_templates (thuốc mẫu)
 
 | Nhóm | Endpoint | Quyền |
 |---|---|---|
+| Auth | `POST /auth/resolve-login` {loginId} → {email} (username → email auth; Gmail nếu có, else ảo) | public |
 | Admin | `GET/POST /admin/doctors`, `PATCH /admin/doctors/{id}/block` `/unblock` | ROLE_ADMIN |
 | Me | `GET /me/profile` | đăng nhập |
 | Patients | CRUD `/doctor/patients` + `?q=` (tên/SĐT) + `GET /{id}/visits` | ROLE_DOCTOR |
@@ -100,6 +102,7 @@ tên bác sĩ, bệnh nhân, chẩn đoán, bảng thuốc liều 4 buổi + cá
 - [x] Test cô lập doctor_id (chéo 404, kho 0/0) + quy đổi kho (3 hộp→150→kê 15→"2 hộp 3 vĩ 5 viên")
 - [x] Đã push, CI deploy (Cloud Run + Vercel)
 
-**Tài khoản test đã tạo trên DB prod:** admin/0907729127 (ADMIN), teo/teo123456 +
-nam/nam123456 (DOCTOR test — user có thể khóa/xóa). teo có sẵn 1 bệnh nhân + 1 thuốc
-Paracetamol + 1 lần khám mẫu.
+**Reset DB 2026-07-19 (V10):** xóa toàn bộ dữ liệu test + tài khoản doctor; DB prod chỉ còn
+admin/0907729127 (ADMIN) + 86 mã ICD-10. V10 đồng thời: bật RLS chat_messages, thêm idx
+prescription_items(prescription_id), bỏ idx chết (icd10 tsvector, patients phone), chuyển
+idx patients/medicines/templates sang partial `deleted_at is null`, gỡ extension vector.
