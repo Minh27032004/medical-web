@@ -69,7 +69,7 @@ public class VisitService {
                               BigDecimal doseMorning, BigDecimal doseNoon,
                               BigDecimal doseAfternoon, BigDecimal doseEvening,
                               String specialDoseText, String usageNote, Integer numDays,
-                              BigDecimal totalQuantityBase, boolean injection) {}
+                              BigDecimal totalQuantityBase, boolean injection, boolean infusion) {}
 
     public record CreateRequest(UUID patientId, String diagnosisCode, String diagnosisName,
                                 List<Diagnosis> secondaryDiagnoses,
@@ -79,7 +79,7 @@ public class VisitService {
                           BigDecimal doseMorning, BigDecimal doseNoon,
                           BigDecimal doseAfternoon, BigDecimal doseEvening,
                           String specialDoseText, String usageNote, Integer numDays,
-                          BigDecimal totalQuantityBase, boolean injection) {}
+                          BigDecimal totalQuantityBase, boolean injection, boolean infusion) {}
 
     public record VisitRow(UUID id, Instant visitDate, UUID patientId, String patientName,
                            String diagnosisCode, String diagnosisName, boolean hasInjection) {}
@@ -157,13 +157,15 @@ public class VisitService {
                     item.setMedicineName(medicine.getName()); // snapshot
                     item.setBaseUnit(medicine.getBaseUnit()); // snapshot
                     item.setInjection(medicine.isInjection());
+                    item.setInfusion(medicine.isInfusion());
                     if (total.signum() > 0) {
                         medicineService.deductStock(medicine, total); // cùng transaction
                     }
                 } else {
                     item.setMedicineName(in.medicineName().trim());
-                    item.setBaseUnit(in.injection() ? "ong" : "vien");
+                    item.setBaseUnit(in.injection() ? "ong" : in.infusion() ? "chai" : "vien");
                     item.setInjection(in.injection());
+                    item.setInfusion(in.infusion());
                 }
                 prescription.getItems().add(item);
             }
@@ -288,7 +290,7 @@ public class VisitService {
             MedicineService.UNIT_LABEL.getOrDefault(i.getBaseUnit(), i.getBaseUnit()),
             i.getDoseMorning(), i.getDoseNoon(), i.getDoseAfternoon(), i.getDoseEvening(),
             i.getSpecialDoseText(), i.getUsageNote(), i.getNumDays(),
-            i.getTotalQuantityBase(), i.isInjection());
+            i.getTotalQuantityBase(), i.isInjection(), i.isInfusion());
     }
 
     private static boolean isBlank(String s) {

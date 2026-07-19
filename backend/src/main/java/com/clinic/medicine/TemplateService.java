@@ -45,7 +45,7 @@ public class TemplateService {
                                 String usageNote, Integer numDays) {}
 
     public record TemplateDto(UUID id, String name, UUID medicineId, String medicineName,
-                              String stockDisplay, boolean injection,
+                              String stockDisplay, boolean injection, boolean infusion,
                               BigDecimal doseMorning, BigDecimal doseNoon,
                               BigDecimal doseAfternoon, BigDecimal doseEvening,
                               String usageNote, Integer numDays) {}
@@ -53,7 +53,7 @@ public class TemplateService {
     /** Gợi ý khi kê đơn: thuốc mẫu TRƯỚC (tự điền liều), rồi tới thuốc kho (§5.4). */
     public record Suggestion(String type, UUID templateId, UUID medicineId, String name,
                              String baseUnit, String baseUnitLabel, String stockDisplay,
-                             boolean injection,
+                             boolean injection, boolean infusion,
                              BigDecimal doseMorning, BigDecimal doseNoon,
                              BigDecimal doseAfternoon, BigDecimal doseEvening,
                              String usageNote, Integer numDays) {}
@@ -108,7 +108,7 @@ public class TemplateService {
                 m != null ? m.getBaseUnit() : null,
                 m != null ? MedicineService.UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()) : null,
                 m != null ? MedicineService.stockDisplay(m) : null,
-                m != null && m.isInjection(),
+                m != null && m.isInjection(), m != null && m.isInfusion(),
                 t.getDefaultDoseMorning(), t.getDefaultDoseNoon(),
                 t.getDefaultDoseAfternoon(), t.getDefaultDoseEvening(),
                 t.getDefaultUsageNote(), t.getDefaultNumDays()));
@@ -119,7 +119,7 @@ public class TemplateService {
             out.add(new Suggestion("MEDICINE", null, m.getId(), m.getName(),
                 m.getBaseUnit(),
                 MedicineService.UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()),
-                MedicineService.stockDisplay(m), m.isInjection(),
+                MedicineService.stockDisplay(m), m.isInjection(), m.isInfusion(),
                 null, null, null, null, null, null));
         }
         return out;
@@ -155,7 +155,7 @@ public class TemplateService {
         return new TemplateDto(t.getId(), t.getName(), t.getMedicineId(),
             m != null ? m.getName() : null,
             m != null ? MedicineService.stockDisplay(m) : null,
-            m != null && m.isInjection(),
+            m != null && m.isInjection(), m != null && m.isInfusion(),
             t.getDefaultDoseMorning(), t.getDefaultDoseNoon(),
             t.getDefaultDoseAfternoon(), t.getDefaultDoseEvening(),
             t.getDefaultUsageNote(), t.getDefaultNumDays());

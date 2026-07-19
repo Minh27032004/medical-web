@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Pager from "@/components/Pager";
-import { Badge, EmptyState, IconPill, IconPlus, IconStar, IconSyringe } from "@/components/ui";
+import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Medicine, Page, Template } from "@/lib/types";
 import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
 const PAGE_SIZE = 10;
-type StockFilter = "all" | "oral" | "injection";
+type StockFilter = "all" | "oral" | "injection" | "infusion";
 
 interface FormState {
   id: string | null;
@@ -51,8 +51,9 @@ export default function TemplatesPage() {
     const kw = q.trim().toLowerCase();
     return templates.filter((t) => {
       if (kw && !t.name.toLowerCase().includes(kw)) return false;
-      if (filter === "oral" && t.injection) return false;
+      if (filter === "oral" && (t.injection || t.infusion)) return false;
       if (filter === "injection" && !t.injection) return false;
+      if (filter === "infusion" && !t.infusion) return false;
       return true;
     });
   }, [templates, q, filter]);
@@ -216,7 +217,7 @@ export default function TemplatesPage() {
           className="input flex-1 min-w-48"
         />
         <div className="flex gap-1.5 text-sm">
-          {([["all", "Tất cả", null], ["oral", "Uống", <IconPill key="o" size={14} />], ["injection", "Tiêm", <IconSyringe key="i" size={14} />]] as const).map(([v, label, icon]) => (
+          {([["all", "Tất cả", null], ["oral", "Uống", <IconPill key="o" size={14} />], ["injection", "Tiêm", <IconSyringe key="i" size={14} />], ["infusion", "Truyền dịch", <IconDroplet key="f" size={14} />]] as const).map(([v, label, icon]) => (
             <button
               key={v}
               onClick={() => setFilter(v)}
@@ -240,8 +241,8 @@ export default function TemplatesPage() {
         {pageItems.map((t) => (
           <div key={t.id} className="card px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={t.injection ? "text-purple-600" : "text-amber-500"}>
-                {t.injection ? <IconSyringe size={15} /> : <IconStar size={15} />}
+              <span className={t.injection ? "text-purple-600" : t.infusion ? "text-sky-600" : "text-amber-500"}>
+                {t.injection ? <IconSyringe size={15} /> : t.infusion ? <IconDroplet size={15} /> : <IconStar size={15} />}
               </span>
               <span className="font-medium text-ink">{t.name}</span>
               <span className="text-sm text-gray-500">
@@ -309,6 +310,7 @@ function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine
               className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
             >
               {m.injection && <span className="text-purple-600 inline-block align-text-bottom mr-1"><IconSyringe size={13} /></span>}
+              {m.infusion && <span className="text-sky-600 inline-block align-text-bottom mr-1"><IconDroplet size={13} /></span>}
               {m.name} <span className="text-xs text-gray-500">({m.stockDisplay})</span>
             </button>
           ))}

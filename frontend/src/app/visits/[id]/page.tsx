@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { IconPrinter, IconRefresh, IconSyringe, Loading } from "@/components/ui";
+import { IconDroplet, IconPrinter, IconRefresh, IconSyringe, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type VisitDetail } from "@/lib/types";
 
@@ -113,6 +113,9 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                     {it.injection && (
                       <span className="text-purple-600 inline-block align-text-bottom mr-1"><IconSyringe size={14} /></span>
                     )}
+                    {it.infusion && (
+                      <span className="text-sky-600 inline-block align-text-bottom mr-1"><IconDroplet size={14} /></span>
+                    )}
                     {it.medicineName}
                   </span>
                   {(it.usageNote || it.specialDoseText) && (
@@ -121,8 +124,10 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
                     </p>
                   )}
                 </td>
-                {it.injection ? (
-                  <td colSpan={5} className="py-2 px-1 text-center text-xs">tiêm theo chỉ định</td>
+                {it.injection || it.infusion ? (
+                  <td colSpan={5} className="py-2 px-1 text-center text-xs">
+                    {it.injection ? "tiêm theo chỉ định" : "truyền theo chỉ định"}
+                  </td>
                 ) : (
                   <>
                     <td className="py-2 px-1 text-center">{doseLabel(it.doseMorning)}</td>

@@ -45,12 +45,14 @@ prescriptions (1:1 visit)               prescription_items (snapshot)
                                         ├─ dose_morning/noon/afternoon/evening numeric
                                         ├─ special_dose_text, usage_note, num_days
                                         ├─ total_quantity_base numeric
-                                        └─ is_injection bool
+                                        ├─ is_injection bool
+                                        └─ is_infusion bool (V11)
                                            idx (prescription_id) — V10
 
 medicines (kho — MỖI bác sĩ riêng)      medicine_units (quy đổi)
 ├─ id, doctor_id, name                  ├─ medicine_id
 ├─ is_injection (→ chỉ đơn vị ống)      ├─ unit_name: chai|hop|vi|vien|goi|ong
+├─ is_infusion (→ chỉ đơn vị chai, V11) │
 ├─ base_unit text                       ├─ level_order int (lớn→nhỏ)
 ├─ stock_base_qty numeric (CÓ THỂ ÂM)   └─ factor_to_base numeric
 └─ low_stock_threshold int default 30

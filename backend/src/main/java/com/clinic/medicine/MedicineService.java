@@ -71,14 +71,16 @@ public class MedicineService {
      *  (đơn vị cuối = base, factorToNext bỏ trống). VD hộp(5) → vĩ(10) → viên. */
     public record UnitInput(String unitName, BigDecimal factorToNext) {}
 
-    public record UpsertRequest(String name, boolean injection, Integer lowStockThreshold,
+    public record UpsertRequest(String name, boolean injection, boolean infusion,
+                                Integer lowStockThreshold,
                                 List<UnitInput> units, String imagePath,
                                 // Tồn ban đầu khi TẠO mới (bỏ qua khi cập nhật): số lượng theo initialStockUnit
                                 String initialStockUnit, BigDecimal initialStockQty) {}
 
     public record UnitDto(String unitName, String label, int levelOrder, BigDecimal factorToBase) {}
 
-    public record MedicineDto(UUID id, String name, boolean injection, String baseUnit,
+    public record MedicineDto(UUID id, String name, boolean injection, boolean infusion,
+                              String baseUnit,
                               String baseUnitLabel, BigDecimal stockBaseQty, String stockDisplay,
                               int lowStockThreshold, boolean lowStock, List<UnitDto> units,
                               String imagePath, String imageUrl) {}
@@ -201,8 +203,12 @@ public class MedicineService {
         if (req.name() == null || req.name().isBlank()) {
             throw ApiException.badRequest("Thiếu tên thuốc");
         }
+        if (req.injection() && req.infusion()) {
+            throw ApiException.badRequest("Thuốc chỉ thuộc MỘT loại: tiêm hoặc truyền dịch");
+        }
         m.setName(req.name().trim());
         m.setInjection(req.injection());
+        m.setInfusion(req.infusion());
         m.setImagePath(req.imagePath());
         if (req.lowStockThreshold() != null && req.lowStockThreshold() >= 0) {
             m.setLowStockThreshold(req.lowStockThreshold());
@@ -213,6 +219,12 @@ public class MedicineService {
             // Thuốc tiêm: duy nhất đơn vị ống, không quy đổi (§6.1, §6.3)
             m.setBaseUnit("ong");
             m.getUnits().add(makeUnit("ong", BigDecimal.ONE));
+            return;
+        }
+        if (req.infusion()) {
+            // Truyền dịch: duy nhất đơn vị chai, không quy đổi (V11)
+            m.setBaseUnit("chai");
+            m.getUnits().add(makeUnit("chai", BigDecimal.ONE));
             return;
         }
 
@@ -285,7 +297,8 @@ public class MedicineService {
     }
 
     MedicineDto toDto(Medicine m) {
-        return new MedicineDto(m.getId(), m.getName(), m.isInjection(), m.getBaseUnit(),
+        return new MedicineDto(m.getId(), m.getName(), m.isInjection(), m.isInfusion(),
+            m.getBaseUnit(),
             UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()),
             m.getStockBaseQty(), stockDisplay(m), m.getLowStockThreshold(),
             m.getStockBaseQty().compareTo(BigDecimal.valueOf(m.getLowStockThreshold())) < 0,

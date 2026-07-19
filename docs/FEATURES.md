@@ -47,6 +47,8 @@ Tài khoản bị khóa không đăng nhập được (check mỗi request).
 - Liều: 4 ô **Sáng–Trưa–Chiều–Tối** (số lượng mỗi buổi) + 1 ô **nhập tự do** cho ca đặc biệt.
 - Cách dùng (trước/sau ăn...) tùy chọn; **số ngày dùng** để tính tổng.
 - Tick **"có tiêm thuốc"** → hiện ô thuốc tiêm (`is_injection`, đơn vị `ống`).
+- Tick **"có truyền dịch"** → hiện ô dịch truyền (`is_infusion`, đơn vị `chai`) — V11, cùng
+  cơ chế với tiêm: nhập số chai, không dùng số ngày.
 - **Tạo lại đơn gần nhất**: copy toàn bộ dòng thuốc từ lần khám gần nhất sang lần mới
   (không ghi đè lịch sử cũ).
 - Lưu đơn → **trừ kho** (mục 4.3) trong 1 transaction.
@@ -71,8 +73,8 @@ Mặc định 30 ngày gần nhất, filter theo ngày; bấm một lần khám 
 ## 4. Logic kho & quy đổi đơn vị (quan trọng nhất)
 
 ### 4.1 Khai báo
-Thứ tự lớn→nhỏ: **chai > hộp > vĩ > viên > gói**; thuốc tiêm dùng riêng **ống** (tick ống thì
-ẩn đơn vị khác). Bác sĩ tick các đơn vị áp dụng + nhập tỷ lệ giữa 2 cấp liền kề. Đơn vị nhỏ
+Thứ tự lớn→nhỏ: **chai > hộp > vĩ > viên > gói**; thuốc tiêm dùng riêng **ống**, truyền dịch
+dùng riêng **chai** không quy đổi (tick loại tiêm/truyền thì ẩn đơn vị khác). Bác sĩ tick các đơn vị áp dụng + nhập tỷ lệ giữa 2 cấp liền kề. Đơn vị nhỏ
 nhất được tick = `base_unit`; hệ thống tính `factor_to_base` từng đơn vị.
 VD Paracetamol: hộp/vĩ/viên, 1 hộp = 5 vĩ, 1 vĩ = 10 viên → base=viên, vĩ=10, hộp=50.
 
@@ -87,6 +89,7 @@ total_quantity_base = liều/ngày × num_days
 stock_base_qty -= total_quantity_base   (trong transaction với lưu đơn)
 ```
 Thuốc tiêm: base = ống, không quy đổi, nhập bao nhiêu trừ bấy nhiêu.
+Truyền dịch: base = chai, tương tự tiêm — tổng = số chai nhập khi kê đơn.
 
 ### 4.4 Snapshot
 `prescription_items` lưu snapshot tên thuốc + đơn vị + liều — đơn cũ bất biến khi kho đổi.

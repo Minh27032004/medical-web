@@ -3,13 +3,13 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Pager from "@/components/Pager";
-import { Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSyringe, Loading } from "@/components/ui";
+import { Badge, EmptyState, IconAlert, IconDroplet, IconPill, IconPlus, IconSyringe, Loading } from "@/components/ui";
 import { useDebounced } from "@/hooks/useDebounced";
 import { api, apiForm, ApiError } from "@/lib/api";
 import { UNIT_LABEL, UNIT_OPTIONS, type Medicine, type Page } from "@/lib/types";
 
 const PAGE_SIZE = 10;
-type StockFilter = "all" | "oral" | "injection";
+type StockFilter = "all" | "oral" | "injection" | "infusion";
 
 /** Đơn vị theo thứ tự lớn → nhỏ (§6.1). Người dùng tick, không cần đúng thứ tự khi bấm. */
 const HIERARCHY = UNIT_OPTIONS.map((u) => u.value); // [chai, hop, vi, vien, goi]
@@ -17,28 +17,32 @@ const HIERARCHY = UNIT_OPTIONS.map((u) => u.value); // [chai, hop, vi, vien, goi
 interface FormState {
   name: string;
   injection: boolean;
+  infusion: boolean;
   lowStockThreshold: string;
   imagePath: string | null;
   imageUrl: string | null;
   ticked: string[]; // đơn vị đã tick (đã sắp theo HIERARCHY)
   values: Record<string, string>; // số nhập cho mỗi đơn vị (lớn nhất = tồn, còn lại = tỷ lệ)
   injectionStock: string; // số ống cho thuốc tiêm
+  infusionStock: string; // số chai cho truyền dịch
 }
 
 const emptyForm = (): FormState => ({
   name: "",
   injection: false,
+  infusion: false,
   lowStockThreshold: "30",
   imagePath: null,
   imageUrl: null,
   ticked: [],
   values: {},
   injectionStock: "",
+  infusionStock: "",
 });
 
 /** Dựng lại payload đơn vị (factorToNext) từ 1 thuốc đã có — để PUT cập nhật mà GIỮ NGUYÊN cấu trúc kho. */
 function unitsPayload(m: Medicine) {
-  if (m.injection) return [];
+  if (m.injection || m.infusion) return [];
   return m.units.map((u, i) => ({
     unitName: u.unitName,
     factorToNext:
@@ -76,8 +80,9 @@ export default function InventoryPage() {
 
   // Lọc uống/tiêm + phân trang client-side; đổi điều kiện → về trang đầu.
   const filtered = useMemo(() => items.filter((m) => {
-    if (filter === "oral") return !m.injection;
+    if (filter === "oral") return !m.injection && !m.infusion;
     if (filter === "injection") return m.injection;
+    if (filter === "infusion") return m.infusion;
     return true;
   }), [items, filter]);
 
@@ -119,12 +124,14 @@ export default function InventoryPage() {
     setForm({
       name: m.name,
       injection: m.injection,
+      infusion: m.infusion,
       lowStockThreshold: String(m.lowStockThreshold),
       imagePath: m.imagePath,
       imageUrl: m.imageUrl,
       ticked: m.units.map((u) => u.unitName),
       values: {},
       injectionStock: "",
+      infusionStock: "",
     });
     setError("");
     setShowForm(true);
@@ -143,6 +150,7 @@ export default function InventoryPage() {
           body: JSON.stringify({
             name: form.name,
             injection: editing.injection,
+            infusion: editing.infusion,
             lowStockThreshold: Number(form.lowStockThreshold) || 30,
             units: unitsPayload(editing),
             imagePath: form.imagePath,
@@ -165,11 +173,23 @@ export default function InventoryPage() {
       body = {
         name: form.name,
         injection: true,
+        infusion: false,
         lowStockThreshold: Number(form.lowStockThreshold) || 30,
         units: [],
         imagePath: form.imagePath,
         initialStockUnit: "ong",
         initialStockQty: Number(form.injectionStock) || 0,
+      };
+    } else if (form.infusion) {
+      body = {
+        name: form.name,
+        injection: false,
+        infusion: true,
+        lowStockThreshold: Number(form.lowStockThreshold) || 30,
+        units: [],
+        imagePath: form.imagePath,
+        initialStockUnit: "chai",
+        initialStockQty: Number(form.infusionStock) || 0,
       };
     } else {
       if (form.ticked.length === 0) {
@@ -187,6 +207,7 @@ export default function InventoryPage() {
       body = {
         name: form.name,
         injection: false,
+        infusion: false,
         lowStockThreshold: Number(form.lowStockThreshold) || 30,
         units,
         imagePath: form.imagePath,
@@ -216,7 +237,7 @@ export default function InventoryPage() {
 
   // Xem trước tổng quy đổi để bác sĩ yên tâm
   function previewTotal(): string {
-    if (form.injection || form.ticked.length === 0) return "";
+    if (form.injection || form.infusion || form.ticked.length === 0) return "";
     // factorToBase từng đơn vị
     const factors: Record<string, number> = {};
     const rev = [...form.ticked].reverse();
@@ -256,7 +277,7 @@ export default function InventoryPage() {
       </div>
 
       <div className="flex gap-2 mb-4 text-sm">
-        {([["all", "Tất cả", null], ["oral", "Uống", <IconPill key="o" size={14} />], ["injection", "Tiêm", <IconSyringe key="i" size={14} />]] as const).map(([v, label, icon]) => (
+        {([["all", "Tất cả", null], ["oral", "Uống", <IconPill key="o" size={14} />], ["injection", "Tiêm", <IconSyringe key="i" size={14} />], ["infusion", "Truyền dịch", <IconDroplet key="f" size={14} />]] as const).map(([v, label, icon]) => (
           <button
             key={v}
             onClick={() => setFilter(v)}
@@ -308,15 +329,26 @@ export default function InventoryPage() {
           </div>
 
           {!editing && (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.injection}
-                onChange={(e) => setForm({ ...form, injection: e.target.checked })}
-              />
-              <span className="text-purple-600"><IconSyringe size={15} /></span>
-              Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
-            </label>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.injection}
+                  onChange={(e) => setForm({ ...form, injection: e.target.checked, infusion: false })}
+                />
+                <span className="text-purple-600"><IconSyringe size={15} /></span>
+                Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.infusion}
+                  onChange={(e) => setForm({ ...form, infusion: e.target.checked, injection: false })}
+                />
+                <span className="text-sky-600"><IconDroplet size={15} /></span>
+                Truyền dịch (chỉ dùng đơn vị &quot;chai&quot;, không quy đổi)
+              </label>
+            </div>
           )}
 
           {editing ? (
@@ -324,6 +356,8 @@ export default function InventoryPage() {
               <p className="font-medium mb-1">
                 {editing.injection
                   ? "Thuốc tiêm (đơn vị: ống)"
+                  : editing.infusion
+                  ? "Truyền dịch (đơn vị: chai)"
                   : `Đơn vị: ${editing.units.map((u) => u.label).join(" › ")}`}
               </p>
               <p className="text-xs text-gray-500">
@@ -339,6 +373,17 @@ export default function InventoryPage() {
                 onChange={(e) => setForm({ ...form, injectionStock: e.target.value })}
                 className="input-sm w-40"
                 placeholder="VD: 50"
+              />
+            </div>
+          ) : form.infusion ? (
+            <div className="border rounded-lg p-3 bg-sky-50/40">
+              <label className="block text-sm mb-1 font-medium">Số lượng nhập ban đầu (chai)</label>
+              <input
+                type="number" min={0}
+                value={form.infusionStock}
+                onChange={(e) => setForm({ ...form, infusionStock: e.target.value })}
+                className="input-sm w-40"
+                placeholder="VD: 20"
               />
             </div>
           ) : (
@@ -424,7 +469,7 @@ export default function InventoryPage() {
         <EmptyState
           icon={<IconPill size={22} />}
           title={items.length === 0 ? "Kho thuốc trống" : "Không có thuốc khớp bộ lọc"}
-          hint={items.length === 0 ? "Thêm thuốc đầu tiên để quản lý tồn kho và trừ kho khi kê đơn." : "Thử đổi từ khóa hoặc bộ lọc uống/tiêm."}
+          hint={items.length === 0 ? "Thêm thuốc đầu tiên để quản lý tồn kho và trừ kho khi kê đơn." : "Thử đổi từ khóa hoặc bộ lọc uống/tiêm/truyền dịch."}
         />
       )}
 
@@ -450,7 +495,7 @@ export default function InventoryPage() {
                             <Image src={m.imageUrl} alt="" fill className="object-cover" unoptimized />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400">
-                              {m.injection ? <IconSyringe size={18} /> : <IconPill size={18} />}
+                              {m.injection ? <IconSyringe size={18} /> : m.infusion ? <IconDroplet size={18} /> : <IconPill size={18} />}
                             </div>
                           )}
                         </div>

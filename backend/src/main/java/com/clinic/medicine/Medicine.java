@@ -44,6 +44,10 @@ public class Medicine {
     @Column(name = "is_injection", nullable = false)
     private boolean injection = false;
 
+    /** Truyền dịch → chỉ có đơn vị 'chai' (V11). Loại trừ lẫn nhau với injection. */
+    @Column(name = "is_infusion", nullable = false)
+    private boolean infusion = false;
+
     @Column(name = "base_unit", nullable = false)
     private String baseUnit;
 

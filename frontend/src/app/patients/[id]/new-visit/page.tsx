@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
-import { IconAlert, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
+import { IconAlert, IconDroplet, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Diagnosis, Icd10, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
 import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
@@ -26,9 +26,10 @@ interface ItemForm {
   usageMode: UsageMode;
   usageCustom: string;
   injection: boolean;
+  infusion: boolean;
 }
 
-const emptyItem = (injection = false): ItemForm => ({
+const emptyItem = (injection = false, infusion = false): ItemForm => ({
   medicineId: null,
   medicineName: "",
   baseUnitLabel: null,
@@ -40,6 +41,7 @@ const emptyItem = (injection = false): ItemForm => ({
   usageMode: "",
   usageCustom: "",
   injection,
+  infusion,
 });
 
 /** Tổng số lượng 1 thuốc (đơn vị nhỏ nhất) = (liều mỗi buổi cộng lại) × số ngày của cả đơn. */
@@ -224,14 +226,14 @@ function MedicineInput({
     const timer = setTimeout(() => {
       api<Suggestion[]>(`/api/doctor/suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
         .then((r) => {
-          const filtered = r.filter((s) => s.injection === item.injection);
+          const filtered = r.filter((s) => s.injection === item.injection && s.infusion === item.infusion);
           setOptions(filtered);
           setOpen(filtered.length > 0);
         })
         .catch(() => {});
     }, 250);
     return () => { clearTimeout(timer); ctrl.abort(); };
-  }, [item.medicineName, item.medicineId, item.injection]);
+  }, [item.medicineName, item.medicineId, item.injection, item.infusion]);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -264,7 +266,7 @@ function MedicineInput({
       <input
         value={item.medicineName}
         onChange={(e) => onChange({ medicineName: e.target.value, medicineId: null, stockDisplay: null })}
-        placeholder={item.injection ? "Tên thuốc tiêm..." : "Tên thuốc..."}
+        placeholder={item.injection ? "Tên thuốc tiêm..." : item.infusion ? "Tên dịch truyền..." : "Tên thuốc..."}
         className="input"
       />
       {item.stockDisplay && (
@@ -304,6 +306,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const [items, setItems] = useState<ItemForm[]>([emptyItem()]);
   const [numDays, setNumDays] = useState(""); // số ngày dùng chung cho CẢ đơn
   const [hasInjectionRow, setHasInjectionRow] = useState(false);
+  const [hasInfusionRow, setHasInfusionRow] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -325,10 +328,12 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
         doseEvening: r.doseEvening ? String(r.doseEvening) : "",
         ...deriveUsage(r.usageNote),
         injection: r.injection,
+        infusion: r.infusion,
       }))
     );
     setHasInjectionRow(rx.some((r) => r.injection));
-    const d = rx.find((r) => !r.injection && r.numDays)?.numDays;
+    setHasInfusionRow(rx.some((r) => r.infusion));
+    const d = rx.find((r) => !r.injection && !r.infusion && r.numDays)?.numDays;
     setNumDays(d ? String(d) : "");
   }, []);
 
@@ -388,6 +393,16 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     }
   }
 
+  function toggleInfusion(checked: boolean) {
+    setHasInfusionRow(checked);
+    if (checked && !items.some((i) => i.infusion)) {
+      setItems([...items, emptyItem(false, true)]);
+    }
+    if (!checked) {
+      setItems(items.filter((i) => !i.infusion));
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!diagCode) {
@@ -396,7 +411,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     }
     const days = Number(numDays) || 0;
     // Có thuốc uống (chọn buổi) nhưng chưa nhập số ngày → tổng = 0, không trừ kho.
-    const hasOralDose = items.some((it) => !it.injection && it.medicineName.trim() && totalOf(it, 1) > 0);
+    const hasOralDose = items.some((it) => !it.injection && !it.infusion && it.medicineName.trim() && totalOf(it, 1) > 0);
     if (hasOralDose && days <= 0) {
       setError("Nhập số ngày uống ở cuối đơn thuốc");
       return;
@@ -414,21 +429,25 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
           note: note || null,
           items: items
             .filter((it) => it.medicineName.trim())
-            .map((it) => ({
-              medicineId: it.medicineId,
-              medicineName: it.medicineName,
-              // Thuốc tiêm: doseMorning = số ống, không dùng số ngày.
-              doseMorning: Number(it.doseMorning) || 0,
-              doseNoon: it.injection ? 0 : Number(it.doseNoon) || 0,
-              doseAfternoon: it.injection ? 0 : Number(it.doseAfternoon) || 0,
-              doseEvening: it.injection ? 0 : Number(it.doseEvening) || 0,
-              specialDoseText: null,
-              usageNote: usageModeToNote(it.usageMode, it.usageCustom),
-              numDays: it.injection ? null : days || null,
-              // Tiêm: tổng = số ống; thuốc uống: để backend tự tính = liều/ngày × số ngày.
-              totalQuantityBase: it.injection ? Number(it.doseMorning) || 0 : null,
-              injection: it.injection,
-            })),
+            .map((it) => {
+              // Tiêm/truyền: doseMorning = số ống/chai, không dùng số ngày; tổng = chính số đó.
+              const perUnit = it.injection || it.infusion;
+              return {
+                medicineId: it.medicineId,
+                medicineName: it.medicineName,
+                doseMorning: Number(it.doseMorning) || 0,
+                doseNoon: perUnit ? 0 : Number(it.doseNoon) || 0,
+                doseAfternoon: perUnit ? 0 : Number(it.doseAfternoon) || 0,
+                doseEvening: perUnit ? 0 : Number(it.doseEvening) || 0,
+                specialDoseText: null,
+                usageNote: usageModeToNote(it.usageMode, it.usageCustom),
+                numDays: perUnit ? null : days || null,
+                // Thuốc uống: để backend tự tính = liều/ngày × số ngày.
+                totalQuantityBase: perUnit ? Number(it.doseMorning) || 0 : null,
+                injection: it.injection,
+                infusion: it.infusion,
+              };
+            }),
         }),
       });
       router.push(`/visits/${detail.id}?created=1`);
@@ -508,24 +527,36 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
       <div className="card p-5">
         <div className="flex items-center justify-between mb-3">
           <label className="text-sm font-semibold text-ink">Đơn thuốc</label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={hasInjectionRow}
-              onChange={(e) => toggleInjection(e.target.checked)}
-            />
-            <span className="text-purple-600"><IconSyringe size={15} /></span>
-            Có tiêm thuốc
-          </label>
+          <div className="flex items-center gap-4 flex-wrap">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hasInjectionRow}
+                onChange={(e) => toggleInjection(e.target.checked)}
+              />
+              <span className="text-purple-600"><IconSyringe size={15} /></span>
+              Có tiêm thuốc
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hasInfusionRow}
+                onChange={(e) => toggleInfusion(e.target.checked)}
+              />
+              <span className="text-sky-600"><IconDroplet size={15} /></span>
+              Có truyền dịch
+            </label>
+          </div>
         </div>
 
         <div className="space-y-4">
           {items.map((it, idx) => (
-            <div key={idx} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : "border-gray-200"}`}>
+            <div key={idx} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : it.infusion ? "border-sky-300 bg-sky-50/30" : "border-gray-200"}`}>
               <div className="flex items-start gap-2 flex-wrap">
                 {it.injection && <span className="text-purple-600 py-2.5"><IconSyringe size={16} /></span>}
+                {it.infusion && <span className="text-sky-600 py-2.5"><IconDroplet size={16} /></span>}
                 <MedicineInput item={it} onChange={(p) => updateItem(idx, p)} />
-                {it.injection ? (
+                {it.injection || it.infusion ? (
                   <div className="text-center">
                     <input
                       type="number" min={0} step="any"
@@ -533,7 +564,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                       onChange={(e) => updateItem(idx, { doseMorning: e.target.value })}
                       className="input-sm w-24 py-2 text-center"
                     />
-                    <p className="text-[10px] text-gray-500">Số ống</p>
+                    <p className="text-[10px] text-gray-500">{it.injection ? "Số ống" : "Số chai"}</p>
                   </div>
                 ) : (
                   <div className="flex items-start gap-3">
@@ -597,7 +628,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                     autoFocus
                   />
                 )}
-                {!it.injection && totalOf(it, Number(numDays) || 0) > 0 && (
+                {!it.injection && !it.infusion && totalOf(it, Number(numDays) || 0) > 0 && (
                   <span className="text-xs text-blue-700 font-medium ml-auto">
                     = {totalOf(it, Number(numDays) || 0)} {it.baseUnitLabel ?? "đơn vị"}
                   </span>

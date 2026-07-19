@@ -6,6 +6,7 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Droplet,
   Mail,
   Pill,
   Plus,
@@ -29,6 +30,7 @@ function make(Icon: LucideIcon) {
 
 export const IconPill = make(Pill);
 export const IconSyringe = make(Syringe);
+export const IconDroplet = make(Droplet);
 export const IconAlert = make(TriangleAlert);
 export const IconMail = make(Mail);
 export const IconPrinter = make(Printer);

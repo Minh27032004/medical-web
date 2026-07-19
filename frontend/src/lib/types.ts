@@ -50,6 +50,7 @@ export interface Medicine {
   id: string;
   name: string;
   injection: boolean;
+  infusion: boolean;
   baseUnit: string;
   baseUnitLabel: string;
   stockBaseQty: number;
@@ -68,6 +69,7 @@ export interface Template {
   medicineName: string | null;
   stockDisplay: string | null;
   injection: boolean;
+  infusion: boolean;
   doseMorning: number;
   doseNoon: number;
   doseAfternoon: number;
@@ -85,6 +87,7 @@ export interface Suggestion {
   baseUnitLabel: string | null;
   stockDisplay: string | null;
   injection: boolean;
+  infusion: boolean;
   doseMorning: number | null;
   doseNoon: number | null;
   doseAfternoon: number | null;
@@ -128,6 +131,7 @@ export interface RxItem {
   numDays: number | null;
   totalQuantityBase: number;
   injection: boolean;
+  infusion: boolean;
 }
 
 export interface VisitDetail {

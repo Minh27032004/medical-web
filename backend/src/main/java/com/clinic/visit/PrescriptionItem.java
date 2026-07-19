@@ -61,4 +61,7 @@ public class PrescriptionItem {
 
     @Column(name = "is_injection", nullable = false)
     private boolean injection = false;
+
+    @Column(name = "is_infusion", nullable = false)
+    private boolean infusion = false;
 }
