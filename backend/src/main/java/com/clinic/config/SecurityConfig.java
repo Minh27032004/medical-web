@@ -47,8 +47,9 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // API stateless + JWT Bearer, không dùng cookie phiên
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // Hệ NỘI BỘ (D13): không còn endpoint public nào ngoài health check
+                // Hệ NỘI BỘ (D13): public chỉ có health check + resolve email đăng nhập
                 .requestMatchers("/actuator/health").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/resolve-login").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/doctor/**").hasRole("DOCTOR")

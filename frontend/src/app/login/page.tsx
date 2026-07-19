@@ -46,12 +46,25 @@ function LoginForm() {
   }, [router, searchParams]);
 
   // Đăng nhập username/Gmail + mật khẩu. Thành công → onAuthStateChange ở trên lo điều hướng.
+  // Username phải resolve qua backend: tài khoản có Gmail thì email auth = Gmail (V8),
+  // ghép <username>@clinic.local máy móc sẽ không khớp auth user nào.
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     const id = loginId.trim().toLowerCase();
-    const email = id.includes("@") ? id : id + EMAIL_DOMAIN;
+    let email = id;
+    if (!id.includes("@")) {
+      try {
+        const resolved = await api<{ email: string }>("/api/auth/resolve-login", {
+          method: "POST",
+          body: JSON.stringify({ loginId: id }),
+        });
+        email = resolved.email;
+      } catch {
+        email = id + EMAIL_DOMAIN; // backend không phản hồi → giữ hành vi cũ
+      }
+    }
     const supabase = createSupabaseClient();
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) {
