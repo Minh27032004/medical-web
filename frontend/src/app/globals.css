@@ -171,6 +171,15 @@ body {
     box-shadow: var(--shadow-xs);
   }
 
+  /* Nút hành động phá hủy — dùng cho nút xác nhận trong popup xóa */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 bg-red-600 text-white font-semibold
+      px-4 py-2.5 rounded-lg text-sm transition hover:bg-red-700
+      focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100
+      disabled:opacity-50 disabled:pointer-events-none;
+    box-shadow: var(--shadow-xs);
+  }
+
   /* Chip lọc: mặc định viền, active = nền brand nhạt (mềm hơn khối đặc) */
   .chip {
     @apply px-3.5 py-1.5 rounded-full text-sm font-medium border border-gray-300 bg-white text-gray-600

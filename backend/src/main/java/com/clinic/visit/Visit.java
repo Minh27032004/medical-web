@@ -52,6 +52,10 @@ public class Visit {
 
     private String note;
 
+    /** Xóa mềm (V12) — bản ghi vẫn nằm trong DB, chỉ ẩn khỏi mọi truy vấn lịch sử. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

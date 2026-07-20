@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import PatientForm from "@/components/PatientForm";
 import { Badge, IconAlert, IconPlus, IconSyringe, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -20,7 +22,15 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const [patient, setPatient] = useState<Patient | null>(null);
   const [visits, setVisits] = useState<VisitRow[]>([]);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  const router = useRouter();
+
+  /** Xóa mềm hồ sơ — lịch sử khám giữ nguyên, chỉ ẩn bệnh nhân khỏi danh sách. */
+  async function removePatient() {
+    await api(`/api/doctor/patients/${id}`, { method: "DELETE" });
+    router.push("/patients");
+  }
 
   const load = useCallback(() => {
     Promise.all([
@@ -96,9 +106,25 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
             <button onClick={() => setEditing(true)} className="btn-ghost">
               Sửa hồ sơ
             </button>
+            <button onClick={() => setDeleting(true)} className="text-sm font-medium text-red-600 hover:underline">
+              Xóa hồ sơ
+            </button>
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleting}
+        title={`Xóa hồ sơ "${patient.fullName}"?`}
+        message={
+          visits.length > 0
+            ? `Bệnh nhân này đã có ${visits.length} lần khám. Hồ sơ sẽ được ẩn khỏi danh sách nhưng lịch sử khám và các đơn thuốc đã in vẫn được giữ lại trong hệ thống.`
+            : "Hồ sơ sẽ được ẩn khỏi danh sách bệnh nhân."
+        }
+        confirmLabel="Xóa hồ sơ"
+        onConfirm={removePatient}
+        onClose={() => setDeleting(false)}
+      />
 
       <h2 className="font-bold text-lg text-ink mt-6 mb-3">
         Lịch sử khám <span className="text-gray-400 font-normal text-sm">({visits.length} lượt · {byDay.length} ngày)</span>

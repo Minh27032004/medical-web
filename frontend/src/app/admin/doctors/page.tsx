@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge, IconMail, IconPlus } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { DoctorRow } from "@/lib/types";
@@ -11,6 +12,7 @@ export default function AdminDoctorsPage() {
   const [form, setForm] = useState({ email: "", username: "", password: "", fullName: "", phone: "", clinicName: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [blocking, setBlocking] = useState<DoctorRow | null>(null); // tài khoản chờ xác nhận khóa
 
   const load = useCallback(() => {
     api<DoctorRow[]>("/api/admin/doctors").then(setDoctors).catch(() => {});
@@ -34,11 +36,18 @@ export default function AdminDoctorsPage() {
     }
   }
 
+  /** Mở khóa làm ngay; KHÓA thì hỏi lại qua popup vì bác sĩ sẽ mất quyền đăng nhập tức thì. */
   async function toggleBlock(d: DoctorRow) {
-    const action = d.blocked ? "unblock" : "block";
-    const who = d.username ?? d.email ?? d.fullName;
-    if (!d.blocked && !confirm(`Khóa tài khoản "${who}"? Bác sĩ sẽ không đăng nhập được.`)) return;
-    await api(`/api/admin/doctors/${d.id}/${action}`, { method: "PATCH" });
+    if (!d.blocked) {
+      setBlocking(d);
+      return;
+    }
+    await api(`/api/admin/doctors/${d.id}/unblock`, { method: "PATCH" });
+    load();
+  }
+
+  async function doBlock(d: DoctorRow) {
+    await api(`/api/admin/doctors/${d.id}/block`, { method: "PATCH" });
     load();
   }
 
@@ -177,6 +186,15 @@ export default function AdminDoctorsPage() {
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={!!blocking}
+        title={`Khóa tài khoản "${blocking?.username ?? blocking?.email ?? blocking?.fullName}"?`}
+        message="Bác sĩ sẽ không đăng nhập được nữa, kể cả khi token còn hạn. Dữ liệu bệnh nhân và đơn thuốc vẫn giữ nguyên, mở khóa lại được bất cứ lúc nào."
+        confirmLabel="Khóa tài khoản"
+        onConfirm={() => doBlock(blocking!)}
+        onClose={() => setBlocking(null)}
+      />
     </div>
   );
 }

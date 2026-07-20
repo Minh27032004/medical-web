@@ -28,6 +28,9 @@ interface PatientRepository extends JpaRepository<Patient, UUID> {
 
     Optional<Patient> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
 
+    /** KỂ CẢ đã xóa mềm — chỉ dùng cho việc đọc lại hồ sơ lần khám cũ. */
+    Optional<Patient> findByIdAndDoctorId(UUID id, UUID doctorId);
+
     /** Id các bệnh nhân (chưa xóa) trùng CẢ tên (không phân biệt hoa/thường, bỏ khoảng thừa) LẪN SĐT. */
     @Query("""
         select p.id from Patient p
@@ -111,6 +114,15 @@ public class PatientService {
 
     public Patient findOwned(UUID doctorId, UUID id) {
         return repository.findByIdAndDoctorIdAndDeletedAtIsNull(id, doctorId)
+            .orElseThrow(() -> ApiException.notFound("Không tìm thấy bệnh nhân"));
+    }
+
+    /**
+     * Như findOwned nhưng CHẤP NHẬN bệnh nhân đã xóa mềm — dùng khi mở lại lần khám cũ:
+     * xóa bệnh nhân vẫn giữ lịch sử khám, nên hồ sơ cũ phải đọc được tên/tuổi để in đơn.
+     */
+    public Patient findOwnedEvenDeleted(UUID doctorId, UUID id) {
+        return repository.findByIdAndDoctorId(id, doctorId)
             .orElseThrow(() -> ApiException.notFound("Không tìm thấy bệnh nhân"));
     }
 

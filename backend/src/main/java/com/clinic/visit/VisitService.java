@@ -21,19 +21,22 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** MỌI finder đều kèm deletedAtIsNull — lần khám đã xóa mềm (V12) không được lọt vào bất kỳ đâu. */
 interface VisitRepository extends JpaRepository<Visit, UUID> {
 
-    List<Visit> findByDoctorIdAndVisitDateBetweenOrderByVisitDateDesc(
+    List<Visit> findByDoctorIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
         UUID doctorId, Instant from, Instant to);
 
-    List<Visit> findByDoctorIdAndPatientIdOrderByVisitDateDesc(UUID doctorId, UUID patientId);
+    List<Visit> findByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
+        UUID doctorId, UUID patientId);
 
-    List<Visit> findByDoctorIdAndPatientIdAndVisitDateBetweenOrderByVisitDateDesc(
+    List<Visit> findByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
         UUID doctorId, UUID patientId, Instant from, Instant to);
 
-    Optional<Visit> findByIdAndDoctorId(UUID id, UUID doctorId);
+    Optional<Visit> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
 
-    Optional<Visit> findFirstByDoctorIdAndPatientIdOrderByVisitDateDesc(UUID doctorId, UUID patientId);
+    Optional<Visit> findFirstByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
+        UUID doctorId, UUID patientId);
 }
 
 interface PrescriptionRepository extends JpaRepository<Prescription, UUID> {
@@ -185,20 +188,22 @@ public class VisitService {
         var fromI = fromDate.atStartOfDay(CLINIC_ZONE).toInstant();
         var toI = toDate.plusDays(1).atStartOfDay(CLINIC_ZONE).toInstant();
         return toRows(doctorId,
-            visitRepository.findByDoctorIdAndVisitDateBetweenOrderByVisitDateDesc(doctorId, fromI, toI));
+            visitRepository.findByDoctorIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
+                doctorId, fromI, toI));
     }
 
     @Transactional(readOnly = true)
     public List<VisitRow> visitsOfPatient(UUID doctorId, UUID patientId) {
         patientService.findOwned(doctorId, patientId);
         return toRows(doctorId,
-            visitRepository.findByDoctorIdAndPatientIdOrderByVisitDateDesc(doctorId, patientId));
+            visitRepository.findByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
+                doctorId, patientId));
     }
 
     /** Lần khám gần nhất của bệnh nhân (kèm tên + có tiêm) — cho trợ lý chat LAST_VISIT. */
     @Transactional(readOnly = true)
     public Optional<VisitRow> lastVisit(UUID doctorId, UUID patientId) {
-        return visitRepository.findFirstByDoctorIdAndPatientIdOrderByVisitDateDesc(doctorId, patientId)
+        return visitRepository.findFirstByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(doctorId, patientId)
             .map(v -> toRows(doctorId, List.of(v)).get(0));
     }
 
@@ -222,15 +227,16 @@ public class VisitService {
         var fromDate = from != null ? from : toDate.minusDays(30);
         var fromI = fromDate.atStartOfDay(CLINIC_ZONE).toInstant();
         var toI = toDate.plusDays(1).atStartOfDay(CLINIC_ZONE).toInstant();
-        return visitRepository.findByDoctorIdAndPatientIdAndVisitDateBetweenOrderByVisitDateDesc(
+        return visitRepository.findByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
             doctorId, patientId, fromI, toI);
     }
 
     @Transactional(readOnly = true)
     public VisitDetail detail(UUID doctorId, UUID visitId) {
-        var visit = visitRepository.findByIdAndDoctorId(visitId, doctorId)
+        var visit = visitRepository.findByIdAndDoctorIdAndDeletedAtIsNull(visitId, doctorId)
             .orElseThrow(() -> ApiException.notFound("Không tìm thấy lần khám"));
-        var patient = patientService.findOwned(doctorId, visit.getPatientId());
+        // Bệnh nhân có thể đã bị xóa mềm — lần khám cũ vẫn phải xem/in lại được.
+        var patient = patientService.findOwnedEvenDeleted(doctorId, visit.getPatientId());
         var doctor = userRepository.findById(doctorId).orElseThrow();
         var prescription = prescriptionRepository.findByVisitId(visit.getId()).orElse(null);
 
@@ -250,10 +256,39 @@ public class VisitService {
     @Transactional(readOnly = true)
     public List<ItemDto> lastPrescriptionItems(UUID doctorId, UUID patientId) {
         patientService.findOwned(doctorId, patientId);
-        return visitRepository.findFirstByDoctorIdAndPatientIdOrderByVisitDateDesc(doctorId, patientId)
+        return visitRepository.findFirstByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(doctorId, patientId)
             .flatMap(v -> prescriptionRepository.findByVisitId(v.getId()))
             .map(p -> p.getItems().stream().map(VisitService::toItemDto).toList())
             .orElse(List.of());
+    }
+
+    /**
+     * XÓA MỀM lần khám (V12). Đơn thuốc giữ nguyên trong DB, chỉ ẩn theo visit cha.
+     * restoreStock = bác sĩ chọn trên popup: true khi xóa vì nhập nhầm (thuốc chưa phát ra),
+     * false khi thuốc đã đưa cho bệnh nhân rồi.
+     */
+    @Transactional
+    public void softDelete(UUID doctorId, UUID visitId, boolean restoreStock) {
+        var visit = visitRepository.findByIdAndDoctorIdAndDeletedAtIsNull(visitId, doctorId)
+            .orElseThrow(() -> ApiException.notFound("Không tìm thấy lần khám"));
+
+        if (restoreStock) {
+            prescriptionRepository.findByVisitId(visitId).ifPresent(p -> {
+                for (var i : p.getItems()) {
+                    if (i.getMedicineId() == null || i.getTotalQuantityBase().signum() <= 0) continue;
+                    var m = medicineService.findOwnedOrNull(doctorId, i.getMedicineId());
+                    if (m == null) continue; // thuốc đã xóa khỏi kho → không còn chỗ để hoàn
+                    // total_quantity_base là SNAPSHOT theo base_unit lúc kê. Nếu sau đó bác sĩ
+                    // đã đổi cấu trúc đơn vị của thuốc thì con số không còn cùng hệ quy chiếu
+                    // → cộng vào sẽ sai tồn. Bỏ qua, để bác sĩ tự chỉnh bằng "Nhập / chỉnh".
+                    if (!i.getBaseUnit().equals(m.getBaseUnit())) continue;
+                    medicineService.restoreStock(m, i.getTotalQuantityBase());
+                }
+            });
+        }
+
+        visit.setDeletedAt(Instant.now());
+        visitRepository.save(visit);
     }
 
     @Transactional

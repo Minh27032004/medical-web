@@ -36,8 +36,10 @@ patients                                visits (lần khám)
 ├─ full_name, phone, gender, address   ├─ visit_date timestamptz default now
 ├─ has_drug_allergy + drug_allergy_note├─ diagnosis_code + diagnosis_name (snapshot, BẮT BUỘC)
 ├─ has_chronic_condition + note        ├─ note
-└─ created_at                           └─ created_at
+└─ created_at                           ├─ deleted_at NULL (xóa mềm — V12)
+                                        └─ created_at
    idx (doctor_id, full_name) partial deleted_at null   idx (doctor_id, visit_date desc)
+                                           partial deleted_at null — V12
 
 prescriptions (1:1 visit)               prescription_items (snapshot)
 ├─ id, doctor_id, visit_id UNIQUE       ├─ prescription_id, medicine_id NULL
@@ -74,7 +76,7 @@ medicine_templates (thuốc mẫu)
 | ICD-10 | `GET /doctor/icd10?q=` (2 chiều code/name, limit 20) | ROLE_DOCTOR |
 | Medicines | CRUD `/doctor/medicines` (+units), `GET ?q=`, `POST /{id}/adjust-stock` {entries:[{unitName,qty}], reason}, `GET /low-stock`, `GET /suggest?q=` (ưu tiên template) | ROLE_DOCTOR |
 | Templates | CRUD `/doctor/templates` | ROLE_DOCTOR |
-| Visits + Rx | `POST /doctor/visits` {patientId, diagnosisCode/Name, note, items[]} → tạo visit + prescription + trừ kho 1 transaction; `GET /doctor/visits?date=&from=&to=`; `GET /doctor/visits/{id}` (kèm đơn); `GET /doctor/patients/{id}/last-prescription` (copy đơn); `POST /doctor/prescriptions/{id}/printed` | ROLE_DOCTOR |
+| Visits + Rx | `POST /doctor/visits` {patientId, diagnosisCode/Name, note, items[]} → tạo visit + prescription + trừ kho 1 transaction; `GET /doctor/visits?date=&from=&to=`; `GET /doctor/visits/{id}` (kèm đơn); `GET /doctor/patients/{id}/last-prescription` (copy đơn); `POST /doctor/prescriptions/{id}/printed`; `DELETE /doctor/visits/{id}?restoreStock=` (xóa mềm V12, tùy chọn hoàn thuốc về kho) | ROLE_DOCTOR |
 | Chat | `POST /doctor/chat` {question} → intent+params (Gemini) → query template → kết quả cấu trúc | ROLE_DOCTOR |
 
 Cô lập: mọi service method nhận `doctorId` (từ JWT sub) và mọi repository query có điều kiện doctor_id.

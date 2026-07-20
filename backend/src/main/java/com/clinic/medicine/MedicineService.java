@@ -74,8 +74,12 @@ public class MedicineService {
     public record UpsertRequest(String name, boolean injection, boolean infusion,
                                 Integer lowStockThreshold,
                                 List<UnitInput> units, String imagePath,
-                                // Tồn ban đầu khi TẠO mới (bỏ qua khi cập nhật): số lượng theo initialStockUnit
-                                String initialStockUnit, BigDecimal initialStockQty) {}
+                                // Tồn ban đầu: số lượng theo initialStockUnit (quy về base khi lưu)
+                                String initialStockUnit, BigDecimal initialStockQty,
+                                // Chỉ dùng khi CẬP NHẬT: true = ghi đè tồn bằng initialStock*
+                                // (bác sĩ đã đổi cấu trúc đơn vị nên phải nhập lại tồn từ đầu).
+                                // false/null = giữ nguyên tồn hiện có.
+                                Boolean resetStock) {}
 
     public record UnitDto(String unitName, String label, int levelOrder, BigDecimal factorToBase) {}
 
@@ -122,20 +126,34 @@ public class MedicineService {
         var m = new Medicine();
         m.setDoctorId(doctorId);
         apply(m, req);
-        // Tồn ban đầu: quy về đơn vị nhỏ nhất qua factor (đơn vị lớn nhất người dùng nhập số lượng)
-        if (req.initialStockQty() != null && req.initialStockQty().signum() > 0) {
-            var unit = req.initialStockUnit() != null && !req.initialStockUnit().isBlank()
-                ? req.initialStockUnit() : m.getBaseUnit();
-            m.setStockBaseQty(req.initialStockQty().multiply(factorOf(m, unit)));
-        }
+        applyInitialStock(m, req);
         return toDto(repository.save(m));
     }
 
     @Transactional
     public MedicineDto update(UUID doctorId, UUID id, UpsertRequest req) {
         var m = findOwned(doctorId, id);
+        // Xóa đơn vị cũ rồi ĐẨY DELETE xuống DB TRƯỚC khi apply() thêm đơn vị mới.
+        // Hibernate xếp INSERT trước orphan-DELETE trong cùng một flush, nên nếu không
+        // flush ở đây thì việc giữ lại cùng tên đơn vị sẽ đụng unique(medicine_id, unit_name).
+        m.getUnits().clear();
+        repository.flush();
         apply(m, req);
+        // Đổi cấu trúc đơn vị (hoặc đổi loại thuốc) làm tồn cũ vô nghĩa vì base_unit đã khác
+        // → frontend bắt nhập lại tồn và gửi resetStock=true để ghi đè (D16: tồn theo base).
+        if (Boolean.TRUE.equals(req.resetStock())) {
+            m.setStockBaseQty(BigDecimal.ZERO);
+            applyInitialStock(m, req);
+        }
         return toDto(repository.save(m));
+    }
+
+    /** Tồn ban đầu: quy về đơn vị nhỏ nhất qua factor (người dùng nhập theo đơn vị lớn nhất). */
+    private void applyInitialStock(Medicine m, UpsertRequest req) {
+        if (req.initialStockQty() == null || req.initialStockQty().signum() <= 0) return;
+        var unit = req.initialStockUnit() != null && !req.initialStockUnit().isBlank()
+            ? req.initialStockUnit() : m.getBaseUnit();
+        m.setStockBaseQty(req.initialStockQty().multiply(factorOf(m, unit)));
     }
 
     @Transactional
@@ -185,6 +203,12 @@ public class MedicineService {
     /** Trừ kho khi kê đơn — gọi trong transaction của VisitService (§6.3). Cho phép âm (D16). */
     public void deductStock(Medicine m, BigDecimal baseQty) {
         m.setStockBaseQty(m.getStockBaseQty().subtract(baseQty));
+        repository.save(m);
+    }
+
+    /** Hoàn kho khi XÓA lần khám (V12) — cộng ngược đúng số đã trừ lúc kê đơn. */
+    public void restoreStock(Medicine m, BigDecimal baseQty) {
+        m.setStockBaseQty(m.getStockBaseQty().add(baseQty));
         repository.save(m);
     }
 

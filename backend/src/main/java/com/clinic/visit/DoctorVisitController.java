@@ -12,6 +12,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,6 +38,17 @@ public class DoctorVisitController {
     @ResponseStatus(HttpStatus.CREATED)
     public VisitDetail create(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateRequest req) {
         return visitService.create(doctorId(jwt), req);
+    }
+
+    /**
+     * Xóa mềm lần khám (V12). restoreStock do bác sĩ tick trên popup xác nhận:
+     * true = hoàn thuốc về kho (xóa vì nhập nhầm), false = giữ nguyên tồn (thuốc đã phát).
+     */
+    @DeleteMapping("/visits/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteVisit(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                            @RequestParam(defaultValue = "false") boolean restoreStock) {
+        visitService.softDelete(doctorId(jwt), id, restoreStock);
     }
 
     /** Lịch sử khám — mặc định 30 ngày gần nhất, filter theo ngày (§5.6). */

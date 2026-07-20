@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -34,6 +35,7 @@ export default function TemplatesPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<Template | null>(null); // mẫu chờ xác nhận xóa
 
   // Filter + phân trang (client-side trên danh sách đã tải).
   const [q, setQ] = useState("");
@@ -102,8 +104,8 @@ export default function TemplatesPage() {
   }
 
   async function remove(t: Template) {
-    if (!confirm(`Xóa thuốc mẫu "${t.name}"?`)) return;
     await api(`/api/doctor/templates/${t.id}`, { method: "DELETE" });
+    if (form?.id === t.id) setForm(null); // đang sửa đúng mẫu vừa xóa → đóng form
     load();
   }
 
@@ -255,13 +257,21 @@ export default function TemplatesPage() {
             </div>
             <div className="text-sm shrink-0">
               <button onClick={() => editTemplate(t)} className="text-blue-700 hover:underline mr-3">Sửa</button>
-              <button onClick={() => remove(t)} className="text-red-600 hover:underline">Xóa</button>
+              <button onClick={() => setDeleting(t)} className="text-red-600 hover:underline">Xóa</button>
             </div>
           </div>
         ))}
       </div>
 
       <Pager page={page} totalPages={totalPages} onPage={setPage} />
+
+      <ConfirmDialog
+        open={!!deleting}
+        title={`Xóa thuốc mẫu "${deleting?.name}"?`}
+        message="Chỉ xóa mẫu kê nhanh — thuốc trong kho và các đơn đã kê không bị ảnh hưởng."
+        onConfirm={() => remove(deleting!)}
+        onClose={() => setDeleting(null)}
+      />
     </div>
   );
 }

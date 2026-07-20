@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconDroplet, IconPill, IconPlus, IconSyringe, Loading } from "@/components/ui";
 import { useDebounced } from "@/hooks/useDebounced";
@@ -40,16 +41,26 @@ const emptyForm = (): FormState => ({
   infusionStock: "",
 });
 
-/** Dựng lại payload đơn vị (factorToNext) từ 1 thuốc đã có — để PUT cập nhật mà GIỮ NGUYÊN cấu trúc kho. */
-function unitsPayload(m: Medicine) {
-  if (m.injection || m.infusion) return [];
-  return m.units.map((u, i) => ({
-    unitName: u.unitName,
-    factorToNext:
-      i < m.units.length - 1
-        ? Number(m.units[i].factorToBase) / Number(m.units[i + 1].factorToBase)
-        : null,
-  }));
+/**
+ * "Chữ ký" cấu trúc kho = loại thuốc + danh sách đơn vị + tỷ lệ quy đổi.
+ * Đổi chữ ký ⇒ base_unit hoặc factor đổi ⇒ tồn cũ vô nghĩa ⇒ bắt nhập lại tồn (resetStock).
+ */
+function unitSig(f: Pick<FormState, "injection" | "infusion" | "ticked" | "values">): string {
+  if (f.injection) return "inj";
+  if (f.infusion) return "inf";
+  // tỷ lệ nằm ở các đơn vị NHỎ HƠN đơn vị lớn nhất ("1 cha chứa N con")
+  return f.ticked.join(">") + "#" + f.ticked.slice(1).map((u) => f.values[u] ?? "").join(",");
+}
+
+/** Tỷ lệ quy đổi hiện có của 1 thuốc → dạng values của form ("1 cha chứa N con"). */
+function ratiosOf(m: Medicine): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (let i = 1; i < m.units.length; i++) {
+    values[m.units[i].unitName] = String(
+      Number(m.units[i - 1].factorToBase) / Number(m.units[i].factorToBase)
+    );
+  }
+  return values;
 }
 
 export default function InventoryPage() {
@@ -62,7 +73,9 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [adjustFor, setAdjustFor] = useState<Medicine | null>(null);
+  const [deleting, setDeleting] = useState<Medicine | null>(null); // thuốc chờ xác nhận xóa
   const [editing, setEditing] = useState<Medicine | null>(null); // thuốc đang sửa (null = đang thêm mới)
+  const [origSig, setOrigSig] = useState(""); // chữ ký cấu trúc kho lúc mở form sửa
   const [filter, setFilter] = useState<StockFilter>("all");
   const [page, setPage] = useState(0);
 
@@ -118,76 +131,78 @@ export default function InventoryPage() {
     }
   }
 
-  /** Mở form ở chế độ SỬA — pre-fill từ thuốc; đơn vị & loại khóa lại (bảo toàn tồn kho). */
+  /**
+   * Mở form ở chế độ SỬA — dùng CHUNG form với thêm mới: đơn vị & loại đều sửa được.
+   * Ô "số lượng" để TRỐNG = giữ nguyên tồn hiện có; đổi cấu trúc thì bắt buộc nhập lại.
+   */
   function startEdit(m: Medicine) {
-    setEditing(m);
-    setForm({
+    const next: FormState = {
       name: m.name,
       injection: m.injection,
       infusion: m.infusion,
       lowStockThreshold: String(m.lowStockThreshold),
       imagePath: m.imagePath,
       imageUrl: m.imageUrl,
-      ticked: m.units.map((u) => u.unitName),
-      values: {},
+      ticked: m.injection || m.infusion ? [] : m.units.map((u) => u.unitName),
+      values: m.injection || m.infusion ? {} : ratiosOf(m),
       injectionStock: "",
       infusionStock: "",
-    });
+    };
+    setEditing(m);
+    setForm(next);
+    setOrigSig(unitSig(next));
     setError("");
     setShowForm(true);
   }
+
+  // Đã đổi loại thuốc / đơn vị / tỷ lệ quy đổi so với lúc mở form sửa?
+  const structureChanged = !!editing && unitSig(form) !== origSig;
+  // Số lượng bác sĩ đang nhập trong form (theo đơn vị lớn nhất)
+  const stockInput = form.injection
+    ? form.injectionStock
+    : form.infusion
+    ? form.infusionStock
+    : form.values[form.ticked[0]] ?? "";
+
+  const stockLabel = editing ? "Số lượng tồn" : "Số lượng nhập ban đầu";
+  // Khi sửa mà chưa đổi cấu trúc: để trống nghĩa là giữ nguyên tồn — nói rõ ngay trong ô nhập.
+  const stockPlaceholder = (add: string) =>
+    !editing ? add : structureChanged ? "nhập lại số tồn" : "giữ nguyên tồn";
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    // Sửa: chỉ đổi tên/ngưỡng/ảnh; giữ nguyên đơn vị & loại (gửi lại cấu trúc cũ). Không đụng tồn kho.
-    if (editing) {
-      setSaving(true);
-      try {
-        await api(`/api/doctor/medicines/${editing.id}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            name: form.name,
-            injection: editing.injection,
-            infusion: editing.infusion,
-            lowStockThreshold: Number(form.lowStockThreshold) || 30,
-            units: unitsPayload(editing),
-            imagePath: form.imagePath,
-          }),
-        });
-        setShowForm(false);
-        setEditing(null);
-        setForm(emptyForm());
-        load();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Lưu thất bại");
-      } finally {
-        setSaving(false);
-      }
+    // Đổi cấu trúc kho ⇒ tồn cũ tính theo base_unit cũ, không quy đổi được ⇒ bắt nhập lại.
+    if (structureChanged && !stockInput.trim()) {
+      setError("Bạn đã đổi loại thuốc / đơn vị — phải nhập lại số lượng tồn để đảm bảo đúng.");
       return;
     }
+
+    const common = {
+      name: form.name,
+      lowStockThreshold: Number(form.lowStockThreshold) || 30,
+      imagePath: form.imagePath,
+      // Khi SỬA: chỉ ghi đè tồn nếu bác sĩ thực sự nhập số (hoặc buộc phải nhập vì đổi cấu trúc).
+      resetStock: editing ? stockInput.trim() !== "" : undefined,
+    };
 
     let body: Record<string, unknown>;
     if (form.injection) {
       body = {
-        name: form.name,
+        ...common,
         injection: true,
         infusion: false,
-        lowStockThreshold: Number(form.lowStockThreshold) || 30,
         units: [],
-        imagePath: form.imagePath,
         initialStockUnit: "ong",
         initialStockQty: Number(form.injectionStock) || 0,
       };
     } else if (form.infusion) {
       body = {
-        name: form.name,
+        ...common,
         injection: false,
         infusion: true,
-        lowStockThreshold: Number(form.lowStockThreshold) || 30,
         units: [],
-        imagePath: form.imagePath,
         initialStockUnit: "chai",
         initialStockQty: Number(form.infusionStock) || 0,
       };
@@ -197,7 +212,7 @@ export default function InventoryPage() {
         return;
       }
       // Mỗi đơn vị nhỏ hơn: số nhập = "bao nhiêu đơn vị này trong 1 đơn vị cha" = factorToNext của CHA.
-      // Đơn vị lớn nhất: số nhập = số lượng tồn ban đầu.
+      // Đơn vị lớn nhất: số nhập = số lượng tồn.
       const units = form.ticked.map((u, i) => ({
         unitName: u,
         // factorToNext của u = số của đơn-vị-con (u kế tiếp). Đơn vị nhỏ nhất → null.
@@ -205,12 +220,10 @@ export default function InventoryPage() {
       }));
       const largest = form.ticked[0];
       body = {
-        name: form.name,
+        ...common,
         injection: false,
         infusion: false,
-        lowStockThreshold: Number(form.lowStockThreshold) || 30,
         units,
-        imagePath: form.imagePath,
         initialStockUnit: largest,
         initialStockQty: Number(form.values[largest]) || 0,
       };
@@ -218,9 +231,11 @@ export default function InventoryPage() {
 
     setSaving(true);
     try {
-      await api("/api/doctor/medicines", { method: "POST", body: JSON.stringify(body) });
-      setShowForm(false);
-      setForm(emptyForm());
+      await api(
+        editing ? `/api/doctor/medicines/${editing.id}` : "/api/doctor/medicines",
+        { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }
+      );
+      closeForm();
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Lưu thất bại");
@@ -229,9 +244,17 @@ export default function InventoryPage() {
     }
   }
 
+  function closeForm() {
+    setShowForm(false);
+    setEditing(null);
+    setOrigSig("");
+    setForm(emptyForm());
+  }
+
   async function remove(m: Medicine) {
-    if (!confirm(`Xóa "${m.name}" khỏi kho?`)) return;
     await api(`/api/doctor/medicines/${m.id}`, { method: "DELETE" });
+    // Đang sửa đúng thuốc vừa xóa thì đóng form, tránh PUT vào bản ghi đã xóa.
+    if (editing?.id === m.id) closeForm();
     load();
   }
 
@@ -267,7 +290,12 @@ export default function InventoryPage() {
             className="input w-56"
           />
           <button
-            onClick={() => { const wasEditing = editing; setEditing(null); setForm(emptyForm()); setShowForm(wasEditing ? true : !showForm); }}
+            onClick={() => {
+              // Đang sửa thuốc → chuyển về thêm mới (vẫn mở form); ngược lại đóng/mở form.
+              const wasEditing = !!editing;
+              closeForm();
+              setShowForm(wasEditing || !showForm);
+            }}
             className="btn-primary shrink-0"
           >
             <IconPlus />
@@ -328,62 +356,66 @@ export default function InventoryPage() {
             </label>
           </div>
 
-          {!editing && (
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.injection}
-                  onChange={(e) => setForm({ ...form, injection: e.target.checked, infusion: false })}
-                />
-                <span className="text-purple-600"><IconSyringe size={15} /></span>
-                Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.infusion}
-                  onChange={(e) => setForm({ ...form, infusion: e.target.checked, injection: false })}
-                />
-                <span className="text-sky-600"><IconDroplet size={15} /></span>
-                Truyền dịch (chỉ dùng đơn vị &quot;chai&quot;, không quy đổi)
-              </label>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.injection}
+                onChange={(e) => setForm({ ...form, injection: e.target.checked, infusion: false })}
+              />
+              <span className="text-purple-600"><IconSyringe size={15} /></span>
+              Thuốc tiêm (chỉ dùng đơn vị &quot;ống&quot;, không quy đổi)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.infusion}
+                onChange={(e) => setForm({ ...form, infusion: e.target.checked, injection: false })}
+              />
+              <span className="text-sky-600"><IconDroplet size={15} /></span>
+              Truyền dịch (chỉ dùng đơn vị &quot;chai&quot;, không quy đổi)
+            </label>
+          </div>
+
+          {editing && (
+            <div className={`rounded-lg p-3 text-sm border ${structureChanged ? "border-amber-300 bg-amber-50" : "bg-gray-50"}`}>
+              <p>
+                Tồn hiện tại: <span className="font-medium">{editing.stockDisplay}</span>
+                <span className="text-gray-500"> ({editing.stockBaseQty} {editing.baseUnitLabel})</span>
+              </p>
+              {structureChanged ? (
+                <p className="text-amber-800 mt-1">
+                  Bạn đã đổi loại thuốc / đơn vị quy đổi — tồn cũ tính theo đơn vị cũ nên không quy đổi được.
+                  <strong> Hãy nhập lại số lượng tồn từ đầu.</strong>
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500 mt-1">
+                  Để trống ô số lượng = giữ nguyên tồn hiện tại. Nhập số = GHI ĐÈ tồn (cộng/trừ thì dùng nút &quot;Nhập / chỉnh&quot;).
+                </p>
+              )}
             </div>
           )}
 
-          {editing ? (
-            <div className="border rounded-lg p-3 bg-gray-50 text-sm">
-              <p className="font-medium mb-1">
-                {editing.injection
-                  ? "Thuốc tiêm (đơn vị: ống)"
-                  : editing.infusion
-                  ? "Truyền dịch (đơn vị: chai)"
-                  : `Đơn vị: ${editing.units.map((u) => u.label).join(" › ")}`}
-              </p>
-              <p className="text-xs text-gray-500">
-                Không đổi loại/đơn vị ở đây để bảo toàn tồn kho hiện có. Cần chỉnh tồn thì dùng nút &quot;Nhập / chỉnh&quot;.
-              </p>
-            </div>
-          ) : form.injection ? (
+          {form.injection ? (
             <div className="border rounded-lg p-3 bg-purple-50/40">
-              <label className="block text-sm mb-1 font-medium">Số lượng nhập ban đầu (ống)</label>
+              <label className="block text-sm mb-1 font-medium">{stockLabel} (ống)</label>
               <input
                 type="number" min={0}
                 value={form.injectionStock}
                 onChange={(e) => setForm({ ...form, injectionStock: e.target.value })}
                 className="input-sm w-40"
-                placeholder="VD: 50"
+                placeholder={stockPlaceholder("VD: 50")}
               />
             </div>
           ) : form.infusion ? (
             <div className="border rounded-lg p-3 bg-sky-50/40">
-              <label className="block text-sm mb-1 font-medium">Số lượng nhập ban đầu (chai)</label>
+              <label className="block text-sm mb-1 font-medium">{stockLabel} (chai)</label>
               <input
                 type="number" min={0}
                 value={form.infusionStock}
                 onChange={(e) => setForm({ ...form, infusionStock: e.target.value })}
                 className="input-sm w-40"
-                placeholder="VD: 20"
+                placeholder={stockPlaceholder("VD: 20")}
               />
             </div>
           ) : (
@@ -415,13 +447,13 @@ export default function InventoryPage() {
                         <span className="w-14 font-medium">{UNIT_LABEL[u]}</span>
                         {isLargest ? (
                           <>
-                            <span className="text-gray-600">số lượng nhập:</span>
+                            <span className="text-gray-600">{editing ? "số lượng tồn:" : "số lượng nhập:"}</span>
                             <input
                               type="number" min={0}
                               value={form.values[u] ?? ""}
                               onChange={(e) => setForm({ ...form, values: { ...form.values, [u]: e.target.value } })}
                               className="input-sm w-24"
-                              placeholder="VD 10"
+                              placeholder={stockPlaceholder("VD 10")}
                             />
                             <span className="text-gray-500">{UNIT_LABEL[u]}</span>
                           </>
@@ -446,7 +478,9 @@ export default function InventoryPage() {
                     );
                   })}
                   {previewTotal() && (
-                    <p className="text-sm text-blue-700 font-medium pt-1">Tồn ban đầu {previewTotal()}</p>
+                    <p className="text-sm text-blue-700 font-medium pt-1">
+                      {editing ? "Tồn sau khi lưu " : "Tồn ban đầu "}{previewTotal()}
+                    </p>
                   )}
                 </div>
               )}
@@ -458,9 +492,12 @@ export default function InventoryPage() {
           )}
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
-          <button type="submit" disabled={saving || uploading} className="btn-primary">
-            {saving ? "Đang lưu..." : editing ? "Cập nhật thuốc" : "Lưu thuốc"}
-          </button>
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving || uploading} className="btn-primary">
+              {saving ? "Đang lưu..." : editing ? "Cập nhật thuốc" : "Lưu thuốc"}
+            </button>
+            <button type="button" onClick={closeForm} className="btn-ghost">Hủy</button>
+          </div>
         </form>
       )}
 
@@ -511,7 +548,7 @@ export default function InventoryPage() {
                     <td className="text-right whitespace-nowrap">
                       <button onClick={() => startEdit(m)} className="font-medium text-blue-700 hover:underline mr-3">Sửa</button>
                       <button onClick={() => setAdjustFor(m)} className="font-medium text-blue-700 hover:underline mr-3">Nhập / chỉnh</button>
-                      <button onClick={() => remove(m)} className="font-medium text-red-600 hover:underline">Xóa</button>
+                      <button onClick={() => setDeleting(m)} className="font-medium text-red-600 hover:underline">Xóa</button>
                     </td>
                   </tr>
                 ))}
@@ -530,6 +567,19 @@ export default function InventoryPage() {
           onDone={() => { setAdjustFor(null); load(); }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deleting}
+        title={`Xóa "${deleting?.name}" khỏi kho?`}
+        message={
+          <>
+            Tồn hiện tại <strong>{deleting?.stockDisplay}</strong> sẽ không còn hiện trong kho.
+            Đơn thuốc đã kê trước đó giữ nguyên vì đã lưu snapshot tên và đơn vị.
+          </>
+        }
+        onConfirm={() => remove(deleting!)}
+        onClose={() => setDeleting(null)}
+      />
     </div>
   );
 }
