@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSearch, LoadError, Loading,
@@ -26,11 +26,12 @@ interface DraftLine {
 type Mode = null | "QUICK" | "MANUAL";
 
 /**
- * Đơn soạn dở được giữ trong sessionStorage: rời trang đi tra cứu thuốc rồi quay lại
- * vẫn còn nguyên, F5 cũng không mất. Chỉ mất khi bấm Hủy, xuất file xong, hoặc ĐÓNG TAB.
+ * Đơn soạn dở giữ trong localStorage — CHỈ mất khi bấm Hủy hoặc xuất file xong.
  *
- * Chọn sessionStorage chứ không phải localStorage: máy phòng khám hay dùng chung, đóng
- * tab là dữ liệu đi theo — không nằm lại trên ổ đĩa chờ người sau mở lên.
+ * Trước đây tôi dùng sessionStorage vì lo máy phòng khám dùng chung. Sai: sessionStorage
+ * chỉ sống trong ĐÚNG MỘT tab, nên mở app ở tab khác là đơn biến mất — đúng triệu chứng
+ * chủ dự án báo. Mà nội dung đơn chỉ là tên thuốc + số lượng đặt nhà thuốc, KHÔNG có dữ
+ * liệu bệnh nhân, nên giữ lâu không phải vấn đề riêng tư.
  */
 const DRAFT_KEY = "medical-web:stock-order-draft";
 
@@ -38,6 +39,20 @@ interface Draft {
   mode: "QUICK" | "MANUAL";
   lines: DraftLine[];
   note: string;
+  savedAt?: string;
+}
+
+/** Đọc nháp; hỏng hay không đọc được thì coi như không có, đừng để chặn cả trang. */
+function readDraft(): Draft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as Draft;
+    return d?.lines?.length ? d : null;
+  } catch {
+    localStorage.removeItem(DRAFT_KEY);
+    return null;
+  }
 }
 
 export default function StockOrdersPage() {
@@ -51,7 +66,9 @@ export default function StockOrdersPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const [restored, setRestored] = useState(false); // đơn vừa được khôi phục từ phiên trước
+  const [restored, setRestored] = useState(false); // đơn vừa được khôi phục từ lần trước
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const latest = useRef<Draft | null>(null); // bản nháp mới nhất, dùng lúc rời trang
   const [openId, setOpenId] = useState<string | null>(null); // đơn đang mở chi tiết
   const [receiving, setReceiving] = useState<StockOrderSummary | null>(null);
   const [cancelling, setCancelling] = useState<StockOrderSummary | null>(null);
@@ -93,27 +110,36 @@ export default function StockOrdersPage() {
     setMode("MANUAL");
   }
 
-  // Khôi phục đơn soạn dở (chạy MỘT lần khi vào trang).
+  /**
+   * Khôi phục nháp — trong effect (không phải khởi tạo useState) vì trang này được
+   * prerender: đọc localStorage lúc render sẽ lệch giữa HTML server và client (hydration).
+   */
   useEffect(() => {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) return;
-    try {
-      const d = JSON.parse(raw) as Draft;
-      if (!d.lines?.length) return;
-      setMode(d.mode);
-      setLines(d.lines);
-      setNote(d.note ?? "");
-      setRestored(true);
-    } catch {
-      sessionStorage.removeItem(DRAFT_KEY); // dữ liệu hỏng thì bỏ, đừng chặn cả trang
-    }
+    const d = readDraft();
+    if (!d) return;
+    setMode(d.mode);
+    setLines(d.lines);
+    setNote(d.note ?? "");
+    setSavedAt(d.savedAt ?? null);
+    setRestored(true);
   }, []);
 
   // Ghi lại mỗi khi đơn đổi. mode = null nghĩa là không có đơn nào đang soạn.
   useEffect(() => {
     if (!mode) return;
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, lines, note } satisfies Draft));
+    const draft: Draft = { mode, lines, note, savedAt: new Date().toISOString() };
+    latest.current = draft;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   }, [mode, lines, note]);
+
+  /**
+   * Ghi thêm một lần lúc rời trang. Effect ở trên chạy SAU khi vẽ xong; gõ xong mà bấm
+   * ngay sang mục khác thì thay đổi cuối có thể chưa kịp lưu. Ref giữ bản mới nhất nên
+   * cleanup không dính giá trị cũ của closure.
+   */
+  useEffect(() => () => {
+    if (latest.current) localStorage.setItem(DRAFT_KEY, JSON.stringify(latest.current));
+  }, []);
 
   function closeDraft() {
     setMode(null);
@@ -121,7 +147,9 @@ export default function StockOrdersPage() {
     setNote("");
     setError("");
     setRestored(false);
-    sessionStorage.removeItem(DRAFT_KEY);
+    setSavedAt(null);
+    latest.current = null;
+    localStorage.removeItem(DRAFT_KEY);
   }
 
   function addLine(m: Medicine) {
@@ -223,6 +251,7 @@ export default function StockOrdersPage() {
         <DraftCard
           mode={mode}
           restored={restored}
+          savedAt={savedAt}
           lines={lines}
           note={note}
           busy={busy}
@@ -307,11 +336,12 @@ export default function StockOrdersPage() {
 /* ===================== Đơn đang soạn ===================== */
 
 function DraftCard({
-  mode, restored, lines, note, busy, error,
+  mode, restored, savedAt, lines, note, busy, error,
   onNote, onUpdateLine, onRemoveLine, onAddLine, onExport, onCancel,
 }: {
   mode: "QUICK" | "MANUAL";
   restored: boolean;
+  savedAt: string | null;
   lines: DraftLine[];
   note: string;
   busy: boolean;
@@ -339,7 +369,10 @@ function DraftCard({
 
       {restored && (
         <p className="text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-3 py-2 mb-3">
-          Đơn soạn dở của bạn được giữ lại. Bấm <strong>Hủy</strong> nếu muốn bỏ và làm lại từ đầu.
+          Đơn soạn dở của bạn được giữ lại
+          {savedAt && ` (lưu lúc ${new Date(savedAt).toLocaleString("vi-VN", {
+            hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit",
+          })})`}. Bấm <strong>Hủy</strong> nếu muốn bỏ và làm lại từ đầu.
         </p>
       )}
 
