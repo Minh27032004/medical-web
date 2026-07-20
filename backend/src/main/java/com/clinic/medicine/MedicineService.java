@@ -28,28 +28,42 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 interface MedicineRepository extends JpaRepository<Medicine, UUID> {
 
     /**
-     * Sắp theo ĐỘ LIÊN QUAN rồi mới tới bảng chữ cái.
+     * Tìm thuốc KHÔNG PHÂN BIỆT DẤU và sắp theo ĐỘ LIÊN QUAN.
      *
-     * Trước đây chỉ `order by m.name`: gõ "pa" thì "Nos-pa" (khớp giữa từ) chiếm mất các
-     * slot đầu vì chữ N đứng trước P, đẩy "Para 500mg" ra khỏi 8 kết quả đầu — bác sĩ
-     * tưởng kho không có thuốc đó. Giờ tên BẮT ĐẦU bằng từ khóa lên trước, rồi tới có TỪ
-     * bắt đầu bằng từ khóa, cuối cùng mới là khớp ở giữa.
+     * Không dấu: bác sĩ gõ "ong tiem" phải ra "Ống tiêm 5ml". unaccent 2 vế, native query
+     * vì JPQL không có hàm này (cùng cách V5 đã làm cho ICD-10).
      *
-     * Từ khóa rỗng (trang kho tải toàn bộ) thì mọi thuốc cùng hạng 0 → vẫn xếp theo tên.
+     * Độ liên quan: gõ "pa" mà chỉ `order by name` thì "Nos-pa" (khớp giữa từ) chiếm hết
+     * các slot đầu vì N < P, đẩy "Para 500mg" ra khỏi danh sách — bác sĩ tưởng kho không có.
+     * Tên BẮT ĐẦU bằng từ khóa lên trước, rồi tới có TỪ bắt đầu bằng từ khóa, cuối cùng
+     * mới là khớp ở giữa. Từ khóa rỗng (trang kho tải toàn bộ) thì mọi thuốc cùng hạng 0
+     * nên vẫn xếp theo tên.
+     *
+     * unaccent không IMMUTABLE nên không đánh index trực tiếp được. Kho một phòng khám
+     * cỡ vài trăm dòng, seq scan thừa sức — giống lý do V5 chấp nhận với bảng icd10_codes.
      */
-    @Query("""
-        select m from Medicine m
-        where m.doctorId = :doctorId and m.deletedAt is null
-          and lower(m.name) like lower(concat('%', :q, '%'))
+    @Query(value = """
+        select * from medicines m
+        where m.doctor_id = :doctorId and m.deleted_at is null
+          and extensions.unaccent(lower(m.name)) like extensions.unaccent(lower('%' || :q || '%'))
         order by
           case
-            when lower(m.name) like lower(concat(:q, '%')) then 0
-            when lower(m.name) like lower(concat('% ', :q, '%')) then 1
-            when lower(m.name) like lower(concat('%(', :q, '%')) then 1
+            when extensions.unaccent(lower(m.name))
+                 like extensions.unaccent(lower(:q || '%')) then 0
+            when extensions.unaccent(lower(m.name))
+                 like extensions.unaccent(lower('% ' || :q || '%')) then 1
+            when extensions.unaccent(lower(m.name))
+                 like extensions.unaccent(lower('%(' || :q || '%')) then 1
             else 2
           end,
           m.name
-        """)
+        """,
+        countQuery = """
+        select count(*) from medicines m
+        where m.doctor_id = :doctorId and m.deleted_at is null
+          and extensions.unaccent(lower(m.name)) like extensions.unaccent(lower('%' || :q || '%'))
+        """,
+        nativeQuery = true)
     Page<Medicine> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
 
     Optional<Medicine> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);

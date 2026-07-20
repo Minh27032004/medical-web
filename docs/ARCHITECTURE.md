@@ -72,9 +72,9 @@ medicine_templates (thuốc mẫu)
 | Auth | `POST /auth/resolve-login` {loginId} → {email} (username → email auth; Gmail nếu có, else ảo) | public |
 | Admin | `GET/POST /admin/doctors`, `PATCH /admin/doctors/{id}/block` `/unblock` | ROLE_ADMIN |
 | Me | `GET /me/profile` | đăng nhập |
-| Patients | CRUD `/doctor/patients` + `?q=` (tên/SĐT) + `GET /{id}/visits` | ROLE_DOCTOR |
+| Patients | CRUD `/doctor/patients` + `?q=` (tên KHÔNG DẤU/SĐT) + `GET /{id}/visits` | ROLE_DOCTOR |
 | ICD-10 | `GET /doctor/icd10?q=` (2 chiều code/name, limit 20) | ROLE_DOCTOR |
-| Medicines | CRUD `/doctor/medicines` (+units), `GET ?q=`, `POST /{id}/adjust-stock` {entries:[{unitName,qty}], reason}, `GET /low-stock`, `GET /suggest?q=` (ưu tiên template) | ROLE_DOCTOR |
+| Medicines | CRUD `/doctor/medicines` (+units), `GET ?q=` (không dấu, xếp theo độ liên quan), `POST /{id}/adjust-stock` {entries:[{unitName,qty}], reason}, `GET /low-stock`, `GET /suggest?q=` (ưu tiên template) | ROLE_DOCTOR |
 | Templates | CRUD `/doctor/templates` | ROLE_DOCTOR |
 | Stock orders | `GET /doctor/stock-orders` (CHỈ tóm tắt: mã, ngày, trạng thái, số dòng — 1 query), `POST /doctor/stock-orders`, `GET /{id}`, `GET /quick-suggestions` (thuốc sắp hết, mặc định 1 đơn vị lớn nhất), `POST /{id}/receive` (cộng tồn, chỉ khi PENDING), `DELETE /{id}` (hủy), `GET /{id}/export` → .xlsx (V14) | ROLE_DOCTOR |
 | Visits + Rx | `POST /doctor/visits` {patientId, diagnosisCode/Name, note, items[]} → tạo visit + prescription + trừ kho 1 transaction; `GET /doctor/visits?date=&from=&to=`; `GET /doctor/visits/{id}` (kèm đơn); `GET /doctor/patients/{id}/last-prescription` (copy đơn); `POST /doctor/prescriptions/{id}/printed`; `DELETE /doctor/visits/{id}?restoreStock=` (xóa mềm V12, tùy chọn hoàn thuốc về kho) | ROLE_DOCTOR |

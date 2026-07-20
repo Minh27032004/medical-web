@@ -21,12 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 interface MedicineTemplateRepository extends JpaRepository<MedicineTemplate, UUID> {
 
-    @Query("""
-        select t from MedicineTemplate t
-        where t.doctorId = :doctorId and t.deletedAt is null
-          and lower(t.name) like lower(concat('%', :q, '%'))
+    /** Tên thuốc mẫu do bác sĩ tự đặt, hay có dấu → tìm không phân biệt dấu như thuốc kho. */
+    @Query(value = """
+        select * from medicine_templates t
+        where t.doctor_id = :doctorId and t.deleted_at is null
+          and extensions.unaccent(lower(t.name)) like extensions.unaccent(lower('%' || :q || '%'))
         order by t.name
-        """)
+        """, nativeQuery = true)
     List<MedicineTemplate> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
 
     Optional<MedicineTemplate> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);

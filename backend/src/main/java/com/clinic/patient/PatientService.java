@@ -16,14 +16,30 @@ import org.springframework.transaction.annotation.Transactional;
 
 interface PatientRepository extends JpaRepository<Patient, UUID> {
 
-    /** Search theo tên HOẶC SĐT — LUÔN kèm doctorId (cô lập dữ liệu). */
-    @Query("""
-        select p from Patient p
-        where p.doctorId = :doctorId and p.deletedAt is null
-          and (lower(p.fullName) like lower(concat('%', :q, '%'))
-               or p.phone like concat('%', :q, '%'))
-        order by p.createdAt desc
-        """)
+    /**
+     * Search theo tên HOẶC SĐT — LUÔN kèm doctorId (cô lập dữ liệu).
+     *
+     * Tên KHÔNG PHÂN BIỆT DẤU: bác sĩ gõ "nguyen van dung" phải ra "Nguyễn Văn Dũng".
+     * Gõ đủ dấu tên bệnh nhân trong lúc khám là việc không ai muốn làm.
+     * Native query vì JPQL không có unaccent (cùng cách V5 làm cho ICD-10).
+     * SĐT thì so thẳng, không cần unaccent.
+     */
+    @Query(value = """
+        select * from patients p
+        where p.doctor_id = :doctorId and p.deleted_at is null
+          and (extensions.unaccent(lower(p.full_name))
+                 like extensions.unaccent(lower('%' || :q || '%'))
+               or p.phone like '%' || :q || '%')
+        order by p.created_at desc
+        """,
+        countQuery = """
+        select count(*) from patients p
+        where p.doctor_id = :doctorId and p.deleted_at is null
+          and (extensions.unaccent(lower(p.full_name))
+                 like extensions.unaccent(lower('%' || :q || '%'))
+               or p.phone like '%' || :q || '%')
+        """,
+        nativeQuery = true)
     Page<Patient> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
 
     Optional<Patient> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
