@@ -43,7 +43,8 @@ public class DoctorChatController {
     private final ChatMessageRepository chatRepo;
     private final ObjectMapper objectMapper;
 
-    public record ChatRequest(String question) {}
+    /** sessionId (V16) do FE sinh mỗi lần MỞ chat — ngữ cảnh chỉ kế thừa trong cùng phiên. */
+    public record ChatRequest(String question, UUID sessionId) {}
 
     public record ChatResponse(String intent, String title, List<Map<String, Object>> rows,
                                String message) {}
@@ -90,7 +91,10 @@ public class DoctorChatController {
         }
 
         var today = LocalDate.now(VisitService.CLINIC_ZONE);
-        var context = buildContext(chatRepo.findTop5ByDoctorIdOrderByCreatedAtDesc(doctorId));
+        // Không có sessionId (client cũ) thì KHÔNG lấy ngữ cảnh — thà mất tính năng hỏi nối
+        // tiếp còn hơn kế thừa nhầm đối tượng của phiên khác.
+        var context = req.sessionId() == null ? "" : buildContext(
+            chatRepo.findTop5ByDoctorIdAndSessionIdOrderByCreatedAtDesc(doctorId, req.sessionId()));
 
         String intent = "UNKNOWN";
         LocalDate from = today;
@@ -126,7 +130,7 @@ public class DoctorChatController {
                 + "\"thuốc nào sắp hết\", \"thuốc nào tồn thấp nhất\".");
         };
 
-        persist(doctorId, req.question().trim(), intent, name, from, to, resp);
+        persist(doctorId, req.sessionId(), req.question().trim(), intent, name, from, to, resp);
         return resp;
     }
 
@@ -150,11 +154,12 @@ public class DoctorChatController {
         return sb.toString();
     }
 
-    private void persist(UUID doctorId, String question, String intent, String name,
+    private void persist(UUID doctorId, UUID sessionId, String question, String intent, String name,
                          LocalDate from, LocalDate to, ChatResponse resp) {
         try {
             var m = new ChatMessage();
             m.setDoctorId(doctorId);
+            m.setSessionId(sessionId);
             m.setQuestion(question);
             m.setIntent(intent);
             m.setParamName(name == null || name.isBlank() ? null : name);

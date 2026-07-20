@@ -51,6 +51,10 @@ public class ChatMessage {
     @Column(name = "answer_summary")
     private String answerSummary;
 
+    /** Phiên chat (V16) — ngữ cảnh chỉ kế thừa trong cùng phiên, tránh trả lời nhầm người. */
+    @Column(name = "session_id")
+    private UUID sessionId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

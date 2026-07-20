@@ -8,4 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 interface ChatMessageRepository extends JpaRepository<ChatMessage, UUID> {
 
     List<ChatMessage> findTop5ByDoctorIdOrderByCreatedAtDesc(UUID doctorId);
+
+    /** Ngữ cảnh THEO PHIÊN (V16) — không lấy lẫn lượt hỏi của phiên trước. */
+    List<ChatMessage> findTop5ByDoctorIdAndSessionIdOrderByCreatedAtDesc(UUID doctorId, UUID sessionId);
 }

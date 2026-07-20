@@ -158,14 +158,6 @@ export interface ChatResponse {
   message: string | null;
 }
 
-/** Một lượt hỏi–đáp cũ (V9) — nạp khi mở chat để có lại ngữ cảnh hiển thị. */
-export interface ChatHistoryItem {
-  question: string;
-  intent: string;
-  answerSummary: string | null;
-  createdAt: string;
-}
-
 export const GENDER_LABEL: Record<string, string> = {
   male: "Nam",
   female: "Nữ",
