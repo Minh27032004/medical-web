@@ -45,8 +45,16 @@ export default function AdminDoctorsPage() {
       setBlocking(d);
       return;
     }
-    await api(`/api/admin/doctors/${d.id}/unblock`, { method: "PATCH" });
-    load();
+    // PHẢI bắt lỗi: hàm này gọi thẳng từ onClick, không đi qua ConfirmDialog. Không bắt thì
+    // API lỗi sẽ thành unhandled rejection — admin bấm "Mở khóa" mà tuyệt nhiên không có
+    // gì xảy ra, cũng không có thông báo nào.
+    setError("");
+    try {
+      await api(`/api/admin/doctors/${d.id}/unblock`, { method: "PATCH" });
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Mở khóa thất bại, thử lại sau.");
+    }
   }
 
   async function doBlock(d: DoctorRow) {
@@ -130,6 +138,13 @@ export default function AdminDoctorsPage() {
             </button>
           </div>
         </form>
+      )}
+
+      {/* Lỗi khóa/mở khóa hiện ở đây — ô lỗi trong form tạo tài khoản chỉ thấy khi form mở. */}
+      {error && !showForm && (
+        <p className="text-red-600 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {error}
+        </p>
       )}
 
       {loadFailed && <LoadError onRetry={load} />}

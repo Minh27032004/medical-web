@@ -52,6 +52,13 @@ public class Visit {
 
     private String note;
 
+    /**
+     * Khóa chống tạo trùng (V15) — do frontend sinh, cùng id = cùng một lần bấm Lưu.
+     * Null với lần khám cũ và các đường tạo không gửi id.
+     */
+    @Column(name = "client_request_id", updatable = false)
+    private UUID clientRequestId;
+
     /** Xóa mềm (V12) — bản ghi vẫn nằm trong DB, chỉ ẩn khỏi mọi truy vấn lịch sử. */
     @Column(name = "deleted_at")
     private Instant deletedAt;

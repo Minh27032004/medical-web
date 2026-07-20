@@ -309,6 +309,12 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const [hasInfusionRow, setHasInfusionRow] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  /**
+   * Khóa chống tạo trùng (V15): sinh MỘT lần cho mỗi phiên mở form. Nếu lần bấm Lưu đầu
+   * tới được server nhưng phản hồi mất giữa đường, bác sĩ bấm lại sẽ gửi đúng id này và
+   * backend trả về lần khám cũ thay vì tạo bản ghi thứ hai + trừ kho lần nữa.
+   */
+  const [clientRequestId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     api<Patient>(`/api/doctor/patients/${patientId}`).then(setPatient).catch(() => {});
@@ -427,6 +433,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
           diagnosisName: diagName,
           secondaryDiagnoses: secondary,
           note: note || null,
+          clientRequestId,
           items: items
             .filter((it) => it.medicineName.trim())
             .map((it) => {

@@ -37,6 +37,9 @@ interface VisitRepository extends JpaRepository<Visit, UUID> {
 
     Optional<Visit> findFirstByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
         UUID doctorId, UUID patientId);
+
+    /** Tra theo khóa chống trùng (V15) — KHÔNG lọc deletedAt: đơn đã xóa vẫn tính là đã tạo. */
+    Optional<Visit> findByDoctorIdAndClientRequestId(UUID doctorId, UUID clientRequestId);
 }
 
 interface PrescriptionRepository extends JpaRepository<Prescription, UUID> {
@@ -77,7 +80,9 @@ public class VisitService {
 
     public record CreateRequest(UUID patientId, String diagnosisCode, String diagnosisName,
                                 List<Diagnosis> secondaryDiagnoses,
-                                String note, List<ItemRequest> items) {}
+                                String note, List<ItemRequest> items,
+                                /** V15 — cùng id = cùng một lần bấm Lưu, không tạo bản ghi mới. */
+                                UUID clientRequestId) {}
 
     public record ItemDto(UUID medicineId, String medicineName, String baseUnit, String baseUnitLabel,
                           BigDecimal doseMorning, BigDecimal doseNoon,
@@ -104,6 +109,15 @@ public class VisitService {
 
     @Transactional
     public VisitDetail create(UUID doctorId, CreateRequest req) {
+        // Gửi lại đúng id đã dùng = lần bấm Lưu cũ chỉ bị mất phản hồi. Trả về lần khám đã
+        // tạo, TUYỆT ĐỐI không tạo mới và không trừ kho thêm lần nữa (V15).
+        if (req.clientRequestId() != null) {
+            var existing = visitRepository
+                .findByDoctorIdAndClientRequestId(doctorId, req.clientRequestId());
+            if (existing.isPresent()) {
+                return detail(doctorId, existing.get().getId());
+            }
+        }
         var patient = patientService.findOwned(doctorId, req.patientId());
         if (isBlank(req.diagnosisCode()) || isBlank(req.diagnosisName())) {
             throw ApiException.badRequest("Chẩn đoán ICD-10 là bắt buộc");
@@ -127,6 +141,7 @@ public class VisitService {
             visit.setSecondaryDiagnoses(sec);
         }
         visit.setNote(req.note());
+        visit.setClientRequestId(req.clientRequestId());
         visit = visitRepository.save(visit);
 
         var prescription = new Prescription();

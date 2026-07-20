@@ -92,7 +92,12 @@ export default function StockOrdersPage() {
   }
 
   function addLine(m: Medicine) {
-    if (lines.some((l) => l.medicineId === m.id)) return; // đã có trong đơn
+    if (lines.some((l) => l.medicineId === m.id)) {
+      // Không im lặng bỏ qua — bác sĩ bấm mà không thấy gì sẽ tưởng nút hỏng.
+      setError(`"${m.name}" đã có trong đơn — sửa số lượng ở dòng bên dưới.`);
+      return;
+    }
+    setError("");
     setLines((ls) => [...ls, {
       medicineId: m.id,
       medicineName: m.name,
@@ -118,16 +123,30 @@ export default function StockOrdersPage() {
       return;
     }
     setBusy(true);
+    let created: StockOrder;
     try {
-      const created = await api<StockOrder>("/api/doctor/stock-orders", {
+      created = await api<StockOrder>("/api/doctor/stock-orders", {
         method: "POST",
         body: JSON.stringify({ source: mode, note: note.trim() || null, items }),
       });
-      await apiDownload(`/api/doctor/stock-orders/${created.id}/export`, `${created.code}.xlsx`);
-      closeDraft();
-      load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Lưu đơn thất bại");
+      setBusy(false);
+      return;
+    }
+
+    // Đơn ĐÃ LƯU — đóng form ngay, trước khi tải file. Nếu gộp chung try/catch, một lỗi
+    // lúc tải file sẽ giữ form mở với nguyên các dòng cũ, bác sĩ bấm "Xuất file" lần nữa
+    // là tạo ĐƠN THỨ HAI trùng nội dung; xác nhận cả hai thì tồn kho cộng gấp đôi.
+    closeDraft();
+    load();
+    try {
+      await apiDownload(`/api/doctor/stock-orders/${created.id}/export`, `${created.code}.xlsx`);
+    } catch {
+      setError(
+        `Đã lưu đơn ${created.code} nhưng tải file không thành công. `
+          + "Bấm \"Tải file\" ở đơn bên dưới để tải lại."
+      );
     } finally {
       setBusy(false);
     }
