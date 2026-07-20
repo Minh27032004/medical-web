@@ -119,34 +119,36 @@ export default function HistoryPage() {
         <p className="text-xs text-gray-400 mb-2">{visits.length} lượt khám</p>
       )}
 
+      {/* MỘT KHUNG cho MỘT NGÀY: tiêu đề ngày nằm trong khung, các lượt khám là dòng
+          ngăn bởi vạch mảnh. Trước đây mỗi lượt là một thẻ rời nên nhìn vụn, khó thấy
+          ranh giới giữa ngày này với ngày kia. */}
       <div className="space-y-5">
         {byDay.map(([day, rows]) => (
-          <div key={day}>
-            <p className="text-sm font-semibold text-gray-500 mb-2">
-              {day} · {rows.length} lượt khám
-            </p>
-            <div className="space-y-2">
+          <section key={day} className="card overflow-hidden">
+            <header className="flex items-baseline gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <h2 className="font-semibold text-ink">{day}</h2>
+              <span className="text-xs text-gray-500">{rows.length} lượt khám</span>
+            </header>
+
+            <div className="divide-y divide-gray-100">
               {/* Nút xóa nằm NGOÀI thẻ Link — lồng button trong <a> vừa sai HTML vừa
                   khiến bấm xóa lại điều hướng sang trang chi tiết. */}
               {rows.map((v) => (
-                <div
-                  key={v.id}
-                  className="card flex items-center gap-3 px-4 py-3.5 hover:border-blue-300 transition-colors"
-                >
-                  <Link href={`/visits/${v.id}`} className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-ink">{v.patientName}</span>
-                        <span className="text-gray-500 text-sm">
-                          {v.diagnosisCode} — {v.diagnosisName}
-                        </span>
-                        {v.hasInjection && (
-                          <Badge tone="purple" icon={<IconSyringe size={12} />}>tiêm</Badge>
-                        )}
-                      </div>
-                      <span className="text-sm text-gray-400">
-                        {new Date(v.visitDate).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                <div key={v.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                  <span className="text-sm text-gray-500 tabular-nums w-12 shrink-0">
+                    {new Date(v.visitDate).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <Link href={`/visits/${v.id}`} className="flex-1 min-w-0 group">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-ink group-hover:text-blue-700 group-hover:underline">
+                        {v.patientName}
                       </span>
+                      <span className="text-gray-500 text-sm">
+                        {v.diagnosisCode} — {v.diagnosisName}
+                      </span>
+                      {v.hasInjection && (
+                        <Badge tone="purple" icon={<IconSyringe size={12} />}>tiêm</Badge>
+                      )}
                     </div>
                   </Link>
                   <button
@@ -158,7 +160,7 @@ export default function HistoryPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         ))}
       </div>
 

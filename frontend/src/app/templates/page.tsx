@@ -6,7 +6,7 @@ import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe, LoadError } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Medicine, Page, Template } from "@/lib/types";
-import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
+import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
 const PAGE_SIZE = 10;
 type StockFilter = "all" | "oral" | "injection" | "infusion";
@@ -22,12 +22,15 @@ interface FormState {
   doseEvening: string;
   usageMode: UsageMode;
   usageCustom: string;
+  /** Loại thuốc kho đã gắn — quyết định có hỏi trước/sau ăn hay không. */
+  injection: boolean;
+  infusion: boolean;
 }
 
 const emptyForm = (): FormState => ({
   id: null, name: "", medicineId: null, medicineName: "",
   doseMorning: "", doseNoon: "", doseAfternoon: "", doseEvening: "",
-  usageMode: "", usageCustom: "",
+  usageMode: "", usageCustom: "", injection: false, infusion: false,
 });
 
 export default function TemplatesPage() {
@@ -75,6 +78,7 @@ export default function TemplatesPage() {
       doseNoon: t.doseNoon ? String(t.doseNoon) : "",
       doseAfternoon: t.doseAfternoon ? String(t.doseAfternoon) : "",
       doseEvening: t.doseEvening ? String(t.doseEvening) : "",
+      injection: t.injection, infusion: t.infusion,
       ...deriveUsage(t.usageNote),
     });
   }
@@ -91,7 +95,8 @@ export default function TemplatesPage() {
       doseNoon: Number(form.doseNoon) || 0,
       doseAfternoon: Number(form.doseAfternoon) || 0,
       doseEvening: Number(form.doseEvening) || 0,
-      usageNote: usageModeToNote(form.usageMode, form.usageCustom),
+      usageNote: usageModeToNote(form.usageMode, form.usageCustom)
+        ?? fixedUsageNote(form.injection, form.infusion),
       numDays: null, // số ngày thuộc về cả đơn thuốc, không lưu ở thuốc mẫu nữa
     });
     try {
@@ -141,7 +146,13 @@ export default function TemplatesPage() {
               <label className="block text-sm mb-1.5 font-medium text-gray-600">Liên kết thuốc trong kho (để trừ tồn)</label>
               <MedicinePicker
                 value={form.medicineName}
-                onPick={(m) => setForm({ ...form, medicineId: m?.id ?? null, medicineName: m?.name ?? "" })}
+                onPick={(m) => setForm({
+                ...form,
+                medicineId: m?.id ?? null,
+                medicineName: m?.name ?? "",
+                injection: m?.injection ?? false,
+                infusion: m?.infusion ?? false,
+              })}
               />
             </div>
           </div>
@@ -179,7 +190,31 @@ export default function TemplatesPage() {
           {/* Cách dùng mặc định: 3 nút, "Khác" mở ô nhập */}
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-sm text-gray-600">Cách dùng:</span>
-            {USAGE_OPTIONS.map(([m, label]) => (
+            {(form.injection || form.infusion) && (
+              <>
+                {form.usageMode !== "other" && (
+                  <span className="text-xs font-medium text-gray-700">
+                    {fixedUsageNote(form.injection, form.infusion)}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setForm({
+                    ...form,
+                    usageMode: form.usageMode === "other" ? "" : "other",
+                    usageCustom: "",
+                  })}
+                  className={`text-xs px-2.5 py-1 rounded-full border ${
+                    form.usageMode === "other"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  Ghi riêng
+                </button>
+              </>
+            )}
+            {!form.injection && !form.infusion && USAGE_OPTIONS.map(([m, label]) => (
               <button
                 key={m}
                 type="button"

@@ -10,7 +10,7 @@ import { api, apiForm, ApiError } from "@/lib/api";
 import { UNIT_LABEL, UNIT_OPTIONS, type Medicine, type Page } from "@/lib/types";
 
 const PAGE_SIZE = 10;
-type StockFilter = "all" | "oral" | "injection" | "infusion";
+type StockFilter = "all" | "oral" | "injection" | "infusion" | "low";
 
 /** Đơn vị theo thứ tự lớn → nhỏ (§6.1). Người dùng tick, không cần đúng thứ tự khi bấm. */
 const HIERARCHY = UNIT_OPTIONS.map((u) => u.value); // [chai, hop, vi, vien, goi]
@@ -98,8 +98,12 @@ export default function InventoryPage() {
     if (filter === "oral") return !m.injection && !m.infusion;
     if (filter === "injection") return m.injection;
     if (filter === "infusion") return m.infusion;
+    if (filter === "low") return m.lowStock; // tồn < ngưỡng cảnh báo, do backend tính
     return true;
   }), [items, filter]);
+
+  // Đếm để hiện ngay trên chip — bác sĩ thấy có bao nhiêu thuốc cần nhập mà không phải bấm vào.
+  const lowCount = useMemo(() => items.filter((m) => m.lowStock).length, [items]);
 
   useEffect(() => setPage(0), [q, filter]);
 
@@ -306,7 +310,7 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4 text-sm">
+      <div className="flex gap-2 mb-4 text-sm flex-wrap">
         {([["all", "Tất cả", null], ["oral", "Uống", <IconPill key="o" size={14} />], ["injection", "Tiêm", <IconSyringe key="i" size={14} />], ["infusion", "Truyền dịch", <IconDroplet key="f" size={14} />]] as const).map(([v, label, icon]) => (
           <button
             key={v}
@@ -317,6 +321,29 @@ export default function InventoryPage() {
             {label}
           </button>
         ))}
+
+        {/* Sắp hết: tách khỏi nhóm lọc theo loại, tô đỏ vì đây là việc cần XỬ LÝ chứ
+            không phải một cách xem khác. Kèm số lượng để khỏi phải bấm vào mới biết. */}
+        <button
+          onClick={() => setFilter("low")}
+          className={`chip inline-flex items-center gap-1.5 ml-1 ${
+            filter === "low"
+              ? "bg-red-600 text-white border-red-600 hover:bg-red-600"
+              : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+          }`}
+        >
+          <IconAlert size={14} />
+          Sắp hết
+          {lowCount > 0 && (
+            <span
+              className={`ml-0.5 rounded-full px-1.5 text-xs font-semibold ${
+                filter === "low" ? "bg-white/25" : "bg-red-600 text-white"
+              }`}
+            >
+              {lowCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {showForm && (
@@ -508,8 +535,20 @@ export default function InventoryPage() {
       {!loading && !loadFailed && filtered.length === 0 && !showForm && (
         <EmptyState
           icon={<IconPill size={22} />}
-          title={items.length === 0 ? "Kho thuốc trống" : "Không có thuốc khớp bộ lọc"}
-          hint={items.length === 0 ? "Thêm thuốc đầu tiên để quản lý tồn kho và trừ kho khi kê đơn." : "Thử đổi từ khóa hoặc bộ lọc uống/tiêm/truyền dịch."}
+          title={
+            items.length === 0
+              ? "Kho thuốc trống"
+              : filter === "low"
+              ? "Không có thuốc nào sắp hết"
+              : "Không có thuốc khớp bộ lọc"
+          }
+          hint={
+            items.length === 0
+              ? "Thêm thuốc đầu tiên để quản lý tồn kho và trừ kho khi kê đơn."
+              : filter === "low"
+              ? "Mọi thuốc đều còn trên ngưỡng cảnh báo. Ngưỡng chỉnh được khi sửa từng thuốc."
+              : "Thử đổi từ khóa hoặc bộ lọc uống/tiêm/truyền dịch."
+          }
         />
       )}
 

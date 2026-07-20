@@ -5,7 +5,7 @@ import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 import { IconAlert, IconDroplet, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Diagnosis, Icd10, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
-import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
+import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
 /** Ghi chú nhanh — bấm để chèn vào ô ghi chú khám. */
 const QUICK_NOTES = [
@@ -440,7 +440,9 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                 doseAfternoon: perUnit ? 0 : Number(it.doseAfternoon) || 0,
                 doseEvening: perUnit ? 0 : Number(it.doseEvening) || 0,
                 specialDoseText: null,
-                usageNote: usageModeToNote(it.usageMode, it.usageCustom),
+                // Tiêm/truyền: mặc định "theo chỉ định"; chỉ khác đi khi bác sĩ tự ghi.
+                usageNote: usageModeToNote(it.usageMode, it.usageCustom)
+                  ?? fixedUsageNote(it.injection, it.infusion),
                 numDays: perUnit ? null : days || null,
                 // Thuốc uống: để backend tự tính = liều/ngày × số ngày.
                 totalQuantityBase: perUnit ? Number(it.doseMorning) || 0 : null,
@@ -606,7 +608,32 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
               </div>
               <div className="flex gap-2 mt-2 flex-wrap items-center">
                 <span className="text-xs text-gray-500">Cách dùng:</span>
-                {USAGE_OPTIONS.map(([m, label]) => (
+                {/* Tiêm/truyền không dính dáng bữa ăn: bỏ trước/sau ăn, mặc định "theo
+                    chỉ định", vẫn cho ghi chỉ định riêng (VD tiêm bắp, truyền chậm). */}
+                {(it.injection || it.infusion) && (
+                  <>
+                    {it.usageMode !== "other" && (
+                      <span className="text-xs font-medium text-gray-700">
+                        {fixedUsageNote(it.injection, it.infusion)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => updateItem(idx, {
+                        usageMode: it.usageMode === "other" ? "" : "other",
+                        usageCustom: "",
+                      })}
+                      className={`text-xs px-2.5 py-1 rounded-full border ${
+                        it.usageMode === "other"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      Ghi riêng
+                    </button>
+                  </>
+                )}
+                {!it.injection && !it.infusion && USAGE_OPTIONS.map(([m, label]) => (
                   <button
                     key={m}
                     type="button"

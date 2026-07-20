@@ -31,3 +31,17 @@ export const USAGE_OPTIONS = [
   ["after", "Sau ăn"],
   ["other", "Khác"],
 ] as const;
+
+/**
+ * Thuốc tiêm / truyền dịch KHÔNG liên quan bữa ăn — trước/sau ăn là vô nghĩa với đường
+ * dùng này. Cách dùng cố định luôn, không hỏi bác sĩ, và vẫn in ra đơn thuốc bình thường.
+ */
+export const INJECTION_NOTE = "Tiêm theo chỉ định";
+export const INFUSION_NOTE = "Truyền theo chỉ định";
+
+/** Cách dùng cố định theo loại thuốc; null = thuốc uống, để bác sĩ tự chọn. */
+export function fixedUsageNote(injection: boolean, infusion: boolean): string | null {
+  if (injection) return INJECTION_NOTE;
+  if (infusion) return INFUSION_NOTE;
+  return null;
+}
