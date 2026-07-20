@@ -83,7 +83,8 @@ export default function InventoryPage() {
   const dq = useDebounced(q, 300);
 
   const load = useCallback(() => {
-    api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(dq)}&size=100`)
+    // size lớn vì lọc uống/tiêm/truyền dịch + phân trang đều chạy client-side trên danh sách này.
+    api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(dq)}&size=500`)
       .then((p) => setItems(p.content))
       .catch(() => {})
       .finally(() => setLoading(false));

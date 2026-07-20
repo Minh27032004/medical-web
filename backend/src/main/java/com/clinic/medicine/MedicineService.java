@@ -95,10 +95,17 @@ public class MedicineService {
 
     // ===== CRUD =====
 
+    /**
+     * Trần 500: trang kho thuốc tải MỘT lần rồi lọc/phân trang phía client (chip uống/tiêm/
+     * truyền dịch chạy client-side), nên trần thấp sẽ LÀM MẤT thuốc khỏi giao diện chứ không
+     * chỉ cắt trang. Danh mục thuốc của một phòng khám thực tế nằm dưới ngưỡng này rất xa.
+     */
+    private static final int MAX_PAGE_SIZE = 500;
+
     @Transactional(readOnly = true)
     public Page<MedicineDto> search(UUID doctorId, String q, int page, int size) {
         return repository.search(doctorId, q == null ? "" : q.trim(),
-                PageRequest.of(page, Math.min(size, 100)))
+                PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE)))
             .map(this::toDto);
     }
 

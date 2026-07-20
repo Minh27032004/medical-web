@@ -58,9 +58,13 @@ public class TemplateService {
                              BigDecimal doseAfternoon, BigDecimal doseEvening,
                              String usageNote, Integer numDays) {}
 
+    /** Trần 500 — FE tải hết rồi lọc/phân trang client-side, trần thấp sẽ giấu mất thuốc mẫu. */
+    private static final int MAX_LIST_SIZE = 500;
+
     @Transactional(readOnly = true)
     public List<TemplateDto> list(UUID doctorId, String q) {
-        var templates = repository.search(doctorId, q == null ? "" : q.trim(), PageRequest.of(0, 100));
+        var templates = repository.search(doctorId, q == null ? "" : q.trim(),
+            PageRequest.of(0, MAX_LIST_SIZE));
         var medMap = medicineService.mapByIds(doctorId, medicineIds(templates)); // 1 query thay N
         return templates.stream().map(t -> toDto(t, medMap.get(t.getMedicineId()))).toList();
     }

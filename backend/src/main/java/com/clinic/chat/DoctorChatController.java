@@ -185,13 +185,14 @@ public class DoctorChatController {
     private ChatResponse patientHistory(UUID doctorId, String name) {
         var p = resolvePatient(doctorId, name);
         if (p.isEmpty()) return notFoundPatient(name);
+        // Truy vấn thẳng theo patientId. Trước đây kéo TOÀN BỘ lần khám 1 năm của phòng khám
+        // (kèm enrich tên bệnh nhân + cờ tiêm cho từng dòng) rồi lọc trong Java — tốn vô ích.
         var rows = new ArrayList<Map<String, Object>>();
-        var today = LocalDate.now(VisitService.CLINIC_ZONE);
-        for (var v : visitService.history(doctorId, today.minusYears(1), today)) {
-            if (v.patientId().equals(p.get().getId())) rows.add(rowOf(v));
+        for (var v : visitService.visitsOfPatient(doctorId, p.get().getId())) {
+            rows.add(rowOf(v));
         }
         return new ChatResponse("PATIENT_HISTORY",
-            "Lịch sử khám của " + p.get().getFullName() + " (1 năm gần nhất) — " + rows.size() + " lần",
+            "Lịch sử khám của " + p.get().getFullName() + " — " + rows.size() + " lần",
             rows, null);
     }
 
