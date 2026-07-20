@@ -97,6 +97,48 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   return res.json();
 }
 
+/**
+ * Tải file nhị phân (xuất .xlsx) rồi kích hoạt lưu về máy.
+ * Không dùng thẻ <a href> trực tiếp được vì endpoint cần header Authorization —
+ * phải fetch kèm token rồi tạo blob URL.
+ */
+export async function apiDownload(path: string, fallbackName: string): Promise<void> {
+  const send = async (token: string | null) => {
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return fetch(`${API_URL}${path}`, { headers });
+  };
+
+  let token = await getToken(false);
+  if (!token) token = await refreshOnce();
+
+  let res = await send(token);
+  if (res.status === 401) {
+    const fresh = await refreshOnce();
+    if (fresh) res = await send(fresh);
+    if (res.status === 401) {
+      toLogin();
+      throw new ApiError(401, "UNAUTHORIZED", "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.");
+    }
+  }
+  if (!res.ok) throw await toApiError(res);
+
+  // Lấy tên file server đề xuất (Content-Disposition), không có thì dùng tên dự phòng.
+  const cd = res.headers.get("Content-Disposition") ?? "";
+  const match = /filename="([^"]+)"/.exec(cd);
+  const name = match ? match[1] : fallbackName;
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /** Upload multipart (KHÔNG set Content-Type — browser tự thêm boundary). */
 export async function apiForm<T>(path: string, formData: FormData): Promise<T> {
   const send = async (token: string | null) => {

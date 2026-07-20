@@ -11,6 +11,7 @@ import {
   HeartPulse,
   LogOut,
   Menu,
+  PackagePlus,
   Pill,
   ShieldCheck,
   Users,
@@ -30,6 +31,7 @@ const DOCTOR_NAV: NavItem[] = [
   { href: "/patients", label: "Bệnh nhân", Icon: Users },
   { href: "/history", label: "Lịch sử khám", Icon: ClipboardList },
   { href: "/inventory", label: "Kho thuốc", Icon: Pill },
+  { href: "/stock-orders", label: "Nhập kho", Icon: PackagePlus },
   { href: "/templates", label: "Thuốc mẫu", Icon: FileText },
   { href: "/chat", label: "Trợ lý", Icon: Bot },
 ];

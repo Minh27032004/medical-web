@@ -184,3 +184,49 @@ export const UNIT_OPTIONS = [
 export const UNIT_LABEL: Record<string, string> = {
   chai: "chai", hop: "hộp", vi: "vĩ", vien: "viên", goi: "gói", ong: "ống",
 };
+
+/* ===== Đơn nhập kho (V14) ===== */
+
+export type StockOrderStatus = "PENDING" | "RECEIVED" | "CANCELLED";
+
+export interface StockOrderItem {
+  medicineId: string | null;
+  medicineName: string;
+  unitName: string;
+  unitLabel: string;
+  qty: number;
+  currentStockDisplay: string | null;
+  lowStock: boolean;
+}
+
+export interface StockOrder {
+  id: string;
+  code: string;
+  status: StockOrderStatus;
+  source: "QUICK" | "MANUAL";
+  note: string | null;
+  createdAt: string;
+  receivedAt: string | null;
+  cancelledAt: string | null;
+  items: StockOrderItem[];
+}
+
+/** Một dòng gợi ý "nhập nhanh" — thuốc đang dưới ngưỡng cảnh báo. */
+export interface StockSuggestion {
+  medicineId: string;
+  medicineName: string;
+  stockDisplay: string;
+  baseUnitLabel: string;
+  stockBaseQty: number;
+  threshold: number;
+  defaultUnitName: string;
+  defaultUnitLabel: string;
+  defaultQty: number;
+  units: { unitName: string; label: string }[];
+}
+
+export const STOCK_ORDER_STATUS_LABEL: Record<StockOrderStatus, string> = {
+  PENDING: "Chờ xử lý",
+  RECEIVED: "Đã nhập kho",
+  CANCELLED: "Đã hủy",
+};

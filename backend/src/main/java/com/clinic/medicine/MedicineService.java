@@ -130,6 +130,17 @@ public class MedicineService {
         return repository.findLowStock(doctorId).stream().map(this::toDto).toList();
     }
 
+    /** Thuốc dưới ngưỡng cảnh báo, trả ENTITY — cho module đơn nhập kho dựng gợi ý. */
+    @Transactional(readOnly = true)
+    public List<Medicine> lowStockEntities(UUID doctorId) {
+        return repository.findLowStock(doctorId);
+    }
+
+    /** factorOf dùng được từ package khác (đơn nhập kho quy đổi số lượng đặt về base). */
+    public static BigDecimal factorOfPublic(Medicine m, String unitName) {
+        return factorOf(m, unitName);
+    }
+
     /** Tóm tắt thuốc tồn thấp nhất — cho trợ lý chat (LOWEST_STOCK). Tính display TRONG transaction. */
     public record LowestStockInfo(String name, String stockDisplay, BigDecimal stockBaseQty,
                                   String baseUnitLabel, int threshold, boolean below) {}

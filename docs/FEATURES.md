@@ -60,6 +60,19 @@ Tài khoản bị khóa không đăng nhập được (check mỗi request).
 - Chỉnh tay tồn (± theo đơn vị bất kỳ, quy về base; ghi lý do tùy chọn).
 - **Cảnh báo sắp hết** khi `stock_base_qty < low_stock_threshold` (mặc định 30).
 - Hiển thị tồn quy ngược lên đơn vị lớn (vd 210 viên → "4 hộp 2 vĩ").
+- Lọc theo loại (uống/tiêm/truyền dịch) và **lọc "sắp hết"** kèm số đếm.
+
+### 3.5b Đơn nhập kho (Doctor) — V14
+Lập đơn đặt thuốc gửi nhà thuốc, tách khỏi việc cộng tồn.
+- **Nhập nhanh**: dựng sẵn từ các thuốc đang dưới ngưỡng cảnh báo, mặc định **1 đơn vị lớn
+  nhất** mỗi thuốc (1 hộp chứ không phải 1 viên); bác sĩ chỉnh số lượng và đổi đơn vị được.
+- **Nhập thủ công**: tự tìm thuốc trong kho rồi thêm dòng, chọn đơn vị theo thuốc đó.
+- "Xuất file" → lưu đơn ở trạng thái **chờ xử lý** + tải `.xlsx` (POI, có đầu trang phòng
+  khám, bảng STT/tên/đơn vị/số lượng/tồn hiện tại, dòng tổng, ô chữ ký).
+- **Tồn kho KHÔNG đổi khi đơn còn chờ.** Nhận đủ hàng → "Xác nhận nhập thuốc" → popup hỏi
+  lại → cộng tồn. Đơn rời trạng thái chờ nên bấm hai lần không cộng đôi.
+- Quy đổi số lượng đặt về đơn vị nhỏ nhất theo **tỷ lệ tại thời điểm xác nhận**, không phải
+  lúc đặt — bác sĩ sửa "1 hộp = 50 → 60 viên" trong lúc chờ hàng thì vẫn ra đúng số thật.
 
 ### 3.6 Lịch sử khám
 Mặc định 30 ngày gần nhất, filter theo ngày; bấm một lần khám → hiện đơn thuốc hôm đó.
