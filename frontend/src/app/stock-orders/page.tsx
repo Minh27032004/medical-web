@@ -25,6 +25,21 @@ interface DraftLine {
 
 type Mode = null | "QUICK" | "MANUAL";
 
+/**
+ * Đơn soạn dở được giữ trong sessionStorage: rời trang đi tra cứu thuốc rồi quay lại
+ * vẫn còn nguyên, F5 cũng không mất. Chỉ mất khi bấm Hủy, xuất file xong, hoặc ĐÓNG TAB.
+ *
+ * Chọn sessionStorage chứ không phải localStorage: máy phòng khám hay dùng chung, đóng
+ * tab là dữ liệu đi theo — không nằm lại trên ổ đĩa chờ người sau mở lên.
+ */
+const DRAFT_KEY = "medical-web:stock-order-draft";
+
+interface Draft {
+  mode: "QUICK" | "MANUAL";
+  lines: DraftLine[];
+  note: string;
+}
+
 export default function StockOrdersPage() {
   // Danh sách CHỈ tóm tắt — dòng thuốc của từng đơn nạp riêng khi bấm mở.
   const { data: orders = [], loading, failed: loadFailed, reload: load } =
@@ -36,6 +51,7 @@ export default function StockOrdersPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const [restored, setRestored] = useState(false); // đơn vừa được khôi phục từ phiên trước
   const [openId, setOpenId] = useState<string | null>(null); // đơn đang mở chi tiết
   const [receiving, setReceiving] = useState<StockOrderSummary | null>(null);
   const [cancelling, setCancelling] = useState<StockOrderSummary | null>(null);
@@ -60,6 +76,7 @@ export default function StockOrdersPage() {
         stockDisplay: s.stockDisplay,
       })));
       setNote("");
+      setRestored(false);
       setMode("QUICK");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không tải được danh sách thuốc sắp hết");
@@ -72,14 +89,39 @@ export default function StockOrdersPage() {
     setError("");
     setLines([]);
     setNote("");
+    setRestored(false);
     setMode("MANUAL");
   }
+
+  // Khôi phục đơn soạn dở (chạy MỘT lần khi vào trang).
+  useEffect(() => {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    try {
+      const d = JSON.parse(raw) as Draft;
+      if (!d.lines?.length) return;
+      setMode(d.mode);
+      setLines(d.lines);
+      setNote(d.note ?? "");
+      setRestored(true);
+    } catch {
+      sessionStorage.removeItem(DRAFT_KEY); // dữ liệu hỏng thì bỏ, đừng chặn cả trang
+    }
+  }, []);
+
+  // Ghi lại mỗi khi đơn đổi. mode = null nghĩa là không có đơn nào đang soạn.
+  useEffect(() => {
+    if (!mode) return;
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ mode, lines, note } satisfies Draft));
+  }, [mode, lines, note]);
 
   function closeDraft() {
     setMode(null);
     setLines([]);
     setNote("");
     setError("");
+    setRestored(false);
+    sessionStorage.removeItem(DRAFT_KEY);
   }
 
   function addLine(m: Medicine) {
@@ -180,6 +222,7 @@ export default function StockOrdersPage() {
       {mode && (
         <DraftCard
           mode={mode}
+          restored={restored}
           lines={lines}
           note={note}
           busy={busy}
@@ -264,10 +307,11 @@ export default function StockOrdersPage() {
 /* ===================== Đơn đang soạn ===================== */
 
 function DraftCard({
-  mode, lines, note, busy, error,
+  mode, restored, lines, note, busy, error,
   onNote, onUpdateLine, onRemoveLine, onAddLine, onExport, onCancel,
 }: {
   mode: "QUICK" | "MANUAL";
+  restored: boolean;
   lines: DraftLine[];
   note: string;
   busy: boolean;
@@ -292,6 +336,12 @@ function DraftCard({
           ? "Mặc định 1 đơn vị lớn nhất cho mỗi thuốc — chỉnh lại số lượng và đơn vị nếu cần."
           : "Tìm thuốc trong kho rồi thêm vào đơn."}
       </p>
+
+      {restored && (
+        <p className="text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-3 py-2 mb-3">
+          Đơn soạn dở của bạn được giữ lại. Bấm <strong>Hủy</strong> nếu muốn bỏ và làm lại từ đầu.
+        </p>
+      )}
 
       {mode === "MANUAL" && <MedicineSearch onPick={onAddLine} />}
 
@@ -381,7 +431,7 @@ function MedicineSearch({ onPick }: { onPick: (m: Medicine) => void }) {
     if (!kw) { setOptions([]); return; }
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
-      api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(kw)}&size=8`)
+      api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(kw)}&size=15`)
         .then((p) => setOptions(p.content))
         .catch(() => {});
     }, 250);

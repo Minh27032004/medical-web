@@ -27,11 +27,28 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 interface MedicineRepository extends JpaRepository<Medicine, UUID> {
 
+    /**
+     * Sắp theo ĐỘ LIÊN QUAN rồi mới tới bảng chữ cái.
+     *
+     * Trước đây chỉ `order by m.name`: gõ "pa" thì "Nos-pa" (khớp giữa từ) chiếm mất các
+     * slot đầu vì chữ N đứng trước P, đẩy "Para 500mg" ra khỏi 8 kết quả đầu — bác sĩ
+     * tưởng kho không có thuốc đó. Giờ tên BẮT ĐẦU bằng từ khóa lên trước, rồi tới có TỪ
+     * bắt đầu bằng từ khóa, cuối cùng mới là khớp ở giữa.
+     *
+     * Từ khóa rỗng (trang kho tải toàn bộ) thì mọi thuốc cùng hạng 0 → vẫn xếp theo tên.
+     */
     @Query("""
         select m from Medicine m
         where m.doctorId = :doctorId and m.deletedAt is null
           and lower(m.name) like lower(concat('%', :q, '%'))
-        order by m.name
+        order by
+          case
+            when lower(m.name) like lower(concat(:q, '%')) then 0
+            when lower(m.name) like lower(concat('% ', :q, '%')) then 1
+            when lower(m.name) like lower(concat('%(', :q, '%')) then 1
+            else 2
+          end,
+          m.name
         """)
     Page<Medicine> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
 

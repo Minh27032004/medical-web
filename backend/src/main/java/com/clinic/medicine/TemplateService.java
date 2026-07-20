@@ -117,7 +117,9 @@ public class TemplateService {
                 t.getDefaultDoseAfternoon(), t.getDefaultDoseEvening(),
                 t.getDefaultUsageNote(), t.getDefaultNumDays()));
         }
-        for (var m : medicineService.searchEntities(doctorId, query, 8)) {
+        // 15 chứ không phải 8: một kho 180 thuốc có thể có tới 21 tên chứa "pa"; cắt ở 8
+        // là bác sĩ không thấy thuốc mình cần dù kho có. Danh sách vẫn đủ ngắn để chọn nhanh.
+        for (var m : medicineService.searchEntities(doctorId, query, 15)) {
             var already = out.stream().anyMatch(s -> m.getId().equals(s.medicineId()));
             if (already) continue;
             out.add(new Suggestion("MEDICINE", null, m.getId(), m.getName(),
