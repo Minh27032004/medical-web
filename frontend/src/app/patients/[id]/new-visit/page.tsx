@@ -367,8 +367,15 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     api<Patient>(`/api/doctor/patients/${patientId}`).then(setPatient).catch(() => {});
   }, [patientId]);
 
-  // Khôi phục nháp của ĐÚNG bệnh nhân này. Trong effect vì trang có prerender.
+  /**
+   * Khôi phục nháp của ĐÚNG bệnh nhân này. Trong effect vì trang có prerender.
+   *
+   * Bỏ qua khi mở kèm ?copyFrom= : bác sĩ đang chủ động "tạo lại đơn cũ", ý định đó rõ
+   * ràng hơn một bản nháp bỏ dở. Không chặn thì nháp được khôi phục rồi vài trăm ms sau
+   * bị đơn copy ghi đè, mà banner vẫn báo "đã khôi phục nháp" — sai và gây hoang mang.
+   */
   useEffect(() => {
+    if (copyFrom) return;
     const d = readVisitDraft(patientId);
     if (!d) return;
     setDiagCode(d.diagCode);
@@ -380,7 +387,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     setHasInjectionRow(!!d.hasInjectionRow);
     setHasInfusionRow(!!d.hasInfusionRow);
     setDraftRestored(true);
-  }, [patientId]);
+  }, [patientId, copyFrom]);
 
   // Tự lưu nháp mỗi khi đơn đổi.
   useEffect(() => {
