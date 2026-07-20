@@ -19,6 +19,7 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.UuidGenerator;
 
 /** Thuốc trong kho — MỖI bác sĩ một kho riêng. Tồn LUÔN lưu theo đơn vị nhỏ nhất (D16). */
@@ -62,9 +63,16 @@ public class Medicine {
     @Column(name = "low_stock_threshold", nullable = false)
     private int lowStockThreshold = 30;
 
+    /**
+     * @BatchSize: nạp units của NHIỀU thuốc bằng một câu IN thay vì mỗi thuốc một query.
+     * Gần như mọi màn hình đều đọc units (stockDisplay quy tồn ngược lên đơn vị lớn), nên
+     * thiếu nó là trang kho 181 thuốc bắn 182 query — đã đo. Không dựa vào
+     * default_batch_fetch_size toàn cục nữa: ai chỉnh giá trị đó sẽ không ngờ tới hệ quả này.
+     */
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "medicine_id", nullable = false)
     @OrderBy("levelOrder asc")
+    @BatchSize(size = 100)
     private List<MedicineUnit> units = new ArrayList<>();
 
     @Column(name = "deleted_at")
