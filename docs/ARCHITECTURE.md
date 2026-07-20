@@ -78,6 +78,7 @@ medicine_templates (thuốc mẫu)
 | Templates | CRUD `/doctor/templates` | ROLE_DOCTOR |
 | Stock orders | `GET /doctor/stock-orders` (CHỈ tóm tắt: mã, ngày, trạng thái, số dòng — 1 query), `POST /doctor/stock-orders`, `GET /{id}`, `GET /quick-suggestions` (thuốc sắp hết, mặc định 1 đơn vị lớn nhất), `POST /{id}/receive` (cộng tồn, chỉ khi PENDING), `DELETE /{id}` (hủy), `GET /{id}/export` → .xlsx (V14) | ROLE_DOCTOR |
 | Visits + Rx | `POST /doctor/visits` {patientId, diagnosisCode/Name, note, items[]} → tạo visit + prescription + trừ kho 1 transaction; `GET /doctor/visits?date=&from=&to=`; `GET /doctor/visits/{id}` (kèm đơn); `GET /doctor/patients/{id}/last-prescription` (copy đơn); `POST /doctor/prescriptions/{id}/printed`; `DELETE /doctor/visits/{id}?restoreStock=` (xóa mềm V12, tùy chọn hoàn thuốc về kho) | ROLE_DOCTOR |
+| Storage | Ảnh thuốc → Supabase Storage bucket public `medicine-images`; `medicines.image_path` lưu path. Đổi ảnh → xóa file cũ SAU commit. Job `StorageCleanupJob` 3h sáng CN dọn file mồ côi (chừa file < 7 ngày và ảnh của thuốc đã xóa mềm) | nội bộ |
 | Chat | `POST /doctor/chat` {question} → intent+params (Gemini) → query template → kết quả cấu trúc | ROLE_DOCTOR |
 
 Cô lập: mọi service method nhận `doctorId` (từ JWT sub) và mọi repository query có điều kiện doctor_id.

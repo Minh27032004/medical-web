@@ -22,6 +22,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 interface MedicineRepository extends JpaRepository<Medicine, UUID> {
 
@@ -283,7 +285,7 @@ public class MedicineService {
         m.setName(req.name().trim());
         m.setInjection(req.injection());
         m.setInfusion(req.infusion());
-        m.setImagePath(req.imagePath());
+        replaceImage(m, req.imagePath());
         if (req.lowStockThreshold() != null && req.lowStockThreshold() >= 0) {
             m.setLowStockThreshold(req.lowStockThreshold());
         }
@@ -333,6 +335,30 @@ public class MedicineService {
         for (int i = 0; i < inputs.size(); i++) {
             m.getUnits().add(makeUnit(inputs.get(i).unitName(), factors[i]));
         }
+    }
+
+    /**
+     * Đổi ảnh thuốc → xóa file cũ khỏi Storage, nhưng CHỈ SAU KHI transaction commit.
+     *
+     * Xóa ngay tại đây là sai: nếu phần còn lại của việc lưu thuốc ném lỗi và rollback,
+     * DB vẫn trỏ tới ảnh cũ trong khi file đã bị xóa → thuốc vỡ ảnh vĩnh viễn. Đăng ký
+     * afterCommit nên chỉ xóa khi chắc chắn DB đã ghi xong.
+     */
+    private void replaceImage(Medicine m, String newPath) {
+        var oldPath = m.getImagePath();
+        m.setImagePath(newPath);
+        if (oldPath == null || oldPath.isBlank() || oldPath.equals(newPath)) return;
+
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            storage.delete(oldPath);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                storage.delete(oldPath);
+            }
+        });
     }
 
     private static MedicineUnit makeUnit(String unitName, BigDecimal factor) {
