@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { Badge, IconMail, IconPlus } from "@/components/ui";
+import { Badge, IconMail, IconPlus, LoadError } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { DoctorRow } from "@/lib/types";
 
@@ -13,9 +13,12 @@ export default function AdminDoctorsPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [blocking, setBlocking] = useState<DoctorRow | null>(null); // tài khoản chờ xác nhận khóa
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(() => {
-    api<DoctorRow[]>("/api/admin/doctors").then(setDoctors).catch(() => {});
+    api<DoctorRow[]>("/api/admin/doctors")
+      .then((list) => { setDoctors(list); setLoadFailed(false); })
+      .catch(() => setLoadFailed(true));
   }, []);
 
   useEffect(load, [load]);
@@ -129,7 +132,9 @@ export default function AdminDoctorsPage() {
         </form>
       )}
 
-      <div className="card overflow-hidden">
+      {loadFailed && <LoadError onRetry={load} />}
+
+      {!loadFailed && <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
@@ -185,7 +190,7 @@ export default function AdminDoctorsPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
       <ConfirmDialog
         open={!!blocking}

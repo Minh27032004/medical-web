@@ -11,8 +11,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,6 +34,20 @@ interface MedicineRepository extends JpaRepository<Medicine, UUID> {
     Page<Medicine> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
 
     Optional<Medicine> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
+
+    /**
+     * Như trên nhưng SELECT ... FOR UPDATE — BẮT BUỘC dùng cho mọi đường THAY ĐỔI TỒN KHO
+     * (kê đơn, nhập/chỉnh tay, hoàn kho khi xóa lần khám).
+     *
+     * Không có khóa này thì hai transaction cùng trừ một thuốc sẽ "lost update": cả hai đọc
+     * tồn 100, cả hai ghi 90 — mất một lần trừ mà không có lỗi nào báo ra.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select m from Medicine m
+        where m.id = :id and m.doctorId = :doctorId and m.deletedAt is null
+        """)
+    Optional<Medicine> findOwnedForUpdate(@Param("id") UUID id, @Param("doctorId") UUID doctorId);
 
     List<Medicine> findByIdInAndDoctorIdAndDeletedAtIsNull(Collection<UUID> ids, UUID doctorId);
 
@@ -173,7 +189,7 @@ public class MedicineService {
     /** Nhập kho / chỉnh tay: entries theo đơn vị bất kỳ (qty âm = trừ), quy hết về base (§6.2). */
     @Transactional
     public MedicineDto adjustStock(UUID doctorId, UUID id, AdjustRequest req) {
-        var m = findOwned(doctorId, id);
+        var m = findOwnedForUpdate(doctorId, id); // khóa: tránh mất lượt nhập khi 2 tab cùng lưu
         if (req.entries() == null || req.entries().isEmpty()) {
             throw ApiException.badRequest("Chưa nhập số lượng");
         }
@@ -193,6 +209,17 @@ public class MedicineService {
 
     public Medicine findOwnedOrNull(UUID doctorId, UUID id) {
         return repository.findByIdAndDoctorIdAndDeletedAtIsNull(id, doctorId).orElse(null);
+    }
+
+    /** Nạp thuốc KÈM KHÓA GHI — dùng khi sắp trừ/cộng tồn. Phải nằm trong transaction. */
+    public Medicine findOwnedForUpdate(UUID doctorId, UUID id) {
+        return repository.findOwnedForUpdate(id, doctorId)
+            .orElseThrow(() -> ApiException.notFound("Không tìm thấy thuốc trong kho"));
+    }
+
+    /** Như trên nhưng trả null thay vì ném lỗi (thuốc có thể đã bị xóa khỏi kho). */
+    public Medicine findOwnedForUpdateOrNull(UUID doctorId, UUID id) {
+        return repository.findOwnedForUpdate(id, doctorId).orElse(null);
     }
 
     /** Nạp NHIỀU thuốc theo id trong 1 query — tránh N+1 khi map danh sách thuốc mẫu (§5.4). */

@@ -41,7 +41,8 @@ interface VisitRepository extends JpaRepository<Visit, UUID> {
 
 interface PrescriptionRepository extends JpaRepository<Prescription, UUID> {
 
-    Optional<Prescription> findByVisitId(UUID visitId);
+    /** LUÔN kèm doctorId — quy tắc cô lập số 1, không dựa vào việc caller đã verify visit. */
+    Optional<Prescription> findByVisitIdAndDoctorId(UUID visitId, UUID doctorId);
 
     Optional<Prescription> findByIdAndDoctorId(UUID id, UUID doctorId);
 
@@ -156,7 +157,9 @@ public class VisitService {
                 item.setTotalQuantityBase(total);
 
                 if (in.medicineId() != null) {
-                    var medicine = medicineService.findOwned(doctorId, in.medicineId());
+                    // Khóa ghi ngay từ lúc nạp: trừ kho là read-modify-write, không khóa thì
+                    // hai đơn lưu đồng thời cùng một thuốc sẽ mất một lượt trừ.
+                    var medicine = medicineService.findOwnedForUpdate(doctorId, in.medicineId());
                     item.setMedicineId(medicine.getId());
                     item.setMedicineName(medicine.getName()); // snapshot
                     item.setBaseUnit(medicine.getBaseUnit()); // snapshot
@@ -239,7 +242,7 @@ public class VisitService {
         // Bệnh nhân có thể đã bị xóa mềm — lần khám cũ vẫn phải xem/in lại được.
         var patient = patientService.findOwnedEvenDeleted(doctorId, visit.getPatientId());
         var doctor = userRepository.findById(doctorId).orElseThrow();
-        var prescription = prescriptionRepository.findByVisitId(visit.getId()).orElse(null);
+        var prescription = prescriptionRepository.findByVisitIdAndDoctorId(visit.getId(), doctorId).orElse(null);
 
         return new VisitDetail(visit.getId(), visit.getVisitDate(),
             visit.getDiagnosisCode(), visit.getDiagnosisName(),
@@ -258,7 +261,7 @@ public class VisitService {
     public List<ItemDto> lastPrescriptionItems(UUID doctorId, UUID patientId) {
         patientService.findOwned(doctorId, patientId);
         return visitRepository.findFirstByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(doctorId, patientId)
-            .flatMap(v -> prescriptionRepository.findByVisitId(v.getId()))
+            .flatMap(v -> prescriptionRepository.findByVisitIdAndDoctorId(v.getId(), doctorId))
             .map(p -> p.getItems().stream().map(VisitService::toItemDto).toList())
             .orElse(List.of());
     }
@@ -274,10 +277,10 @@ public class VisitService {
             .orElseThrow(() -> ApiException.notFound("Không tìm thấy lần khám"));
 
         if (restoreStock) {
-            prescriptionRepository.findByVisitId(visitId).ifPresent(p -> {
+            prescriptionRepository.findByVisitIdAndDoctorId(visitId, doctorId).ifPresent(p -> {
                 for (var i : p.getItems()) {
                     if (i.getMedicineId() == null || i.getTotalQuantityBase().signum() <= 0) continue;
-                    var m = medicineService.findOwnedOrNull(doctorId, i.getMedicineId());
+                    var m = medicineService.findOwnedForUpdateOrNull(doctorId, i.getMedicineId());
                     if (m == null) continue; // thuốc đã xóa khỏi kho → không còn chỗ để hoàn
                     // total_quantity_base là SNAPSHOT theo base_unit lúc kê. Nếu sau đó bác sĩ
                     // đã đổi cấu trúc đơn vị của thuốc thì con số không còn cùng hệ quy chiếu

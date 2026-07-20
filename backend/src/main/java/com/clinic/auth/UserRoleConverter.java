@@ -26,6 +26,7 @@ import org.springframework.stereotype.Component;
 public class UserRoleConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
     private static final Duration CACHE_TTL = Duration.ofSeconds(60);
+    private static final int MAX_CACHE_ENTRIES = 256;
 
     private final UserRepository userRepository;
 
@@ -43,6 +44,7 @@ public class UserRoleConverter implements Converter<Jwt, AbstractAuthenticationT
             cached = user == null
                 ? new Cached(null, true, Instant.now().plus(CACHE_TTL))
                 : new Cached(user.getRole(), user.isBlocked(), Instant.now().plus(CACHE_TTL));
+            purgeExpiredIfLarge();
             cache.put(userId, cached);
         }
 
@@ -55,6 +57,17 @@ public class UserRoleConverter implements Converter<Jwt, AbstractAuthenticationT
 
         var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + cached.role()));
         return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
+    }
+
+    /**
+     * Entry chỉ bị ghi đè khi CHÍNH user đó gọi lại, nên tài khoản nghỉ việc sẽ nằm lại
+     * vĩnh viễn. Dọn entry hết hạn khi map phình quá ngưỡng — đủ cho quy mô phòng khám,
+     * không cần thêm scheduler.
+     */
+    private void purgeExpiredIfLarge() {
+        if (cache.size() < MAX_CACHE_ENTRIES) return;
+        var now = Instant.now();
+        cache.values().removeIf(c -> c.expiresAt().isBefore(now));
     }
 
     /** Gọi khi admin khóa/mở tài khoản để hiệu lực tức thì. */

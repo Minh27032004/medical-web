@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
-import { Badge, EmptyState, IconSyringe, Loading } from "@/components/ui";
+import { Badge, EmptyState, IconSyringe, LoadError, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { VisitRow } from "@/lib/types";
 
@@ -34,12 +34,13 @@ export default function HistoryPage() {
   const [page, setPage] = useState(0);
   const [deleting, setDeleting] = useState<VisitRow | null>(null); // lần khám chờ xác nhận xóa
   const [restoreStock, setRestoreStock] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
     api<VisitRow[]>(`/api/doctor/visits?from=${from}&to=${to}`)
-      .then(setVisits)
-      .catch(() => {})
+      .then((rows) => { setVisits(rows); setLoadFailed(false); })
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, [from, to]);
 
@@ -99,14 +100,15 @@ export default function HistoryPage() {
       </div>
 
       {loading && <Loading />}
-      {!loading && visits.length === 0 && (
+      {!loading && loadFailed && <LoadError onRetry={() => { setLoading(true); load(); }} />}
+      {!loading && !loadFailed && visits.length === 0 && (
         <EmptyState
           title="Không có lần khám nào trong khoảng này"
           hint="Thử mở rộng khoảng ngày, hoặc chọn nhanh 30 ngày ở trên."
         />
       )}
 
-      {!loading && visits.length > 0 && (
+      {!loading && !loadFailed && visits.length > 0 && (
         <p className="text-xs text-gray-400 mb-2">{visits.length} lượt khám</p>
       )}
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
-import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe } from "@/components/ui";
+import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe, LoadError } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Medicine, Page, Template } from "@/lib/types";
 import { deriveUsage, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
@@ -36,6 +36,7 @@ export default function TemplatesPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<Template | null>(null); // mẫu chờ xác nhận xóa
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Filter + phân trang (client-side trên danh sách đã tải).
   const [q, setQ] = useState("");
@@ -43,7 +44,9 @@ export default function TemplatesPage() {
   const [page, setPage] = useState(0);
 
   const load = useCallback(() => {
-    api<Template[]>("/api/doctor/templates").then(setTemplates).catch(() => {});
+    api<Template[]>("/api/doctor/templates")
+      .then((list) => { setTemplates(list); setLoadFailed(false); })
+      .catch(() => setLoadFailed(true));
   }, []);
 
   useEffect(load, [load]);
@@ -233,7 +236,8 @@ export default function TemplatesPage() {
       </div>
 
       <div className="space-y-2">
-        {filtered.length === 0 && !form && (
+        {loadFailed && <LoadError onRetry={load} />}
+        {!loadFailed && filtered.length === 0 && !form && (
           <EmptyState
             icon={<IconStar size={20} />}
             title={templates.length === 0 ? "Chưa có thuốc mẫu nào" : "Không có thuốc mẫu khớp bộ lọc"}

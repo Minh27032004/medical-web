@@ -84,6 +84,29 @@ export function EmptyState({
   );
 }
 
+/**
+ * Báo lỗi TẢI DỮ LIỆU + nút thử lại.
+ * Trước đây mọi hàm load() đều .catch(() => {}) nên API hỏng ra màn hình trắng giống hệt
+ * "chưa có dữ liệu" — bác sĩ tưởng mất dữ liệu. Render lỗi kèm retry thay vì nuốt.
+ */
+export function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="card flex flex-col items-center justify-center text-center px-6 py-12">
+      <div className="w-12 h-12 rounded-xl border border-red-200 bg-red-50 text-red-600 flex items-center justify-center mb-4">
+        <IconAlert size={22} />
+      </div>
+      <p className="font-semibold text-gray-900">Không tải được dữ liệu</p>
+      <p className="text-sm text-gray-500 mt-1 max-w-sm">
+        Máy chủ chưa phản hồi hoặc mất kết nối mạng. Dữ liệu vẫn còn nguyên, thử tải lại nhé.
+      </p>
+      <button onClick={onRetry} className="btn-ghost mt-5">
+        <IconRefresh size={15} />
+        Thử lại
+      </button>
+    </div>
+  );
+}
+
 /* ===== Skeleton đang tải — mô phỏng bảng/danh sách để đỡ giật layout ===== */
 export function Loading({ rows = 4 }: { rows?: number }) {
   return (

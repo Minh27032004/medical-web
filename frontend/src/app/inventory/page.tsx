@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
-import { Badge, EmptyState, IconAlert, IconDroplet, IconPill, IconPlus, IconSyringe, Loading } from "@/components/ui";
+import { Badge, EmptyState, IconAlert, IconDroplet, IconPill, IconPlus, IconSyringe, LoadError, Loading } from "@/components/ui";
 import { useDebounced } from "@/hooks/useDebounced";
 import { api, apiForm, ApiError } from "@/lib/api";
 import { UNIT_LABEL, UNIT_OPTIONS, type Medicine, type Page } from "@/lib/types";
@@ -74,6 +74,7 @@ export default function InventoryPage() {
   const [uploading, setUploading] = useState(false);
   const [adjustFor, setAdjustFor] = useState<Medicine | null>(null);
   const [deleting, setDeleting] = useState<Medicine | null>(null); // thuốc chờ xác nhận xóa
+  const [loadFailed, setLoadFailed] = useState(false);
   const [editing, setEditing] = useState<Medicine | null>(null); // thuốc đang sửa (null = đang thêm mới)
   const [origSig, setOrigSig] = useState(""); // chữ ký cấu trúc kho lúc mở form sửa
   const [filter, setFilter] = useState<StockFilter>("all");
@@ -85,8 +86,8 @@ export default function InventoryPage() {
   const load = useCallback(() => {
     // size lớn vì lọc uống/tiêm/truyền dịch + phân trang đều chạy client-side trên danh sách này.
     api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(dq)}&size=500`)
-      .then((p) => setItems(p.content))
-      .catch(() => {})
+      .then((p) => { setItems(p.content); setLoadFailed(false); })
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoading(false));
   }, [dq]);
 
@@ -503,7 +504,8 @@ export default function InventoryPage() {
       )}
 
       {loading && <Loading />}
-      {!loading && filtered.length === 0 && !showForm && (
+      {!loading && loadFailed && <LoadError onRetry={() => { setLoading(true); load(); }} />}
+      {!loading && !loadFailed && filtered.length === 0 && !showForm && (
         <EmptyState
           icon={<IconPill size={22} />}
           title={items.length === 0 ? "Kho thuốc trống" : "Không có thuốc khớp bộ lọc"}
