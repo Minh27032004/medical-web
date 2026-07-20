@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useCallback, useEffect, useMemo, useState } from "react";
+import { use, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PatientForm from "@/components/PatientForm";
 import { Badge, IconAlert, IconPlus, IconSyringe, Loading } from "@/components/ui";
-import { invalidate } from "@/hooks/useApiData";
+import { useApiData } from "@/hooks/useApiData";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type Patient, type VisitRow } from "@/lib/types";
 
@@ -20,33 +20,20 @@ function sessionLabel(iso: string) {
 
 export default function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [visits, setVisits] = useState<VisitRow[]>([]);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState("");
   const router = useRouter();
+
+  // Hai nguồn riêng để mỗi cái tự cache: quay lại hồ sơ vừa xem là hiện ngay.
+  const { data: patient, failed: patientFailed, reload: reloadPatient } =
+    useApiData<Patient>(`/api/doctor/patients/${id}`);
+  const { data: visits = [] } = useApiData<VisitRow[]>(`/api/doctor/patients/${id}/visits`);
 
   /** Xóa mềm hồ sơ — lịch sử khám giữ nguyên, chỉ ẩn bệnh nhân khỏi danh sách. */
   async function removePatient() {
     await api(`/api/doctor/patients/${id}`, { method: "DELETE" });
-    invalidate("/api/doctor/patients");
     router.push("/patients");
   }
-
-  const load = useCallback(() => {
-    Promise.all([
-      api<Patient>(`/api/doctor/patients/${id}`),
-      api<VisitRow[]>(`/api/doctor/patients/${id}/visits`),
-    ])
-      .then(([p, v]) => {
-        setPatient(p);
-        setVisits(v);
-      })
-      .catch(() => setError("Không tải được hồ sơ bệnh nhân"));
-  }, [id]);
-
-  useEffect(load, [load, editing]);
 
   // Gom theo NGÀY (visits đã sắp mới→cũ): mỗi ngày một dòng, nhiều buổi chung một ô.
   const byDay = useMemo(() => {
@@ -60,7 +47,11 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     return [...map.entries()];
   }, [visits]);
 
-  if (error) return <p className="text-red-600 py-8 text-center">{error}</p>;
+  if (patientFailed) {
+    return (
+      <p className="text-red-600 py-8 text-center">Không tải được hồ sơ bệnh nhân</p>
+    );
+  }
   if (!patient) return <Loading />;
 
   if (editing) {
@@ -69,7 +60,9 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         <h1 className="page-title mb-4">Sửa hồ sơ: {patient.fullName}</h1>
         <PatientForm
           initial={patient}
-          onSaved={(saved) => { setPatient(saved); setEditing(false); }}
+          // api(PUT) đã xóa cache, reload lấy bản mới — không tự setState để tránh
+          // lệch giữa dữ liệu hiển thị và dữ liệu trong cache.
+          onSaved={() => { setEditing(false); reloadPatient(); }}
           onCancel={() => setEditing(false)}
         />
       </div>

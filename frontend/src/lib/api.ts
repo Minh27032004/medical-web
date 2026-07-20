@@ -1,3 +1,4 @@
+import { cacheClear } from "./apiCache";
 import { createSupabaseClient } from "./supabase";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -93,6 +94,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
 
   if (!res.ok) throw await toApiError(res);
+
+  // Ghi thành công → dữ liệu đọc đang cache có thể đã cũ. Xóa sạch cho chắc (xem apiCache.ts).
+  if ((options.method ?? "GET").toUpperCase() !== "GET") cacheClear();
+
   if (res.status === 204) return undefined as T;
   return res.json();
 }
@@ -162,5 +167,6 @@ export async function apiForm<T>(path: string, formData: FormData): Promise<T> {
   }
 
   if (!res.ok) throw await toApiError(res);
+  cacheClear(); // upload là thao tác ghi
   return res.json();
 }

@@ -1,28 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Badge, IconMail, IconPlus, LoadError } from "@/components/ui";
+import { useApiData } from "@/hooks/useApiData";
 import { api, ApiError } from "@/lib/api";
 import type { DoctorRow } from "@/lib/types";
 
 export default function AdminDoctorsPage() {
-  const [doctors, setDoctors] = useState<DoctorRow[]>([]);
+  const { data: doctors = [], failed: loadFailed, reload: load } =
+    useApiData<DoctorRow[]>("/api/admin/doctors");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ email: "", username: "", password: "", fullName: "", phone: "", clinicName: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [blocking, setBlocking] = useState<DoctorRow | null>(null); // tài khoản chờ xác nhận khóa
-  const [loadFailed, setLoadFailed] = useState(false);
-
-  const load = useCallback(() => {
-    api<DoctorRow[]>("/api/admin/doctors")
-      .then((list) => { setDoctors(list); setLoadFailed(false); })
-      .catch(() => setLoadFailed(true));
-  }, []);
-
-  useEffect(load, [load]);
-
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);

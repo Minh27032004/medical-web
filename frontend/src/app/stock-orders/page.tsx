@@ -1,11 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSearch, LoadError, Loading,
 } from "@/components/ui";
+import { useApiData } from "@/hooks/useApiData";
 import { api, apiDownload, ApiError } from "@/lib/api";
 import {
   STOCK_ORDER_STATUS_LABEL,
@@ -25,9 +26,8 @@ interface DraftLine {
 type Mode = null | "QUICK" | "MANUAL";
 
 export default function StockOrdersPage() {
-  const [orders, setOrders] = useState<StockOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
+  const { data: orders = [], loading, failed: loadFailed, reload: load } =
+    useApiData<StockOrder[]>("/api/doctor/stock-orders");
 
   const [mode, setMode] = useState<Mode>(null);
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -38,15 +38,6 @@ export default function StockOrdersPage() {
   const [openId, setOpenId] = useState<string | null>(null); // đơn đang mở chi tiết
   const [receiving, setReceiving] = useState<StockOrder | null>(null);
   const [cancelling, setCancelling] = useState<StockOrder | null>(null);
-
-  const load = useCallback(() => {
-    api<StockOrder[]>("/api/doctor/stock-orders")
-      .then((list) => { setOrders(list); setLoadFailed(false); })
-      .catch(() => setLoadFailed(true))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(load, [load]);
 
   /** Nhập nhanh: kéo danh sách thuốc sắp hết, mỗi thuốc 1 đơn vị lớn nhất. */
   async function startQuick() {
@@ -202,7 +193,7 @@ export default function StockOrdersPage() {
       )}
 
       {loading && <Loading />}
-      {!loading && loadFailed && <LoadError onRetry={() => { setLoading(true); load(); }} />}
+      {!loading && loadFailed && <LoadError onRetry={load} />}
 
       {!loading && !loadFailed && orders.length === 0 && !mode && (
         <EmptyState

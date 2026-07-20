@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe, LoadError } from "@/components/ui";
+import { useApiData } from "@/hooks/useApiData";
 import { api, ApiError } from "@/lib/api";
 import type { Medicine, Page, Template } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
@@ -34,25 +35,18 @@ const emptyForm = (): FormState => ({
 });
 
 export default function TemplatesPage() {
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const { data: templates = [], loading, failed, reload: load } = useApiData<Template[]>(
+    "/api/doctor/templates"
+  );
   const [form, setForm] = useState<FormState | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<Template | null>(null); // mẫu chờ xác nhận xóa
-  const [loadFailed, setLoadFailed] = useState(false);
 
   // Filter + phân trang (client-side trên danh sách đã tải).
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<StockFilter>("all");
   const [page, setPage] = useState(0);
-
-  const load = useCallback(() => {
-    api<Template[]>("/api/doctor/templates")
-      .then((list) => { setTemplates(list); setLoadFailed(false); })
-      .catch(() => setLoadFailed(true));
-  }, []);
-
-  useEffect(load, [load]);
 
   // Lọc theo tên + loại thuốc; reset về trang đầu khi đổi điều kiện.
   const filtered = useMemo(() => {
@@ -271,8 +265,8 @@ export default function TemplatesPage() {
       </div>
 
       <div className="space-y-2">
-        {loadFailed && <LoadError onRetry={load} />}
-        {!loadFailed && filtered.length === 0 && !form && (
+        {failed && <LoadError onRetry={load} />}
+        {!failed && !loading && filtered.length === 0 && !form && (
           <EmptyState
             icon={<IconStar size={20} />}
             title={templates.length === 0 ? "Chưa có thuốc mẫu nào" : "Không có thuốc mẫu khớp bộ lọc"}

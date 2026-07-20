@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconDroplet, IconPill, IconPlus, IconSyringe, LoadError, Loading } from "@/components/ui";
+import { useApiData } from "@/hooks/useApiData";
 import { useDebounced } from "@/hooks/useDebounced";
 import { api, apiForm, ApiError } from "@/lib/api";
 import { UNIT_LABEL, UNIT_OPTIONS, type Medicine, type Page } from "@/lib/types";
@@ -65,8 +66,6 @@ function ratiosOf(m: Medicine): Record<string, string> {
 
 export default function InventoryPage() {
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<Medicine[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [error, setError] = useState("");
@@ -74,7 +73,6 @@ export default function InventoryPage() {
   const [uploading, setUploading] = useState(false);
   const [adjustFor, setAdjustFor] = useState<Medicine | null>(null);
   const [deleting, setDeleting] = useState<Medicine | null>(null); // thuốc chờ xác nhận xóa
-  const [loadFailed, setLoadFailed] = useState(false);
   const [editing, setEditing] = useState<Medicine | null>(null); // thuốc đang sửa (null = đang thêm mới)
   const [origSig, setOrigSig] = useState(""); // chữ ký cấu trúc kho lúc mở form sửa
   const [filter, setFilter] = useState<StockFilter>("all");
@@ -83,15 +81,11 @@ export default function InventoryPage() {
   // Chỉ trễ khi GÕ tìm kiếm; lần vào trang tải NGAY.
   const dq = useDebounced(q, 300);
 
-  const load = useCallback(() => {
-    // size lớn vì lọc uống/tiêm/truyền dịch + phân trang đều chạy client-side trên danh sách này.
-    api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(dq)}&size=500`)
-      .then((p) => { setItems(p.content); setLoadFailed(false); })
-      .catch(() => setLoadFailed(true))
-      .finally(() => setLoading(false));
-  }, [dq]);
-
-  useEffect(load, [load]);
+  // size lớn vì lọc uống/tiêm/truyền dịch + phân trang đều chạy client-side trên danh sách này.
+  const { data, loading, failed: loadFailed, reload: load } = useApiData<Page<Medicine>>(
+    `/api/doctor/medicines?q=${encodeURIComponent(dq)}&size=500`
+  );
+  const items = data?.content ?? [];
 
   // Lọc uống/tiêm + phân trang client-side; đổi điều kiện → về trang đầu.
   const filtered = useMemo(() => items.filter((m) => {
@@ -531,7 +525,7 @@ export default function InventoryPage() {
       )}
 
       {loading && <Loading />}
-      {!loading && loadFailed && <LoadError onRetry={() => { setLoading(true); load(); }} />}
+      {!loading && loadFailed && <LoadError onRetry={load} />}
       {!loading && !loadFailed && filtered.length === 0 && !showForm && (
         <EmptyState
           icon={<IconPill size={22} />}

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconSyringe, LoadError, Loading } from "@/components/ui";
+import { useApiData } from "@/hooks/useApiData";
 import { api } from "@/lib/api";
 import type { VisitRow } from "@/lib/types";
 
@@ -29,22 +30,13 @@ const QUICK = [
 export default function HistoryPage() {
   const [from, setFrom] = useState(daysAgo(6));
   const [to, setTo] = useState(daysAgo(0));
-  const [visits, setVisits] = useState<VisitRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
+  const { data: visits = [], loading, failed, reload: load } = useApiData<VisitRow[]>(
+    `/api/doctor/visits?from=${from}&to=${to}`
+  );
   const [deleting, setDeleting] = useState<VisitRow | null>(null); // lần khám chờ xác nhận xóa
   const [restoreStock, setRestoreStock] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    api<VisitRow[]>(`/api/doctor/visits?from=${from}&to=${to}`)
-      .then((rows) => { setVisits(rows); setLoadFailed(false); })
-      .catch(() => setLoadFailed(true))
-      .finally(() => setLoading(false));
-  }, [from, to]);
-
-  useEffect(load, [load]);
   useEffect(() => setPage(0), [from, to]); // đổi khoảng ngày → về trang đầu
 
   const totalPages = Math.max(1, Math.ceil(visits.length / PAGE_SIZE));
@@ -107,15 +99,15 @@ export default function HistoryPage() {
       </div>
 
       {loading && <Loading />}
-      {!loading && loadFailed && <LoadError onRetry={() => { setLoading(true); load(); }} />}
-      {!loading && !loadFailed && visits.length === 0 && (
+      {!loading && failed && <LoadError onRetry={load} />}
+      {!loading && !failed && visits.length === 0 && (
         <EmptyState
           title="Không có lần khám nào trong khoảng này"
           hint="Thử mở rộng khoảng ngày, hoặc chọn nhanh 30 ngày ở trên."
         />
       )}
 
-      {!loading && !loadFailed && visits.length > 0 && (
+      {!loading && !failed && visits.length > 0 && (
         <p className="text-xs text-gray-400 mb-2">{visits.length} lượt khám</p>
       )}
 
