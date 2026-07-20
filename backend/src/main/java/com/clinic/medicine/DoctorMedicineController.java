@@ -42,6 +42,12 @@ public class DoctorMedicineController {
         return medicineService.search(doctorId(jwt), q, page, size);
     }
 
+    /** Chi tiết 1 thuốc — trang sửa mở bằng URL trực tiếp nên cần tải riêng. */
+    @GetMapping("/{id}")
+    public MedicineDto get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return medicineService.get(doctorId(jwt), id);
+    }
+
     @GetMapping("/low-stock")
     public List<MedicineDto> lowStock(@AuthenticationPrincipal Jwt jwt) {
         return medicineService.lowStock(doctorId(jwt));

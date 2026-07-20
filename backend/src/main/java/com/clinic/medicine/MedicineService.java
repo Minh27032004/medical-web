@@ -163,6 +163,12 @@ public class MedicineService {
         return repository.findLowStock(doctorId).stream().map(this::toDto).toList();
     }
 
+    /** Một thuốc theo id — cho trang SỬA thuốc (mở thẳng bằng URL nên phải tự tải được). */
+    @Transactional(readOnly = true)
+    public MedicineDto get(UUID doctorId, UUID id) {
+        return toDto(findOwned(doctorId, id));
+    }
+
     /** Thuốc dưới ngưỡng cảnh báo, trả ENTITY — cho module đơn nhập kho dựng gợi ý. */
     @Transactional(readOnly = true)
     public List<Medicine> lowStockEntities(UUID doctorId) {
