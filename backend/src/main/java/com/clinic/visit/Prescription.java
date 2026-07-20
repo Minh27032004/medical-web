@@ -16,6 +16,7 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.UuidGenerator;
 
 /** Đơn thuốc — 1:1 với lần khám (§4.4). */
@@ -37,8 +38,14 @@ public class Prescription {
     @Column(name = "visit_id", nullable = false, unique = true, updatable = false)
     private UUID visitId;
 
+    /**
+     * @BatchSize: hôm nay mọi đường đọc chỉ mở MỘT đơn thuốc nên chưa có tác dụng đo được.
+     * Đặt sẵn để chỗ nào sau này duyệt nhiều lần khám rồi đọc dòng thuốc (thống kê thuốc
+     * dùng nhiều nhất, xuất báo cáo tháng) không tự sinh N+1 mà không ai để ý.
+     */
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "prescription_id", nullable = false)
+    @BatchSize(size = 100)
     private List<PrescriptionItem> items = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)

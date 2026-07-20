@@ -16,6 +16,7 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.UuidGenerator;
 
 /** Đơn nhập kho (V14) — PENDING không đụng tồn; RECEIVED mới cộng vào kho. */
@@ -50,8 +51,14 @@ public class StockOrder {
 
     private String note;
 
+    /**
+     * @BatchSize: danh sách đơn giờ dùng projection nên không nạp collection này nữa; chỉ
+     * có đường mở CHI TIẾT một đơn, tức chưa có tác dụng đo được hôm nay. Đặt sẵn phòng
+     * khi có màn hình duyệt nhiều đơn kèm dòng thuốc (xuất nhiều đơn, đối soát theo tháng).
+     */
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "order_id", nullable = false)
+    @BatchSize(size = 100)
     private List<StockOrderItem> items = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
