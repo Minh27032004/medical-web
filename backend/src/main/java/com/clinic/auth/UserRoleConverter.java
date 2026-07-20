@@ -41,16 +41,17 @@ public class UserRoleConverter implements Converter<Jwt, AbstractAuthenticationT
         var cached = cache.get(userId);
         if (cached == null || cached.expiresAt().isBefore(Instant.now())) {
             var user = userRepository.findById(userId).orElse(null);
-            cached = user == null
-                ? new Cached(null, true, Instant.now().plus(CACHE_TTL))
-                : new Cached(user.getRole(), user.isBlocked(), Instant.now().plus(CACHE_TTL));
+            if (user == null) {
+                // KHÔNG cache kết quả "không tìm thấy". Cache 60s như trước sẽ biến một lần
+                // đọc trượt (replica lag ngay sau khi admin tạo tài khoản, hoặc DB chớp nhoáng)
+                // thành 401 kéo dài nguyên một phút dù tài khoản hoàn toàn bình thường.
+                throw new InvalidBearerTokenException("Tài khoản không tồn tại trong hệ thống");
+            }
+            cached = new Cached(user.getRole(), user.isBlocked(), Instant.now().plus(CACHE_TTL));
             purgeExpiredIfLarge();
             cache.put(userId, cached);
         }
 
-        if (cached.role() == null) {
-            throw new InvalidBearerTokenException("Tài khoản không tồn tại trong hệ thống");
-        }
         if (cached.blocked()) {
             throw new InvalidBearerTokenException("Tài khoản đã bị khóa");
         }

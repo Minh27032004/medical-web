@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { createSupabaseClient } from "@/lib/supabase";
 import type { Me } from "@/lib/types";
 
@@ -32,9 +32,17 @@ function LoginForm() {
         const next = searchParams.get("next");
         router.push(next && next !== "/" ? next : me.role === "ADMIN" ? "/admin/doctors" : "/patients");
         router.refresh();
-      } catch {
-        await supabase.auth.signOut();
-        setError("Bạn chưa có quyền đăng nhập. Vui lòng liên hệ quản trị viên.");
+      } catch (err) {
+        // CHỈ đăng xuất khi backend thực sự từ chối (401/403). Lỗi mạng hoặc 5xx —
+        // hay gặp nhất là Render free tier vừa ngủ dậy — mà đăng xuất kèm câu "chưa có
+        // quyền" thì vừa sai vừa làm bác sĩ hoảng, trong khi tài khoản hoàn toàn bình thường.
+        const status = err instanceof ApiError ? err.status : 0;
+        if (status === 401 || status === 403) {
+          await supabase.auth.signOut();
+          setError("Bạn chưa có quyền đăng nhập. Vui lòng liên hệ quản trị viên.");
+        } else {
+          setError("Máy chủ chưa phản hồi. Đợi vài giây rồi bấm Đăng nhập lại.");
+        }
         setChecking(false);
         setLoading(false);
         done = false;
