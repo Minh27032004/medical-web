@@ -294,6 +294,51 @@ function MedicineInput({
   );
 }
 
+/**
+ * Nháp đơn thuốc đang soạn — giữ trong localStorage để bấm sang mục khác rồi quay lại
+ * không mất công gõ lại chẩn đoán và cả chục dòng thuốc.
+ *
+ * KHÓA THEO TỪNG BỆNH NHÂN. Dùng chung một khóa là hiểm họa thật: soạn dở cho bệnh nhân
+ * A, chuyển sang kê cho B, đơn của A hiện lên và rất dễ bị lưu nhầm cho B.
+ *
+ * TỰ HẾT HẠN sau 12 tiếng: nháp của ca sáng mà chiều mở lại vẫn còn thì dễ tưởng là đơn
+ * của người đang ngồi trước mặt.
+ */
+const VISIT_DRAFT_TTL_MS = 12 * 60 * 60 * 1000;
+
+const visitDraftKey = (patientId: string) => `medical-web:visit-draft:${patientId}`;
+
+interface VisitDraft {
+  diagCode: string;
+  diagName: string;
+  secondary: Diagnosis[];
+  note: string;
+  items: ItemForm[];
+  numDays: string;
+  hasInjectionRow: boolean;
+  hasInfusionRow: boolean;
+  savedAt: string;
+}
+
+function readVisitDraft(patientId: string): VisitDraft | null {
+  try {
+    const raw = localStorage.getItem(visitDraftKey(patientId));
+    if (!raw) return null;
+    const d = JSON.parse(raw) as VisitDraft;
+    if (Date.now() - new Date(d.savedAt).getTime() > VISIT_DRAFT_TTL_MS) {
+      localStorage.removeItem(visitDraftKey(patientId));
+      return null;
+    }
+    // Nháp trống thì bỏ qua — đừng hiện banner "đã khôi phục" cho một form rỗng.
+    const hasContent = !!d.diagCode || !!d.note
+      || d.items?.some((it) => it.medicineName?.trim());
+    return hasContent ? d : null;
+  } catch {
+    localStorage.removeItem(visitDraftKey(patientId));
+    return null;
+  }
+}
+
 function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const { id: patientId } = use(params);
   const router = useRouter();
@@ -315,9 +360,46 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
    * backend trả về lần khám cũ thay vì tạo bản ghi thứ hai + trừ kho lần nữa.
    */
   const [clientRequestId] = useState(() => crypto.randomUUID());
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftRef = useRef<VisitDraft | null>(null);
 
   useEffect(() => {
     api<Patient>(`/api/doctor/patients/${patientId}`).then(setPatient).catch(() => {});
+  }, [patientId]);
+
+  // Khôi phục nháp của ĐÚNG bệnh nhân này. Trong effect vì trang có prerender.
+  useEffect(() => {
+    const d = readVisitDraft(patientId);
+    if (!d) return;
+    setDiagCode(d.diagCode);
+    setDiagName(d.diagName);
+    setSecondary(d.secondary ?? []);
+    setNote(d.note ?? "");
+    if (d.items?.length) setItems(d.items);
+    setNumDays(d.numDays ?? "");
+    setHasInjectionRow(!!d.hasInjectionRow);
+    setHasInfusionRow(!!d.hasInfusionRow);
+    setDraftRestored(true);
+  }, [patientId]);
+
+  // Tự lưu nháp mỗi khi đơn đổi.
+  useEffect(() => {
+    const draft: VisitDraft = {
+      diagCode, diagName, secondary, note, items, numDays,
+      hasInjectionRow, hasInfusionRow, savedAt: new Date().toISOString(),
+    };
+    const hasContent = !!diagCode || !!note || items.some((it) => it.medicineName.trim());
+    if (!hasContent) return; // form trống thì không tạo nháp rác
+    draftRef.current = draft;
+    localStorage.setItem(visitDraftKey(patientId), JSON.stringify(draft));
+  }, [patientId, diagCode, diagName, secondary, note, items, numDays, hasInjectionRow, hasInfusionRow]);
+
+  // Ghi thêm một lần lúc rời trang: effect trên chạy sau khi vẽ, gõ xong bấm đi ngay
+  // thì thay đổi cuối có thể chưa kịp lưu.
+  useEffect(() => () => {
+    if (draftRef.current) {
+      localStorage.setItem(visitDraftKey(patientId), JSON.stringify(draftRef.current));
+    }
   }, [patientId]);
 
   /** Đổ danh sách thuốc từ một đơn cũ vào form + suy số ngày chung. */
@@ -459,6 +541,9 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
             }),
         }),
       });
+      // Lưu xong thì nháp không còn nghĩa lý gì — xóa để lần khám sau bắt đầu sạch.
+      draftRef.current = null;
+      localStorage.removeItem(visitDraftKey(patientId));
       router.push(`/visits/${detail.id}?created=1`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Lưu thất bại");
@@ -481,6 +566,29 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
           Tạo lại đơn gần nhất
         </button>
       </div>
+
+      {draftRestored && (
+        <div className="flex items-start justify-between gap-3 text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-3 py-2">
+          <span>
+            Đơn đang soạn dở của bệnh nhân này được giữ lại. Kiểm tra lại trước khi lưu.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              // Bỏ nháp: trả form về trắng để soạn lại từ đầu.
+              draftRef.current = null;
+              localStorage.removeItem(visitDraftKey(patientId));
+              setDiagCode(""); setDiagName(""); setSecondary([]); setNote("");
+              setItems([emptyItem()]); setNumDays("");
+              setHasInjectionRow(false); setHasInfusionRow(false);
+              setDraftRestored(false);
+            }}
+            className="font-medium underline shrink-0"
+          >
+            Bỏ nháp
+          </button>
+        </div>
+      )}
 
       {patient?.hasDrugAllergy && (
         <p className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
