@@ -136,6 +136,11 @@ public class MedicineService {
         return repository.findLowStock(doctorId);
     }
 
+    /** URL ảnh công khai của thuốc — cho module khác dùng lại (đơn nhập kho hiện ảnh). */
+    public String imageUrlOf(Medicine m) {
+        return m == null ? null : storage.publicUrl(m.getImagePath());
+    }
+
     /** factorOf dùng được từ package khác (đơn nhập kho quy đổi số lượng đặt về base). */
     public static BigDecimal factorOfPublic(Medicine m, String unitName) {
         return factorOf(m, unitName);

@@ -197,6 +197,7 @@ export interface StockOrderItem {
   qty: number;
   currentStockDisplay: string | null;
   lowStock: boolean;
+  imageUrl: string | null;
 }
 
 export interface StockOrder {

@@ -41,7 +41,8 @@ public class StockOrderService {
     public record CreateRequest(String source, String note, List<ItemInput> items) {}
 
     public record ItemDto(UUID medicineId, String medicineName, String unitName, String unitLabel,
-                          BigDecimal qty, String currentStockDisplay, boolean lowStock) {}
+                          BigDecimal qty, String currentStockDisplay, boolean lowStock,
+                          String imageUrl) {}
 
     public record OrderDto(UUID id, String code, String status, String source, String note,
                            Instant createdAt, Instant receivedAt, Instant cancelledAt,
@@ -194,7 +195,8 @@ public class StockOrderService {
                 i.getUnitLabel(), i.getQty(),
                 m != null ? MedicineService.stockDisplay(m) : null,
                 m != null && m.getStockBaseQty()
-                    .compareTo(BigDecimal.valueOf(m.getLowStockThreshold())) < 0);
+                    .compareTo(BigDecimal.valueOf(m.getLowStockThreshold())) < 0,
+                medicineService.imageUrlOf(m));
         }).toList();
         return new OrderDto(o.getId(), o.getCode(), o.getStatus(), o.getSource(), o.getNote(),
             o.getCreatedAt(), o.getReceivedAt(), o.getCancelledAt(), items);

@@ -60,7 +60,9 @@ public class StockOrderExcelWriter {
             int headerRow = r;
             var head = sheet.createRow(r++);
             head.setHeightInPoints(24);
-            String[] cols = {"STT", "Tên thuốc", "Đơn vị", "Số lượng", "Tồn hiện tại"};
+            // Số lượng đứng TRƯỚC đơn vị (đọc như "3 hộp"); bỏ cột tồn hiện tại — file này
+            // gửi ra ngoài cho nhà thuốc, họ không cần biết tồn nội bộ của phòng khám.
+            String[] cols = {"STT", "Tên thuốc", "Số lượng", "Đơn vị"};
             for (int c = 0; c < cols.length; c++) {
                 var cell = head.createCell(c);
                 cell.setCellValue(cols[c]);
@@ -73,10 +75,8 @@ public class StockOrderExcelWriter {
                 row.setHeightInPoints(20);
                 cell(row, 0, s.cellCenter).setCellValue(i++);
                 cell(row, 1, s.cell).setCellValue(it.medicineName());
-                cell(row, 2, s.cellCenter).setCellValue(it.unitLabel());
-                cell(row, 3, s.cellNumber).setCellValue(it.qty().doubleValue());
-                cell(row, 4, s.cellCenter).setCellValue(
-                    it.currentStockDisplay() != null ? it.currentStockDisplay() : "—");
+                cell(row, 2, s.cellNumber).setCellValue(it.qty().doubleValue());
+                cell(row, 3, s.cellCenter).setCellValue(it.unitLabel());
             }
 
             // Dòng tổng
@@ -84,11 +84,10 @@ public class StockOrderExcelWriter {
             total.setHeightInPoints(22);
             var totalLabel = cell(total, 0, s.totalLabel);
             totalLabel.setCellValue("Tổng số dòng thuốc");
-            sheet.addMergedRegion(new CellRangeAddress(total.getRowNum(), total.getRowNum(), 0, 2));
+            sheet.addMergedRegion(new CellRangeAddress(total.getRowNum(), total.getRowNum(), 0, 1));
             cell(total, 1, s.totalLabel);
-            cell(total, 2, s.totalLabel);
-            cell(total, 3, s.totalValue).setCellValue(order.items().size());
-            cell(total, 4, s.totalLabel);
+            cell(total, 2, s.totalValue).setCellValue(order.items().size());
+            cell(total, 3, s.totalLabel);
 
             r += 2;
             r = row(sheet, r, s.sub, "Người lập đơn: " + blank(doctor.getFullName(), "—"));
@@ -102,10 +101,9 @@ public class StockOrderExcelWriter {
             }
 
             sheet.setColumnWidth(0, 1800);
-            sheet.setColumnWidth(1, 12000);
-            sheet.setColumnWidth(2, 3200);
-            sheet.setColumnWidth(3, 3200);
-            sheet.setColumnWidth(4, 6000);
+            sheet.setColumnWidth(1, 14000);
+            sheet.setColumnWidth(2, 3600);
+            sheet.setColumnWidth(3, 3600);
             // Khóa hàng tiêu đề khi cuộn — đơn dài vẫn biết đang đọc cột nào
             sheet.createFreezePane(0, headerRow + 1);
 

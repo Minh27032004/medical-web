@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
-  Badge, EmptyState, IconAlert, IconPlus, IconSearch, LoadError, Loading,
+  Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSearch, LoadError, Loading,
 } from "@/components/ui";
 import { api, apiDownload, ApiError } from "@/lib/api";
 import {
@@ -34,6 +35,7 @@ export default function StockOrdersPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const [openId, setOpenId] = useState<string | null>(null); // đơn đang mở chi tiết
   const [receiving, setReceiving] = useState<StockOrder | null>(null);
   const [cancelling, setCancelling] = useState<StockOrder | null>(null);
 
@@ -45,9 +47,6 @@ export default function StockOrdersPage() {
   }, []);
 
   useEffect(load, [load]);
-
-  const pending = useMemo(() => orders.filter((o) => o.status === "PENDING"), [orders]);
-  const done = useMemo(() => orders.filter((o) => o.status !== "PENDING"), [orders]);
 
   /** Nhập nhanh: kéo danh sách thuốc sắp hết, mỗi thuốc 1 đơn vị lớn nhất. */
   async function startQuick() {
@@ -212,36 +211,34 @@ export default function StockOrdersPage() {
         />
       )}
 
-      {pending.length > 0 && (
-        <section className="mb-6">
-          <h2 className="font-semibold text-ink mb-2">Đang chờ xử lý ({pending.length})</h2>
-          <div className="space-y-3">
-            {pending.map((o) => (
-              <OrderCard
-                key={o.id}
-                order={o}
-                onExport={() => apiDownload(`/api/doctor/stock-orders/${o.id}/export`, `${o.code}.xlsx`)}
-                onReceive={() => setReceiving(o)}
-                onCancel={() => setCancelling(o)}
-              />
-            ))}
+      {!loading && !loadFailed && orders.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Đơn nhập kho</th>
+                  <th className="w-44">Ngày tạo</th>
+                  <th className="w-36">Trạng thái</th>
+                  <th className="w-64"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((o) => (
+                  <OrderRows
+                    key={o.id}
+                    order={o}
+                    open={openId === o.id}
+                    onToggle={() => setOpenId(openId === o.id ? null : o.id)}
+                    onExport={() => apiDownload(`/api/doctor/stock-orders/${o.id}/export`, `${o.code}.xlsx`)}
+                    onReceive={o.status === "PENDING" ? () => setReceiving(o) : undefined}
+                    onCancel={o.status === "PENDING" ? () => setCancelling(o) : undefined}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
-        </section>
-      )}
-
-      {done.length > 0 && (
-        <section>
-          <h2 className="font-semibold text-ink mb-2">Đã xử lý</h2>
-          <div className="space-y-3">
-            {done.map((o) => (
-              <OrderCard
-                key={o.id}
-                order={o}
-                onExport={() => apiDownload(`/api/doctor/stock-orders/${o.id}/export`, `${o.code}.xlsx`)}
-              />
-            ))}
-          </div>
-        </section>
+        </div>
       )}
 
       <ConfirmDialog
@@ -434,36 +431,49 @@ function MedicineSearch({ onPick }: { onPick: (m: Medicine) => void }) {
   );
 }
 
-/* ===================== Thẻ một đơn ===================== */
+/* ===================== Một đơn: dòng tóm tắt + hàng chi tiết ===================== */
 
-function OrderCard({
-  order, onExport, onReceive, onCancel,
+/**
+ * Danh sách chỉ hiện MÃ ĐƠN + NGÀY TẠO. Trước đây trải hết dòng thuốc ra ngoài nên 5 đơn
+ * là kín màn hình, không so sánh được đơn nào với đơn nào. Chi tiết mở khi bấm vào dòng.
+ */
+function OrderRows({
+  order, open, onToggle, onExport, onReceive, onCancel,
 }: {
   order: StockOrder;
+  open: boolean;
+  onToggle: () => void;
   onExport: () => void;
   onReceive?: () => void;
   onCancel?: () => void;
 }) {
   const tone = order.status === "PENDING" ? "amber" : order.status === "RECEIVED" ? "blue" : "red";
   return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-semibold text-ink">{order.code}</span>
-          <Badge tone={tone}>{STOCK_ORDER_STATUS_LABEL[order.status]}</Badge>
-          <span className="text-xs text-gray-500">
-            {new Date(order.createdAt).toLocaleString("vi-VN", {
-              hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric",
-            })}
-            {order.source === "QUICK" && " · nhập nhanh"}
+    <>
+      <tr className={open ? "bg-blue-50/40" : ""}>
+        <td>
+          <button onClick={onToggle} className="flex items-center gap-2 text-left group">
+            <span className={`text-gray-400 transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
+            <span className="font-semibold text-ink group-hover:text-blue-700 group-hover:underline">
+              Đơn {order.code}
+            </span>
+            <span className="text-xs text-gray-400">({order.items.length} thuốc)</span>
+          </button>
+        </td>
+        <td className="text-gray-600">
+          {new Date(order.createdAt).toLocaleDateString("vi-VN")}
+          <span className="text-gray-400 text-xs">
+            {" "}
+            {new Date(order.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
           </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onExport} className="text-sm font-medium text-blue-700 hover:underline">
+        </td>
+        <td><Badge tone={tone}>{STOCK_ORDER_STATUS_LABEL[order.status]}</Badge></td>
+        <td className="text-right whitespace-nowrap">
+          <button onClick={onExport} className="text-sm font-medium text-blue-700 hover:underline mr-3">
             Tải file
           </button>
           {onReceive && (
-            <button onClick={onReceive} className="btn-primary py-1.5 px-3 text-sm">
+            <button onClick={onReceive} className="btn-primary py-1.5 px-3 text-sm mr-2">
               Xác nhận nhập thuốc
             </button>
           )}
@@ -472,28 +482,47 @@ function OrderCard({
               Hủy
             </button>
           )}
-        </div>
-      </div>
+        </td>
+      </tr>
 
-      <ul className="divide-y divide-gray-100">
-        {order.items.map((it, i) => (
-          <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
-            <span className="font-medium text-ink">{it.medicineName}</span>
-            <span className="text-gray-600">
-              {it.qty} {it.unitLabel}
-              {it.currentStockDisplay && (
-                <span className="text-gray-400"> · tồn {it.currentStockDisplay}</span>
+      {open && (
+        <tr>
+          <td colSpan={4} className="bg-gray-50 p-0">
+            <div className="px-5 py-4">
+              <ul className="space-y-2">
+                {order.items.map((it, i) => (
+                  <li key={i} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                    <span className="w-11 h-11 rounded-lg bg-gray-100 overflow-hidden shrink-0 relative">
+                      {it.imageUrl ? (
+                        <Image src={it.imageUrl} alt="" fill className="object-cover" unoptimized />
+                      ) : (
+                        <span className="w-full h-full flex items-center justify-center text-gray-400">
+                          <IconPill size={20} />
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block font-medium text-ink truncate">{it.medicineName}</span>
+                      {it.currentStockDisplay && (
+                        <span className="block text-xs text-gray-500">
+                          tồn hiện tại: {it.currentStockDisplay}
+                          {it.lowStock && <span className="text-red-600 font-medium"> · sắp hết</span>}
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold text-ink shrink-0">
+                      {it.qty} {it.unitLabel}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {order.note && (
+                <p className="text-xs text-gray-500 mt-3">Ghi chú: {order.note}</p>
               )}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      {order.note && (
-        <p className="px-4 py-2 text-xs text-gray-500 border-t border-gray-100">
-          Ghi chú: {order.note}
-        </p>
+            </div>
+          </td>
+        </tr>
       )}
-    </div>
+    </>
   );
 }
