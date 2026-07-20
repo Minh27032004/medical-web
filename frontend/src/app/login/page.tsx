@@ -104,7 +104,6 @@ function LoginForm() {
             width={229}
             height={192}
             priority
-            unoptimized
             className="mx-auto w-auto h-24 object-contain"
           />
           <h1 className="text-xl font-semibold text-gray-900 mt-4">Đăng nhập hệ thống</h1>

@@ -37,6 +37,8 @@ git push main
 Cơ chế port: Render bơm env `PORT`, `application.yml` đọc `${PORT:8080}` — không cần chỉnh.
 
 Lưu ý gói **Free**: service ngủ sau 15 phút không hoạt động, request đầu mất ~30–60s đánh thức.
+**Hiện đã có dịch vụ ping ngoài mỗi 5 phút giữ instance thức**, nên cold start không còn
+là vấn đề thực tế — đừng dựng thêm cơ chế keep-alive nữa.
 Dùng thật hàng ngày nên cân nhắc gói Starter (chạy liên tục). Nâng cấp không cần cấu hình lại.
 
 ## B. Frontend tự deploy (Vercel) — thiết lập 1 lần

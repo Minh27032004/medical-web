@@ -32,7 +32,11 @@ public class DoctorUploadController {
         var ext = ALLOWED.get(file.getContentType());
         if (ext == null) throw ApiException.badRequest("Chỉ nhận ảnh JPEG, PNG hoặc WebP");
         try {
-            var path = storage.upload(UUID.randomUUID() + "." + ext, file.getBytes(), file.getContentType());
+            // Nén TRƯỚC khi lưu: bác sĩ chụp vỏ hộp bằng điện thoại là ra file 3–5MB, trong khi
+            // ảnh chỉ hiển thị ở cỡ 40–80px. Không nén thì tốn dung lượng bucket vĩnh viễn và
+            // mỗi lần mở kho thuốc lại kéo về ngần ấy byte.
+            var bytes = ImageShrinker.shrink(file.getBytes(), ext);
+            var path = storage.upload(UUID.randomUUID() + "." + ext, bytes, file.getContentType());
             return Map.of("path", path, "url", storage.publicUrl(path));
         } catch (IOException e) {
             throw new UncheckedIOException(e);

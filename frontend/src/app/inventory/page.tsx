@@ -374,7 +374,7 @@ export default function InventoryPage() {
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden shrink-0 relative">
               {form.imageUrl ? (
-                <Image src={form.imageUrl} alt="" fill className="object-cover" unoptimized />
+                <Image src={form.imageUrl} alt="" fill sizes="80px" className="object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400"><IconPill size={26} /></div>
               )}
@@ -571,7 +571,7 @@ export default function InventoryPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden shrink-0 relative">
                           {m.imageUrl ? (
-                            <Image src={m.imageUrl} alt="" fill className="object-cover" unoptimized />
+                            <Image src={m.imageUrl} alt="" fill sizes="40px" className="object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400">
                               {m.injection ? <IconSyringe size={18} /> : m.infusion ? <IconDroplet size={18} /> : <IconPill size={18} />}

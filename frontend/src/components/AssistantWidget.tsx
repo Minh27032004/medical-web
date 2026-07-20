@@ -135,7 +135,6 @@ export default function AssistantWidget() {
             alt="Trợ lý"
             fill
             sizes="64px"
-            unoptimized
             draggable={false}
             className="object-contain p-1 pointer-events-none"
           />

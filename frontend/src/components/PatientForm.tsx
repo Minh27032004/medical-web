@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { IconAlert } from "@/components/ui";
+import { invalidate } from "@/hooks/useApiData";
 import { api, ApiError } from "@/lib/api";
 import type { Patient } from "@/lib/types";
 
@@ -49,6 +50,8 @@ export default function PatientForm({
       const saved = initial
         ? await api<Patient>(`/api/doctor/patients/${initial.id}`, { method: "PUT", body })
         : await api<Patient>("/api/doctor/patients", { method: "POST", body });
+      // Danh sách bệnh nhân có cache — không xóa thì vừa thêm xong quay ra vẫn thấy bản cũ.
+      invalidate("/api/doctor/patients");
       if (onSaved) {
         // Sửa tại chỗ: router.push tới ĐÚNG url đang đứng không điều hướng đi đâu cả,
         // component không unmount nên nút kẹt vĩnh viễn ở "Đang lưu...". Trả về cho

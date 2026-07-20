@@ -1,34 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconPlus, LoadError, Loading } from "@/components/ui";
+import { useApiData } from "@/hooks/useApiData";
 import { useDebounced } from "@/hooks/useDebounced";
-import { api } from "@/lib/api";
 import { GENDER_LABEL, type Page, type Patient } from "@/lib/types";
 
 export default function PatientsPage() {
   const [q, setQ] = useState("");
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [loadFailed, setLoadFailed] = useState(false);
   // Chỉ trễ khi GÕ tìm kiếm; lần vào trang & bấm phân trang tải NGAY.
   const dq = useDebounced(q, 300);
 
-  const load = useCallback(() => {
-    api<Page<Patient>>(`/api/doctor/patients?q=${encodeURIComponent(dq)}&page=${page}&size=10`)
-      .then((p) => { setPatients(p.content); setTotalPages(p.totalPages); setLoadFailed(false); })
-      .catch(() => setLoadFailed(true))
-      .finally(() => setLoading(false));
-  }, [dq, page]);
+  // Có cache thì danh sách hiện NGAY khi quay lại trang, bản mới tải ngầm ở nền.
+  const { data, loading, failed, reload } = useApiData<Page<Patient>>(
+    `/api/doctor/patients?q=${encodeURIComponent(dq)}&page=${page}&size=10`
+  );
+  const patients = data?.content ?? [];
+  const totalPages = data?.totalPages ?? 1;
 
   // Đổi từ khóa → về trang đầu.
   useEffect(() => setPage(0), [dq]);
-
-  useEffect(load, [load]);
 
   return (
     <div>
@@ -50,8 +44,8 @@ export default function PatientsPage() {
       </div>
 
       {loading && <Loading />}
-      {!loading && loadFailed && <LoadError onRetry={() => { setLoading(true); load(); }} />}
-      {!loading && !loadFailed && patients.length === 0 && (
+      {!loading && failed && <LoadError onRetry={reload} />}
+      {!loading && !failed && patients.length === 0 && (
         <EmptyState
           title={q ? "Không tìm thấy bệnh nhân nào" : "Chưa có bệnh nhân"}
           hint={q ? `Không có ai khớp "${q}" — thử từ khóa khác.` : "Tạo hồ sơ đầu tiên để bắt đầu khám."}

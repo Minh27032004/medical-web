@@ -494,7 +494,7 @@ function OrderRows({
                   <li key={i} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2">
                     <span className="w-11 h-11 rounded-lg bg-gray-100 overflow-hidden shrink-0 relative">
                       {it.imageUrl ? (
-                        <Image src={it.imageUrl} alt="" fill className="object-cover" unoptimized />
+                        <Image src={it.imageUrl} alt="" fill sizes="44px" className="object-cover" />
                       ) : (
                         <span className="w-full h-full flex items-center justify-center text-gray-400">
                           <IconPill size={20} />

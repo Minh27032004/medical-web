@@ -6,6 +6,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import PatientForm from "@/components/PatientForm";
 import { Badge, IconAlert, IconPlus, IconSyringe, Loading } from "@/components/ui";
+import { invalidate } from "@/hooks/useApiData";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type Patient, type VisitRow } from "@/lib/types";
 
@@ -29,6 +30,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   /** Xóa mềm hồ sơ — lịch sử khám giữ nguyên, chỉ ẩn bệnh nhân khỏi danh sách. */
   async function removePatient() {
     await api(`/api/doctor/patients/${id}`, { method: "DELETE" });
+    invalidate("/api/doctor/patients");
     router.push("/patients");
   }
 
