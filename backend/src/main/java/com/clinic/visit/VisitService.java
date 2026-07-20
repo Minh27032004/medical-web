@@ -87,7 +87,8 @@ public class VisitService {
     public record VisitRow(UUID id, Instant visitDate, UUID patientId, String patientName,
                            String diagnosisCode, String diagnosisName, boolean hasInjection) {}
 
-    public record PatientInfo(UUID id, String fullName, String phone, String gender, String address,
+    public record PatientInfo(UUID id, String fullName, String phone, String gender,
+                              Integer age, String address,
                               boolean hasDrugAllergy, String drugAllergyNote,
                               boolean hasChronicCondition, String chronicConditionNote) {}
 
@@ -316,7 +317,7 @@ public class VisitService {
 
     private static PatientInfo toPatientInfo(Patient p) {
         return new PatientInfo(p.getId(), p.getFullName(), p.getPhone(), p.getGender(),
-            p.getAddress(), p.isHasDrugAllergy(), p.getDrugAllergyNote(),
+            p.getAge(), p.getAddress(), p.isHasDrugAllergy(), p.getDrugAllergyNote(),
             p.isHasChronicCondition(), p.getChronicConditionNote());
     }
 

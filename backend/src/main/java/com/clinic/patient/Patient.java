@@ -38,6 +38,9 @@ public class Patient {
     /** male | female | other — tùy chọn. */
     private String gender;
 
+    /** Tuổi — TÙY CHỌN, null = chưa ghi. Không tự tăng theo thời gian (V13). */
+    private Integer age;
+
     private String address;
 
     @Column(name = "has_drug_allergy", nullable = false)

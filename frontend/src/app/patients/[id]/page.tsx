@@ -80,10 +80,13 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
           <div>
             <h1 className="page-title">{patient.fullName}</h1>
             <p className="text-sm text-gray-600 mt-0.5">
-              {patient.gender ? GENDER_LABEL[patient.gender] : ""}
-              {patient.gender && patient.phone && " · "}
-              {patient.phone}
-              {patient.address && ` · ${patient.address}`}
+              {[
+                patient.gender ? GENDER_LABEL[patient.gender] : null,
+                patient.age != null ? `${patient.age} tuổi` : null,
+                patient.phone,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {patient.hasDrugAllergy && (

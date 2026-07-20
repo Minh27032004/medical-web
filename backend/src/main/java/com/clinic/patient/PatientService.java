@@ -50,13 +50,13 @@ public class PatientService {
     private final PatientRepository repository;
 
     public record UpsertRequest(
-        String fullName, String phone, String gender, String address,
+        String fullName, String phone, String gender, Integer age, String address,
         boolean hasDrugAllergy, String drugAllergyNote,
         boolean hasChronicCondition, String chronicConditionNote
     ) {}
 
     public record PatientDto(
-        UUID id, String fullName, String phone, String gender, String address,
+        UUID id, String fullName, String phone, String gender, Integer age, String address,
         boolean hasDrugAllergy, String drugAllergyNote,
         boolean hasChronicCondition, String chronicConditionNote, Instant createdAt
     ) {}
@@ -148,7 +148,16 @@ public class PatientService {
         p.setFullName(req.fullName().trim());
         p.setPhone(req.phone());
         p.setGender(req.gender());
-        p.setAddress(req.address());
+        // Tuổi tùy chọn; chặn số vô lý ngay ở service (DB cũng có check 0..150 — V13).
+        if (req.age() != null && (req.age() < 0 || req.age() > 150)) {
+            throw ApiException.badRequest("Tuổi phải trong khoảng 0 - 150");
+        }
+        p.setAge(req.age());
+        // Địa chỉ đã bỏ khỏi form (thay bằng tuổi). Chỉ ghi đè khi request thực sự gửi lên,
+        // để dữ liệu địa chỉ cũ của bệnh nhân không bị xóa trắng mỗi lần sửa hồ sơ.
+        if (req.address() != null) {
+            p.setAddress(req.address());
+        }
         p.setHasDrugAllergy(req.hasDrugAllergy());
         p.setDrugAllergyNote(req.hasDrugAllergy() ? req.drugAllergyNote() : null);
         p.setHasChronicCondition(req.hasChronicCondition());
@@ -157,7 +166,7 @@ public class PatientService {
 
     private static PatientDto toDto(Patient p) {
         return new PatientDto(p.getId(), p.getFullName(), p.getPhone(), p.getGender(),
-            p.getAddress(), p.isHasDrugAllergy(), p.getDrugAllergyNote(),
+            p.getAge(), p.getAddress(), p.isHasDrugAllergy(), p.getDrugAllergyNote(),
             p.isHasChronicCondition(), p.getChronicConditionNote(), p.getCreatedAt());
     }
 }

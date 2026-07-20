@@ -31,6 +31,9 @@ export interface Patient {
   fullName: string;
   phone: string | null;
   gender: "male" | "female" | "other" | null;
+  /** Tuổi — tùy chọn, null = chưa ghi (V13). */
+  age: number | null;
+  /** Địa chỉ — dữ liệu cũ, đã bỏ khỏi form nhập (thay bằng tuổi). */
   address: string | null;
   hasDrugAllergy: boolean;
   drugAllergyNote: string | null;

@@ -73,6 +73,7 @@ export default function PatientsPage() {
                   <th>Họ tên</th>
                   <th>SĐT</th>
                   <th>Giới tính</th>
+                  <th>Tuổi</th>
                   <th>Lưu ý</th>
                   <th></th>
                 </tr>
@@ -87,6 +88,7 @@ export default function PatientsPage() {
                     </td>
                     <td className="text-gray-600">{p.phone ?? "—"}</td>
                     <td className="text-gray-600">{p.gender ? GENDER_LABEL[p.gender] : "—"}</td>
+                    <td className="text-gray-600">{p.age ?? "—"}</td>
                     <td className="space-x-1">
                       {p.hasDrugAllergy && (
                         <Badge tone="red" icon={<IconAlert size={13} />} title={p.drugAllergyNote ?? ""}>

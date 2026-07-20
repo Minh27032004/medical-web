@@ -70,9 +70,9 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
           <p>
             Họ tên: <strong>{visit.patient.fullName}</strong>
             {visit.patient.gender && ` — ${GENDER_LABEL[visit.patient.gender]}`}
+            {visit.patient.age != null && ` — ${visit.patient.age} tuổi`}
             {visit.patient.phone && ` — ${visit.patient.phone}`}
           </p>
-          {visit.patient.address && <p>Địa chỉ: {visit.patient.address}</p>}
           {visit.patient.hasDrugAllergy && (
             <p className="text-red-700">⚠ Dị ứng thuốc: {visit.patient.drugAllergyNote}</p>
           )}

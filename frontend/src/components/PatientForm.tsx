@@ -13,7 +13,7 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
     fullName: initial?.fullName ?? "",
     phone: initial?.phone ?? "",
     gender: initial?.gender ?? "",
-    address: initial?.address ?? "",
+    age: initial?.age != null ? String(initial.age) : "",
     hasDrugAllergy: initial?.hasDrugAllergy ?? false,
     drugAllergyNote: initial?.drugAllergyNote ?? "",
     hasChronicCondition: initial?.hasChronicCondition ?? false,
@@ -26,7 +26,12 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
     e.preventDefault();
     setSaving(true);
     setError("");
-    const body = JSON.stringify({ ...form, gender: form.gender || null });
+    // Tuổi để trống = null (không ghi), KHÔNG phải 0.
+    const body = JSON.stringify({
+      ...form,
+      gender: form.gender || null,
+      age: form.age.trim() === "" ? null : Number(form.age),
+    });
     try {
       const saved = initial
         ? await api<Patient>(`/api/doctor/patients/${initial.id}`, { method: "PUT", body })
@@ -74,11 +79,18 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
         </div>
       </div>
       <div>
-        <label className="block text-sm mb-1.5 font-medium text-gray-600">Địa chỉ</label>
+        <label className="block text-sm mb-1.5 font-medium text-gray-600">
+          Tuổi <span className="font-normal text-gray-400">(có thể bỏ trống)</span>
+        </label>
         <input
-          value={form.address}
-          onChange={(e) => setForm({ ...form, address: e.target.value })}
+          type="number"
+          min={0}
+          max={150}
+          inputMode="numeric"
+          value={form.age}
+          onChange={(e) => setForm({ ...form, age: e.target.value })}
           className="input"
+          placeholder="VD: 45"
         />
       </div>
 
