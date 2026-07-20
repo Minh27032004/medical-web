@@ -38,7 +38,10 @@ const emptyItem = (injection = false, infusion = false): ItemForm => ({
   doseNoon: "",
   doseAfternoon: "",
   doseEvening: "",
-  usageMode: "",
+  // Thuốc uống mặc định SAU ĂN — thực tế rất ít thuốc uống trước ăn, chọn sẵn cho đỡ
+  // phải bấm mỗi dòng. Bác sĩ bấm "Trước ăn" để đổi, hoặc bấm lại "Sau ăn" để bỏ chọn.
+  // Tiêm/truyền để trống vì đã có nhãn cố định "theo chỉ định", không liên quan bữa ăn.
+  usageMode: injection || infusion ? "" : "after",
   usageCustom: "",
   injection,
   infusion,
@@ -536,9 +539,16 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                 doseAfternoon: perUnit ? 0 : Number(it.doseAfternoon) || 0,
                 doseEvening: perUnit ? 0 : Number(it.doseEvening) || 0,
                 specialDoseText: null,
-                // Tiêm/truyền: mặc định "theo chỉ định"; chỉ khác đi khi bác sĩ tự ghi.
-                usageNote: usageModeToNote(it.usageMode, it.usageCustom)
-                  ?? fixedUsageNote(it.injection, it.infusion),
+                // Tiêm/truyền: LUÔN là "theo chỉ định", chỉ đổi khi bác sĩ bấm "Ghi riêng".
+                // Không dùng ?? ở đây: dòng tiêm có thể mang sẵn usageMode từ mặc định
+                // "sau ăn" của thuốc uống, và "Sau ăn" cho một mũi tiêm là vô nghĩa.
+                usageNote: (() => {
+                  const fixed = fixedUsageNote(it.injection, it.infusion);
+                  if (!fixed) return usageModeToNote(it.usageMode, it.usageCustom);
+                  return it.usageMode === "other"
+                    ? usageModeToNote(it.usageMode, it.usageCustom) ?? fixed
+                    : fixed;
+                })(),
                 numDays: perUnit ? null : days || null,
                 // Thuốc uống: để backend tự tính = liều/ngày × số ngày.
                 totalQuantityBase: perUnit ? Number(it.doseMorning) || 0 : null,
