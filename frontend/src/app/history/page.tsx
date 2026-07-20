@@ -65,9 +65,16 @@ export default function HistoryPage() {
   // Nút filter đang chọn? so khớp from/to với preset.
   const activePreset = QUICK.find(([, n]) => from === daysAgo(n) && to === daysAgo(0))?.[1];
 
-  /** Xóa mềm lần khám; restoreStock do bác sĩ tick trên popup (cộng trả thuốc vào kho). */
-  async function removeVisit() {
-    await api(`/api/doctor/visits/${deleting!.id}?restoreStock=${restoreStock}`, { method: "DELETE" });
+  /**
+   * Xóa mềm lần khám; restoreStock do bác sĩ tick trên popup (cộng trả thuốc vào kho).
+   *
+   * NHẬN lần khám qua tham số, KHÔNG đọc `deleting!.id` trong closure: React Compiler
+   * nâng thuộc tính được truy cập trong closure lên làm khóa memo và đọc nó ở MỖI lần
+   * render — lúc chưa bấm xóa thì `deleting` là null nên nổ "Cannot read properties of
+   * null (reading 'id')" và chết cả trang.
+   */
+  async function removeVisit(v: VisitRow) {
+    await api(`/api/doctor/visits/${v.id}?restoreStock=${restoreStock}`, { method: "DELETE" });
     load();
   }
 
@@ -166,7 +173,7 @@ export default function HistoryPage() {
             Lần khám sẽ bị ẩn khỏi lịch sử; đơn thuốc đã in vẫn được lưu trong hệ thống.
           </>
         }
-        onConfirm={removeVisit}
+        onConfirm={() => removeVisit(deleting!)}
         onClose={() => setDeleting(null)}
       >
         <label className="flex items-start gap-2 text-sm bg-gray-50 border rounded-lg p-3 cursor-pointer">
