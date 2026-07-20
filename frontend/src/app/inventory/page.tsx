@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import MedicineForm from "@/components/MedicineForm";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconDroplet, IconPill, IconPlus, IconSyringe, LoadError, Loading } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
@@ -17,7 +16,6 @@ type StockFilter = "all" | "oral" | "injection" | "infusion" | "low";
 
 export default function InventoryPage() {
   const [q, setQ] = useState("");
-  const [showAdd, setShowAdd] = useState(false); // form THÊM MỚI (sửa nằm ở trang riêng)
   const [adjustFor, setAdjustFor] = useState<Medicine | null>(null);
   const [deleting, setDeleting] = useState<Medicine | null>(null); // thuốc chờ xác nhận xóa
   const [filter, setFilter] = useState<StockFilter>("all");
@@ -67,13 +65,10 @@ export default function InventoryPage() {
             placeholder="Tìm thuốc..."
             className="input w-56"
           />
-          <button
-            onClick={() => setShowAdd((v) => !v)}
-            className="btn-primary shrink-0"
-          >
+          <Link href="/inventory/new" className="btn-primary shrink-0">
             <IconPlus />
             Thêm thuốc
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -113,21 +108,19 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {showAdd && (
-        <div className="mb-4">
-          <p className="font-semibold text-ink mb-2">Thêm thuốc mới</p>
-          <MedicineForm
-            onSaved={() => { setShowAdd(false); load(); }}
-            onCancel={() => setShowAdd(false)}
-          />
-        </div>
-      )}
-
       {loading && <Loading />}
       {!loading && loadFailed && <LoadError onRetry={load} />}
-      {!loading && !loadFailed && filtered.length === 0 && !showAdd && (
+      {!loading && !loadFailed && filtered.length === 0 && (
         <EmptyState
           icon={<IconPill size={22} />}
+          action={
+            items.length === 0 && (
+              <Link href="/inventory/new" className="btn-primary">
+                <IconPlus />
+                Thêm thuốc
+              </Link>
+            )
+          }
           title={
             items.length === 0
               ? "Kho thuốc trống"
