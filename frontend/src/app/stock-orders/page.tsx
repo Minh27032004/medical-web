@@ -10,7 +10,7 @@ import { useApiData } from "@/hooks/useApiData";
 import { api, apiDownload, ApiError } from "@/lib/api";
 import {
   STOCK_ORDER_STATUS_LABEL,
-  type Medicine, type Page, type StockOrder, type StockSuggestion,
+  type Medicine, type Page, type StockOrder, type StockOrderSummary, type StockSuggestion,
 } from "@/lib/types";
 
 /** Một dòng trong đơn đang soạn (chưa lưu). */
@@ -26,8 +26,9 @@ interface DraftLine {
 type Mode = null | "QUICK" | "MANUAL";
 
 export default function StockOrdersPage() {
+  // Danh sách CHỈ tóm tắt — dòng thuốc của từng đơn nạp riêng khi bấm mở.
   const { data: orders = [], loading, failed: loadFailed, reload: load } =
-    useApiData<StockOrder[]>("/api/doctor/stock-orders");
+    useApiData<StockOrderSummary[]>("/api/doctor/stock-orders");
 
   const [mode, setMode] = useState<Mode>(null);
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -36,8 +37,8 @@ export default function StockOrdersPage() {
   const [error, setError] = useState("");
 
   const [openId, setOpenId] = useState<string | null>(null); // đơn đang mở chi tiết
-  const [receiving, setReceiving] = useState<StockOrder | null>(null);
-  const [cancelling, setCancelling] = useState<StockOrder | null>(null);
+  const [receiving, setReceiving] = useState<StockOrderSummary | null>(null);
+  const [cancelling, setCancelling] = useState<StockOrderSummary | null>(null);
 
   /** Nhập nhanh: kéo danh sách thuốc sắp hết, mỗi thuốc 1 đơn vị lớn nhất. */
   async function startQuick() {
@@ -142,12 +143,12 @@ export default function StockOrdersPage() {
     }
   }
 
-  async function receive(o: StockOrder) {
+  async function receive(o: StockOrderSummary) {
     await api(`/api/doctor/stock-orders/${o.id}/receive`, { method: "POST" });
     load();
   }
 
-  async function cancel(o: StockOrder) {
+  async function cancel(o: StockOrderSummary) {
     await api(`/api/doctor/stock-orders/${o.id}`, { method: "DELETE" });
     load();
   }
@@ -237,7 +238,7 @@ export default function StockOrdersPage() {
         title="Bạn có chắc đã nhập đủ thuốc và số lượng theo đơn chưa?"
         message={
           <>
-            Đơn <strong>{receiving?.code}</strong> gồm {receiving?.items.length} dòng thuốc. Xác nhận
+            Đơn <strong>{receiving?.code}</strong> gồm {receiving?.itemCount} dòng thuốc. Xác nhận
             sẽ <strong>cộng ngay số lượng này vào tồn kho</strong> và không hoàn tác được. Nếu nhận
             thiếu, hãy hủy đơn rồi chỉnh tồn bằng nút “Nhập / chỉnh” trong Kho thuốc.
           </>
@@ -431,7 +432,7 @@ function MedicineSearch({ onPick }: { onPick: (m: Medicine) => void }) {
 function OrderRows({
   order, open, onToggle, onExport, onReceive, onCancel,
 }: {
-  order: StockOrder;
+  order: StockOrderSummary;
   open: boolean;
   onToggle: () => void;
   onExport: () => void;
@@ -448,7 +449,7 @@ function OrderRows({
             <span className="font-semibold text-ink group-hover:text-blue-700 group-hover:underline">
               Đơn {order.code}
             </span>
-            <span className="text-xs text-gray-400">({order.items.length} thuốc)</span>
+            <span className="text-xs text-gray-400">({order.itemCount} thuốc)</span>
           </button>
         </td>
         <td className="text-gray-600">
@@ -476,44 +477,66 @@ function OrderRows({
         </td>
       </tr>
 
+      {/* Chi tiết chỉ MOUNT khi mở → chỉ lúc đó mới gọi API lấy dòng thuốc. */}
       {open && (
         <tr>
           <td colSpan={4} className="bg-gray-50 p-0">
-            <div className="px-5 py-4">
-              <ul className="space-y-2">
-                {order.items.map((it, i) => (
-                  <li key={i} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2">
-                    <span className="w-11 h-11 rounded-lg bg-gray-100 overflow-hidden shrink-0 relative">
-                      {it.imageUrl ? (
-                        <Image src={it.imageUrl} alt="" fill sizes="44px" className="object-cover" />
-                      ) : (
-                        <span className="w-full h-full flex items-center justify-center text-gray-400">
-                          <IconPill size={20} />
-                        </span>
-                      )}
-                    </span>
-                    <span className="flex-1 min-w-0">
-                      <span className="block font-medium text-ink truncate">{it.medicineName}</span>
-                      {it.currentStockDisplay && (
-                        <span className="block text-xs text-gray-500">
-                          tồn hiện tại: {it.currentStockDisplay}
-                          {it.lowStock && <span className="text-red-600 font-medium"> · sắp hết</span>}
-                        </span>
-                      )}
-                    </span>
-                    <span className="font-semibold text-ink shrink-0">
-                      {it.qty} {it.unitLabel}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {order.note && (
-                <p className="text-xs text-gray-500 mt-3">Ghi chú: {order.note}</p>
-              )}
-            </div>
+            <OrderDetail orderId={order.id} />
           </td>
         </tr>
       )}
     </>
+  );
+}
+
+/** Dòng thuốc của một đơn — tải riêng khi bác sĩ mở đơn, sau đó nằm cache nên mở lại là tức thì. */
+function OrderDetail({ orderId }: { orderId: string }) {
+  const { data, loading, failed, reload } = useApiData<StockOrder>(
+    `/api/doctor/stock-orders/${orderId}`
+  );
+
+  if (loading && !data) {
+    return <p className="px-5 py-4 text-sm text-gray-500">Đang tải danh sách thuốc...</p>;
+  }
+  if (failed && !data) {
+    return (
+      <p className="px-5 py-4 text-sm text-red-600">
+        Không tải được danh sách thuốc.{" "}
+        <button onClick={reload} className="underline font-medium">Thử lại</button>
+      </p>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4">
+      <ul className="space-y-2">
+        {data?.items.map((it, i) => (
+          <li key={i} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-3 py-2">
+            <span className="w-11 h-11 rounded-lg bg-gray-100 overflow-hidden shrink-0 relative">
+              {it.imageUrl ? (
+                <Image src={it.imageUrl} alt="" fill sizes="44px" className="object-cover" />
+              ) : (
+                <span className="w-full h-full flex items-center justify-center text-gray-400">
+                  <IconPill size={20} />
+                </span>
+              )}
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-medium text-ink truncate">{it.medicineName}</span>
+              {it.currentStockDisplay && (
+                <span className="block text-xs text-gray-500">
+                  tồn hiện tại: {it.currentStockDisplay}
+                  {it.lowStock && <span className="text-red-600 font-medium"> · sắp hết</span>}
+                </span>
+              )}
+            </span>
+            <span className="font-semibold text-ink shrink-0">
+              {it.qty} {it.unitLabel}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {data?.note && <p className="text-xs text-gray-500 mt-3">Ghi chú: {data.note}</p>}
+    </div>
   );
 }

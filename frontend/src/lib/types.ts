@@ -204,6 +204,22 @@ export interface StockOrder {
   items: StockOrderItem[];
 }
 
+/**
+ * Dòng tóm tắt cho DANH SÁCH đơn nhập kho — không kèm dòng thuốc.
+ * Chi tiết (kèm ảnh, tồn hiện tại) chỉ tải khi bấm mở đơn.
+ */
+export interface StockOrderSummary {
+  id: string;
+  code: string;
+  status: StockOrderStatus;
+  source: "QUICK" | "MANUAL";
+  note: string | null;
+  createdAt: string;
+  receivedAt: string | null;
+  cancelledAt: string | null;
+  itemCount: number;
+}
+
 /** Một dòng gợi ý "nhập nhanh" — thuốc đang dưới ngưỡng cảnh báo. */
 export interface StockSuggestion {
   medicineId: string;

@@ -43,8 +43,9 @@ public class DoctorStockOrderController {
         return service.quickSuggestions(doctorId(jwt));
     }
 
+    /** Danh sách CHỈ tóm tắt (không kèm dòng thuốc) — chi tiết lấy qua GET /{id}. */
     @GetMapping
-    public List<OrderDto> list(@AuthenticationPrincipal Jwt jwt) {
+    public List<StockOrderSummary> list(@AuthenticationPrincipal Jwt jwt) {
         return service.list(doctorId(jwt));
     }
 

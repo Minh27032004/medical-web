@@ -14,12 +14,26 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 interface StockOrderRepository extends JpaRepository<StockOrder, UUID> {
 
-    List<StockOrder> findByDoctorIdOrderByCreatedAtDesc(UUID doctorId);
+    /**
+     * MỘT query cho cả danh sách: size(o.items) thành subquery đếm, không nạp collection,
+     * không đụng tới bảng medicines. Thay cho findByDoctorId... + toDto() vốn gây N+1.
+     */
+    @Query("""
+        select new com.clinic.stock.StockOrderSummary(
+            o.id, o.code, o.status, o.source, o.note,
+            o.createdAt, o.receivedAt, o.cancelledAt, size(o.items))
+        from StockOrder o
+        where o.doctorId = :doctorId
+        order by o.createdAt desc
+        """)
+    List<StockOrderSummary> findSummaries(@Param("doctorId") UUID doctorId);
 
     Optional<StockOrder> findByIdAndDoctorId(UUID id, UUID doctorId);
 
@@ -84,10 +98,10 @@ public class StockOrderService {
 
     // ===== CRUD đơn =====
 
+    /** Danh sách: CHỈ tóm tắt. Chi tiết dòng thuốc lấy qua get(id) khi bác sĩ mở đơn. */
     @Transactional(readOnly = true)
-    public List<OrderDto> list(UUID doctorId) {
-        return repository.findByDoctorIdOrderByCreatedAtDesc(doctorId).stream()
-            .map(o -> toDto(doctorId, o)).toList();
+    public List<StockOrderSummary> list(UUID doctorId) {
+        return repository.findSummaries(doctorId);
     }
 
     @Transactional(readOnly = true)
@@ -188,9 +202,15 @@ public class StockOrderService {
     // ===== Mapping =====
 
     private OrderDto toDto(UUID doctorId, StockOrder o) {
+        // Nạp MỌI thuốc của đơn trong 1 query thay vì mỗi dòng một lần findOwnedOrNull.
+        var ids = o.getItems().stream()
+            .map(StockOrderItem::getMedicineId)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.toSet());
+        var medMap = medicineService.mapByIds(doctorId, ids);
+
         var items = o.getItems().stream().map(i -> {
-            Medicine m = i.getMedicineId() == null ? null
-                : medicineService.findOwnedOrNull(doctorId, i.getMedicineId());
+            Medicine m = i.getMedicineId() == null ? null : medMap.get(i.getMedicineId());
             return new ItemDto(i.getMedicineId(), i.getMedicineName(), i.getUnitName(),
                 i.getUnitLabel(), i.getQty(),
                 m != null ? MedicineService.stockDisplay(m) : null,
