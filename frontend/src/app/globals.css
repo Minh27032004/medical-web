@@ -194,12 +194,13 @@ body {
   .data-table {
     @apply w-full text-sm border-separate border-spacing-0;
   }
+  /* Tiêu đề cột: in hoa + giãn chữ để tách hẳn khỏi phần dữ liệu, đỡ "trôi" như trước */
   .data-table thead th {
-    @apply text-left font-medium text-xs text-gray-500
-      px-5 py-3 bg-gray-50 border-b border-gray-200;
+    @apply text-left font-semibold text-xs uppercase tracking-wide text-gray-500
+      px-5 py-3.5 bg-gray-50 border-b border-gray-200 whitespace-nowrap;
   }
   .data-table tbody td {
-    @apply px-5 py-3.5 border-b border-gray-100 align-middle;
+    @apply px-5 py-4 border-b border-gray-100 align-middle text-gray-700;
   }
   .data-table tbody tr:last-child td {
     @apply border-b-0;

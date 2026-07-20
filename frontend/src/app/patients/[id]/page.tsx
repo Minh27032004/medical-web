@@ -59,61 +59,67 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   }, [visits]);
 
   if (error) return <p className="text-red-600 py-8 text-center">{error}</p>;
-  if (!patient) return <div className="max-w-3xl mx-auto"><Loading /></div>;
+  if (!patient) return <Loading />;
 
   if (editing) {
     return (
       <div className="max-w-lg mx-auto">
         <h1 className="page-title mb-4">Sửa hồ sơ: {patient.fullName}</h1>
-        <PatientForm initial={patient} />
-        <button onClick={() => setEditing(false)} className="text-sm text-gray-600 mt-3 hover:underline">
-          ← Quay lại
-        </button>
+        <PatientForm
+          initial={patient}
+          onSaved={(saved) => { setPatient(saved); setEditing(false); }}
+          onCancel={() => setEditing(false)}
+        />
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="card p-5">
+    <div>
+      {/* Thẻ hồ sơ: hàng trên là tên + nút, hàng dưới là các trường thông tin nằm ngang
+          → thấp hơn hẳn thẻ cũ (nút xếp dọc làm thẻ cao mà bỏ trống bên trái). */}
+      <div className="card p-4 sm:p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="page-title">{patient.fullName}</h1>
-            <p className="text-sm text-gray-600 mt-0.5">
-              {[
-                patient.gender ? GENDER_LABEL[patient.gender] : null,
-                patient.age != null ? `${patient.age} tuổi` : null,
-                patient.phone,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {patient.hasDrugAllergy && (
-                <Badge tone="red" icon={<IconAlert size={13} />}>
-                  Dị ứng thuốc: {patient.drugAllergyNote || "(chưa ghi chú)"}
-                </Badge>
-              )}
-              {patient.hasChronicCondition && (
-                <Badge tone="amber">
-                  Bệnh nền: {patient.chronicConditionNote || "(chưa ghi chú)"}
-                </Badge>
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 shrink-0">
-            <Link href={`/patients/${patient.id}/new-visit`} className="btn-primary text-center">
+          <h1 className="page-title">{patient.fullName}</h1>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href={`/patients/${patient.id}/new-visit`} className="btn-primary">
               <IconPlus />
               Tạo lần khám
             </Link>
             <button onClick={() => setEditing(true)} className="btn-ghost">
               Sửa hồ sơ
             </button>
-            <button onClick={() => setDeleting(true)} className="text-sm font-medium text-red-600 hover:underline">
-              Xóa hồ sơ
+            <button
+              onClick={() => setDeleting(true)}
+              className="text-sm font-medium text-red-600 hover:underline px-2"
+            >
+              Xóa
             </button>
           </div>
         </div>
+
+        {/* Các trường thông tin: nhãn nhỏ trên, giá trị dưới — quét mắt theo hàng ngang */}
+        <dl className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 text-sm">
+          <Field label="Họ và tên" value={patient.fullName} />
+          <Field label="Tuổi" value={patient.age != null ? `${patient.age}` : null} />
+          <Field label="Giới tính" value={patient.gender ? GENDER_LABEL[patient.gender] : null} />
+          <Field label="Số điện thoại" value={patient.phone} />
+        </dl>
+
+        {(patient.hasDrugAllergy || patient.hasChronicCondition) && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {patient.hasDrugAllergy && (
+              <Badge tone="red" icon={<IconAlert size={13} />}>
+                Dị ứng thuốc: {patient.drugAllergyNote || "(chưa ghi chú)"}
+              </Badge>
+            )}
+            {patient.hasChronicCondition && (
+              <Badge tone="amber">
+                Bệnh nền: {patient.chronicConditionNote || "(chưa ghi chú)"}
+              </Badge>
+            )}
+          </div>
+        )}
       </div>
 
       <ConfirmDialog
@@ -181,6 +187,18 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Một trường thông tin trong thẻ hồ sơ. Chưa có dữ liệu thì hiện "—" cho thẳng hàng. */
+function Field({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div>
+      <dt className="text-xs text-gray-500">{label}</dt>
+      <dd className={`mt-0.5 font-medium ${value ? "text-ink" : "text-gray-400"}`}>
+        {value || "—"}
+      </dd>
     </div>
   );
 }

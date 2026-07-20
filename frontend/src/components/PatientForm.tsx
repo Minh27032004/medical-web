@@ -6,8 +6,21 @@ import { IconAlert } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Patient } from "@/lib/types";
 
-/** Form bệnh nhân — dị ứng/bệnh nền là checkbox, tick mới hiện ô nhập (§5.2). */
-export default function PatientForm({ initial }: { initial?: Patient }) {
+/**
+ * Form bệnh nhân — dị ứng/bệnh nền là checkbox, tick mới hiện ô nhập (§5.2).
+ *
+ * onSaved: dùng khi form nằm NGAY TRONG trang hồ sơ (sửa tại chỗ). Không có nó thì
+ * form tự điều hướng sang trang hồ sơ — chỉ đúng cho luồng tạo mới.
+ */
+export default function PatientForm({
+  initial,
+  onSaved,
+  onCancel,
+}: {
+  initial?: Patient;
+  onSaved?: (saved: Patient) => void;
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const [form, setForm] = useState({
     fullName: initial?.fullName ?? "",
@@ -36,6 +49,14 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
       const saved = initial
         ? await api<Patient>(`/api/doctor/patients/${initial.id}`, { method: "PUT", body })
         : await api<Patient>("/api/doctor/patients", { method: "POST", body });
+      if (onSaved) {
+        // Sửa tại chỗ: router.push tới ĐÚNG url đang đứng không điều hướng đi đâu cả,
+        // component không unmount nên nút kẹt vĩnh viễn ở "Đang lưu...". Trả về cho
+        // trang cha tự đóng form và tải lại dữ liệu.
+        setSaving(false);
+        onSaved(saved);
+        return;
+      }
       router.push(`/patients/${saved.id}`);
       router.refresh();
     } catch (err) {
@@ -138,7 +159,11 @@ export default function PatientForm({ initial }: { initial?: Patient }) {
         <button type="submit" disabled={saving} className="btn-primary">
           {saving ? "Đang lưu..." : initial ? "Cập nhật" : "Tạo bệnh nhân"}
         </button>
-        <button type="button" onClick={() => router.back()} className="btn-ghost">
+        <button
+          type="button"
+          onClick={() => (onCancel ? onCancel() : router.back())}
+          className="btn-ghost"
+        >
           Hủy
         </button>
       </div>

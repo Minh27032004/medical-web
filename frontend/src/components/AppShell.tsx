@@ -148,7 +148,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 md:px-8 py-6 md:py-8">{children}</div>
+          {/* 7xl (1280px): màn 1080p trở lên không còn chừa hai bên quá rộng, mà dòng chữ
+              vẫn đủ ngắn để quét mắt. Full-width sẽ khiến bảng dàn ra khó dò theo hàng. */}
+          <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 md:px-8 py-6 md:py-8">{children}</div>
         </main>
       </div>
     </div>

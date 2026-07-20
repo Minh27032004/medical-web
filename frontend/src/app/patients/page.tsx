@@ -31,7 +31,7 @@ export default function PatientsPage() {
   useEffect(load, [load]);
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div>
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <h1 className="page-title">Bệnh nhân</h1>
         <div className="flex gap-3">
@@ -72,12 +72,12 @@ export default function PatientsPage() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Họ tên</th>
-                  <th>SĐT</th>
-                  <th>Giới tính</th>
-                  <th>Tuổi</th>
+                  <th>Họ và tên</th>
+                  <th className="w-36">SĐT</th>
+                  <th className="w-28">Giới tính</th>
+                  <th className="w-20">Tuổi</th>
                   <th>Lưu ý</th>
-                  <th></th>
+                  <th className="w-24"></th>
                 </tr>
               </thead>
               <tbody>
@@ -88,9 +88,11 @@ export default function PatientsPage() {
                         {p.fullName}
                       </Link>
                     </td>
-                    <td className="text-gray-600">{p.phone ?? "—"}</td>
-                    <td className="text-gray-600">{p.gender ? GENDER_LABEL[p.gender] : "—"}</td>
-                    <td className="text-gray-600">{p.age ?? "—"}</td>
+                    <td className={p.phone ? "" : "text-gray-400"}>{p.phone || "—"}</td>
+                    <td className={p.gender ? "" : "text-gray-400"}>
+                      {p.gender ? GENDER_LABEL[p.gender] : "—"}
+                    </td>
+                    <td className={p.age != null ? "" : "text-gray-400"}>{p.age ?? "—"}</td>
                     <td className="space-x-1">
                       {p.hasDrugAllergy && (
                         <Badge tone="red" icon={<IconAlert size={13} />} title={p.drugAllergyNote ?? ""}>

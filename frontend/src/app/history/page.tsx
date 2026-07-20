@@ -84,7 +84,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div>
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h1 className="page-title">Lịch sử khám</h1>
         <div className="flex items-center gap-2 text-sm">

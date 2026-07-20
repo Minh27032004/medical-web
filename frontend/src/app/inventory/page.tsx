@@ -281,7 +281,7 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div>
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h1 className="page-title">Kho thuốc</h1>
         <div className="flex gap-3">

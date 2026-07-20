@@ -113,7 +113,7 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div>
       <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
         <h1 className="page-title">Thuốc mẫu</h1>
         <button onClick={() => setForm(emptyForm())} className="btn-primary">

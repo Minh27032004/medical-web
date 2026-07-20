@@ -55,7 +55,7 @@ export default function AdminDoctorsPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div>
       <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
         <h1 className="page-title">Quản lý bác sĩ</h1>
         <button onClick={() => setShowForm(!showForm)} className="btn-primary">
