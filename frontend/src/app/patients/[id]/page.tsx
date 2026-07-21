@@ -22,17 +22,32 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deletingVisit, setDeletingVisit] = useState<VisitRow | null>(null);
+  const [restoreStock, setRestoreStock] = useState(false);
   const router = useRouter();
 
   // Hai nguồn riêng để mỗi cái tự cache: quay lại hồ sơ vừa xem là hiện ngay.
   const { data: patient, failed: patientFailed, reload: reloadPatient } =
     useApiData<Patient>(`/api/doctor/patients/${id}`);
-  const { data: visits = [] } = useApiData<VisitRow[]>(`/api/doctor/patients/${id}/visits`);
+  const { data: visits = [], reload: reloadVisits } =
+    useApiData<VisitRow[]>(`/api/doctor/patients/${id}/visits`);
 
   /** Xóa mềm hồ sơ — lịch sử khám giữ nguyên, chỉ ẩn bệnh nhân khỏi danh sách. */
   async function removePatient() {
     await api(`/api/doctor/patients/${id}`, { method: "DELETE" });
     router.push("/patients");
+  }
+
+  /**
+   * Xóa mềm MỘT lần khám ngay trên hồ sơ (cùng đường với trang Lịch sử khám).
+   *
+   * NHẬN lần khám qua tham số, KHÔNG đọc `deletingVisit!.id` trong closure: React Compiler
+   * nâng thuộc tính được truy cập trong closure lên làm khóa memo và đọc nó ở MỖI lần
+   * render — lúc chưa bấm xóa thì biến là null nên nổ "Cannot read properties of null".
+   */
+  async function removeVisit(v: VisitRow) {
+    await api(`/api/doctor/visits/${v.id}?restoreStock=${restoreStock}`, { method: "DELETE" });
+    reloadVisits();
   }
 
   // Gom theo NGÀY (visits đã sắp mới→cũ): mỗi ngày một dòng, nhiều buổi chung một ô.
@@ -130,6 +145,36 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         onClose={() => setDeleting(false)}
       />
 
+      <ConfirmDialog
+        open={!!deletingVisit}
+        title="Xóa lần khám này?"
+        message={
+          <>
+            {deletingVisit && new Date(deletingVisit.visitDate).toLocaleDateString("vi-VN")} —{" "}
+            {deletingVisit?.diagnosisCode} {deletingVisit?.diagnosisName}.
+            Lần khám sẽ bị ẩn khỏi lịch sử; đơn thuốc đã in vẫn được lưu trong hệ thống.
+          </>
+        }
+        onConfirm={() => removeVisit(deletingVisit!)}
+        onClose={() => setDeletingVisit(null)}
+      >
+        <label className="flex items-start gap-2 text-sm bg-gray-50 border rounded-lg p-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={restoreStock}
+            onChange={(e) => setRestoreStock(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-medium">Hoàn thuốc về kho</span>
+            <span className="block text-xs text-gray-500 mt-0.5">
+              Tick nếu xóa vì nhập nhầm và thuốc CHƯA phát cho bệnh nhân. Nếu đã phát thuốc rồi
+              thì để trống để tồn kho giữ nguyên.
+            </span>
+          </span>
+        </label>
+      </ConfirmDialog>
+
       <h2 className="font-bold text-lg text-ink mt-6 mb-3">
         Lịch sử khám <span className="text-gray-400 font-normal text-sm">({visits.length} lượt · {byDay.length} ngày)</span>
       </h2>
@@ -155,23 +200,32 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                     </td>
                     <td className="p-3">
                       <div className="space-y-1.5">
+                        {/* Nút Xóa nằm NGOÀI thẻ Link: <button> lồng trong <a> là HTML
+                            không hợp lệ, trình duyệt tự gỡ ra và gây lệch hydration. */}
                         {rows.map((v) => (
-                          <Link
-                            key={v.id}
-                            href={`/visits/${v.id}`}
-                            className="flex items-baseline gap-2 hover:text-blue-700 group"
-                          >
-                            <span className="text-xs text-gray-500 shrink-0 w-24">
-                              {sessionLabel(v.visitDate)}{" "}
-                              {new Date(v.visitDate).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                            <span className="group-hover:underline">
-                              {v.diagnosisCode} — {v.diagnosisName}
-                            </span>
-                            {v.hasInjection && (
-                              <Badge tone="purple" icon={<IconSyringe size={12} />}>tiêm</Badge>
-                            )}
-                          </Link>
+                          <div key={v.id} className="flex items-baseline gap-2">
+                            <Link
+                              href={`/visits/${v.id}`}
+                              className="flex items-baseline gap-2 flex-1 min-w-0 hover:text-blue-700 group"
+                            >
+                              <span className="text-xs text-gray-500 shrink-0 w-24">
+                                {sessionLabel(v.visitDate)}{" "}
+                                {new Date(v.visitDate).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                              <span className="group-hover:underline">
+                                {v.diagnosisCode} — {v.diagnosisName}
+                              </span>
+                              {v.hasInjection && (
+                                <Badge tone="purple" icon={<IconSyringe size={12} />}>tiêm</Badge>
+                              )}
+                            </Link>
+                            <button
+                              onClick={() => { setDeletingVisit(v); setRestoreStock(false); }}
+                              className="text-xs font-medium text-red-600 hover:underline shrink-0"
+                            >
+                              Xóa
+                            </button>
+                          </div>
                         ))}
                       </div>
                     </td>

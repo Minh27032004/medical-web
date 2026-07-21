@@ -310,6 +310,56 @@ public class VisitService {
         visitRepository.save(visit);
     }
 
+    /**
+     * SỬA lần khám = THAY THẾ (D12 — không sửa đè, giữ vết).
+     *
+     * Hoàn kho theo đơn cũ → xóa mềm bản cũ → tạo lần khám mới → trừ kho theo đơn mới,
+     * tất cả trong MỘT transaction. Hỏng ở bước nào thì rollback sạch, không có cảnh
+     * "đã hoàn kho nhưng chưa trừ lại" — với sổ sách thuốc đó là hỏng nặng nhất.
+     *
+     * Vì sao thay thế chứ không UPDATE tại chỗ: bản sai vẫn nằm trong DB làm vết (chỉ ẩn
+     * khỏi giao diện), và toàn bộ đường hoàn kho/trừ kho tái dùng code đã chạy ổn thay vì
+     * viết một nhánh cập nhật song song — nhánh nào ít người đi thì nhánh đó nhiều lỗi.
+     *
+     * CHỈ cho sửa trong NGÀY KHÁM: hoàn kho hôm nay cho thuốc đã phát tuần trước thì số
+     * tồn đúng nhưng dòng thời gian sai, đối chiếu sổ sách sau này không lần ra được.
+     */
+    @Transactional
+    public VisitDetail replace(UUID doctorId, UUID oldVisitId, CreateRequest req) {
+        // Bấm Lưu hai lần (hoặc mất phản hồi rồi thử lại): lần sau gửi đúng clientRequestId
+        // cũ → trả về bản đã tạo. Phải kiểm TRƯỚC khi tìm bản cũ, vì lúc đó bản cũ đã bị
+        // xóa mềm rồi, đi tiếp sẽ báo "không tìm thấy lần khám" — đúng kỹ thuật nhưng vô
+        // nghĩa với bác sĩ đang nhìn màn hình.
+        if (req.clientRequestId() != null) {
+            var existing = visitRepository
+                .findByDoctorIdAndClientRequestId(doctorId, req.clientRequestId());
+            if (existing.isPresent()) {
+                return detail(doctorId, existing.get().getId());
+            }
+        }
+
+        var old = visitRepository.findByIdAndDoctorIdAndDeletedAtIsNull(oldVisitId, doctorId)
+            .orElseThrow(() -> ApiException.notFound("Không tìm thấy lần khám cần sửa"));
+
+        var visitDay = old.getVisitDate().atZone(CLINIC_ZONE).toLocalDate();
+        if (!visitDay.equals(LocalDate.now(CLINIC_ZONE))) {
+            throw ApiException.badRequest(
+                "Chỉ sửa được đơn trong ngày khám. Đơn cũ hơn thì xóa rồi kê lại nếu cần.");
+        }
+
+        softDelete(doctorId, oldVisitId, true); // hoàn kho theo snapshot đơn cũ
+        var created = create(doctorId, req);    // trừ kho theo đơn mới
+
+        // Giữ nguyên GIỜ khám gốc: bác sĩ khám lúc 8h, sửa lúc 11h thì lịch sử vẫn phải
+        // ghi 8h — đó là thời điểm khám thật, không phải thời điểm sửa.
+        var fresh = visitRepository.findByIdAndDoctorIdAndDeletedAtIsNull(created.id(), doctorId)
+            .orElseThrow(() -> ApiException.notFound("Không tìm thấy lần khám vừa tạo"));
+        fresh.setVisitDate(old.getVisitDate());
+        visitRepository.save(fresh);
+
+        return detail(doctorId, created.id());
+    }
+
     @Transactional
     public void markPrinted(UUID doctorId, UUID prescriptionId) {
         var p = prescriptionRepository.findByIdAndDoctorId(prescriptionId, doctorId)

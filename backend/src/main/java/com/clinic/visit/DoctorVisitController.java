@@ -41,6 +41,17 @@ public class DoctorVisitController {
     }
 
     /**
+     * Sửa lần khám = thay thế: hoàn kho + xóa mềm bản cũ rồi tạo bản mới, một transaction.
+     * doctorId luôn lấy từ JWT — id trong path chỉ dùng để TÌM, quyền sở hữu do service kiểm.
+     */
+    @PostMapping("/visits/{id}/replace")
+    @ResponseStatus(HttpStatus.CREATED)
+    public VisitDetail replace(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                               @RequestBody CreateRequest req) {
+        return visitService.replace(doctorId(jwt), id, req);
+    }
+
+    /**
      * Xóa mềm lần khám (V12). restoreStock do bác sĩ tick trên popup xác nhận:
      * true = hoàn thuốc về kho (xóa vì nhập nhầm), false = giữ nguyên tồn (thuốc đã phát).
      */

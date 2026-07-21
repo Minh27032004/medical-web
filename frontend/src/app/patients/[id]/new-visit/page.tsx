@@ -34,7 +34,10 @@ const emptyItem = (injection = false, infusion = false): ItemForm => ({
   medicineName: "",
   baseUnitLabel: null,
   stockDisplay: null,
-  doseMorning: "",
+  // Tiêm/truyền mặc định 1 ống / 1 chai — đại đa số mũi tiêm là một ống, điền sẵn để bác
+  // sĩ chỉ phải gõ khi khác 1. Thuốc uống để trống vì liều mỗi buổi không có giá trị nào
+  // là "thường gặp" đủ để đoán hộ.
+  doseMorning: injection || infusion ? "1" : "",
   doseNoon: "",
   doseAfternoon: "",
   doseEvening: "",
@@ -318,8 +321,6 @@ interface VisitDraft {
   note: string;
   items: ItemForm[];
   numDays: string;
-  hasInjectionRow: boolean;
-  hasInfusionRow: boolean;
   savedAt: string;
 }
 
@@ -345,7 +346,15 @@ function readVisitDraft(patientId: string): VisitDraft | null {
 function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const { id: patientId } = use(params);
   const router = useRouter();
-  const copyFrom = useSearchParams().get("copyFrom"); // id lần khám cần "tạo lại đơn"
+  const search = useSearchParams();
+  const copyFrom = search.get("copyFrom"); // id lần khám cần "tạo lại đơn"
+  /**
+   * Sửa đơn: cũng đổ nội dung lần khám cũ vào form như "tạo lại đơn", nhưng khi Lưu thì
+   * gọi endpoint replace — backend hoàn kho + xóa mềm bản cũ rồi tạo bản mới trong cùng
+   * một transaction, nên không có khoảnh khắc nào tồn kho bị trừ hai lần.
+   */
+  const replaceId = search.get("replace");
+  const loadFrom = copyFrom ?? replaceId;
   const [patient, setPatient] = useState<Patient | null>(null);
   const [diagCode, setDiagCode] = useState("");
   const [diagName, setDiagName] = useState("");
@@ -353,8 +362,6 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const [note, setNote] = useState("");
   const [items, setItems] = useState<ItemForm[]>([emptyItem()]);
   const [numDays, setNumDays] = useState(""); // số ngày dùng chung cho CẢ đơn
-  const [hasInjectionRow, setHasInjectionRow] = useState(false);
-  const [hasInfusionRow, setHasInfusionRow] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   /**
@@ -365,6 +372,18 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const [clientRequestId] = useState(() => crypto.randomUUID());
   const [draftRestored, setDraftRestored] = useState(false);
   const draftRef = useRef<VisitDraft | null>(null);
+  /**
+   * Đổi số này để BUỘC hai ô chẩn đoán dựng lại từ đầu.
+   *
+   * IcdPicker giữ chuỗi hiển thị "MÃ — Tên" trong state riêng, và chỉ đồng bộ lại khi
+   * code có giá trị (`if (code)`), vì lúc bác sĩ đang gõ thì code = "" — đồng bộ vô điều
+   * kiện sẽ xóa mất chữ đang gõ dở. Hệ quả: "Bỏ nháp" đặt code = "" nhưng ô vẫn hiện tên
+   * bệnh cũ. Nhìn thì tưởng còn chẩn đoán, bấm Lưu lại báo "Chẩn đoán là bắt buộc".
+   *
+   * Không phân biệt được "đang gõ" với "bị reset" qua props (cả hai đều là code rỗng),
+   * nên dùng key để remount — cách React khuyến nghị cho đúng tình huống này.
+   */
+  const [pickerKey, setPickerKey] = useState(0);
 
   useEffect(() => {
     api<Patient>(`/api/doctor/patients/${patientId}`).then(setPatient).catch(() => {});
@@ -373,12 +392,14 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   /**
    * Khôi phục nháp của ĐÚNG bệnh nhân này. Trong effect vì trang có prerender.
    *
-   * Bỏ qua khi mở kèm ?copyFrom= : bác sĩ đang chủ động "tạo lại đơn cũ", ý định đó rõ
-   * ràng hơn một bản nháp bỏ dở. Không chặn thì nháp được khôi phục rồi vài trăm ms sau
-   * bị đơn copy ghi đè, mà banner vẫn báo "đã khôi phục nháp" — sai và gây hoang mang.
+   * Bỏ qua khi mở kèm ?copyFrom= hoặc ?replace= : bác sĩ đang chủ động mở một đơn cụ thể,
+   * ý định đó rõ ràng hơn một bản nháp bỏ dở. Không chặn thì nháp được khôi phục rồi vài
+   * trăm ms sau bị đơn kia ghi đè, mà banner vẫn báo "đã khôi phục nháp" — sai và gây
+   * hoang mang. Với ?replace= thì nguy hiểm hơn hẳn: nháp của bệnh nhân khác đè lên đơn
+   * đang sửa rồi lưu đè là hỏng hồ sơ y tế.
    */
   useEffect(() => {
-    if (copyFrom) return;
+    if (loadFrom) return;
     const d = readVisitDraft(patientId);
     if (!d) return;
     setDiagCode(d.diagCode);
@@ -387,22 +408,20 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     setNote(d.note ?? "");
     if (d.items?.length) setItems(d.items);
     setNumDays(d.numDays ?? "");
-    setHasInjectionRow(!!d.hasInjectionRow);
-    setHasInfusionRow(!!d.hasInfusionRow);
     setDraftRestored(true);
-  }, [patientId, copyFrom]);
+  }, [patientId, loadFrom]);
 
   // Tự lưu nháp mỗi khi đơn đổi.
   useEffect(() => {
     const draft: VisitDraft = {
       diagCode, diagName, secondary, note, items, numDays,
-      hasInjectionRow, hasInfusionRow, savedAt: new Date().toISOString(),
+      savedAt: new Date().toISOString(),
     };
     const hasContent = !!diagCode || !!note || items.some((it) => it.medicineName.trim());
     if (!hasContent) return; // form trống thì không tạo nháp rác
     draftRef.current = draft;
     localStorage.setItem(visitDraftKey(patientId), JSON.stringify(draft));
-  }, [patientId, diagCode, diagName, secondary, note, items, numDays, hasInjectionRow, hasInfusionRow]);
+  }, [patientId, diagCode, diagName, secondary, note, items, numDays]);
 
   // Ghi thêm một lần lúc rời trang: effect trên chạy sau khi vẽ, gõ xong bấm đi ngay
   // thì thay đổi cuối có thể chưa kịp lưu.
@@ -429,8 +448,6 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
         infusion: r.infusion,
       }))
     );
-    setHasInjectionRow(rx.some((r) => r.injection));
-    setHasInfusionRow(rx.some((r) => r.infusion));
     const d = rx.find((r) => !r.injection && !r.infusion && r.numDays)?.numDays;
     setNumDays(d ? String(d) : "");
   }, []);
@@ -445,11 +462,12 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     if (v.items.length > 0) applyRxItems(v.items);
   }, [applyRxItems]);
 
-  // "Tạo lại đơn" từ một lần khám cụ thể (mở qua ?copyFrom=<visitId>).
+  // Đổ nội dung lần khám cũ vào form: "tạo lại đơn" (?copyFrom=) hoặc "sửa đơn" (?replace=).
   useEffect(() => {
-    if (!copyFrom) return;
-    loadFromVisit(copyFrom).catch(() => setError("Không tải được đơn cần tạo lại"));
-  }, [copyFrom, loadFromVisit]);
+    if (!loadFrom) return;
+    loadFromVisit(loadFrom).catch(() =>
+      setError(replaceId ? "Không tải được đơn cần sửa" : "Không tải được đơn cần tạo lại"));
+  }, [loadFrom, replaceId, loadFromVisit]);
 
   function updateItem(idx: number, patch: Partial<ItemForm>) {
     setItems((arr) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -481,24 +499,20 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     }
   }
 
-  function toggleInjection(checked: boolean) {
-    setHasInjectionRow(checked);
-    if (checked && !items.some((i) => i.injection)) {
-      setItems([...items, emptyItem(true)]);
-    }
-    if (!checked) {
-      setItems(items.filter((i) => !i.injection));
-    }
-  }
-
-  function toggleInfusion(checked: boolean) {
-    setHasInfusionRow(checked);
-    if (checked && !items.some((i) => i.infusion)) {
-      setItems([...items, emptyItem(false, true)]);
-    }
-    if (!checked) {
-      setItems(items.filter((i) => !i.infusion));
-    }
+  /**
+   * Thêm một dòng thuốc mới đúng nhóm (uống / tiêm / truyền).
+   *
+   * Chèn ngay SAU dòng cuối cùng cùng nhóm chứ không đẩy xuống đáy, để các mũi tiêm nằm
+   * liền nhau — đọc lại đơn theo cụm dễ soát hơn là xen kẽ với thuốc uống. Chưa có dòng
+   * nào cùng nhóm thì nối vào cuối.
+   */
+  function addRow(injection: boolean, infusion: boolean) {
+    setItems((arr) => {
+      const last = arr.findLastIndex((i) => i.injection === injection && i.infusion === infusion);
+      const row = emptyItem(injection, infusion);
+      if (last === -1) return [...arr, row];
+      return [...arr.slice(0, last + 1), row, ...arr.slice(last + 1)];
+    });
   }
 
   async function submit(e: React.FormEvent) {
@@ -517,7 +531,12 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     setSaving(true);
     setError("");
     try {
-      const detail = await api<VisitDetail>("/api/doctor/visits", {
+      // Sửa đơn đi qua endpoint replace: hoàn kho đơn cũ + xóa mềm + tạo bản mới, một
+      // transaction ở backend. Cùng CreateRequest nên phần body bên dưới không đổi.
+      const endpoint = replaceId
+        ? `/api/doctor/visits/${replaceId}/replace`
+        : "/api/doctor/visits";
+      const detail = await api<VisitDetail>(endpoint, {
         method: "POST",
         body: JSON.stringify({
           patientId,
@@ -572,17 +591,26 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     <form onSubmit={submit} className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="page-title">
-          Lần khám mới {patient && <span className="text-blue-700">— {patient.fullName}</span>}
+          {replaceId ? "Sửa đơn khám" : "Lần khám mới"}
+          {patient && <span className="text-blue-700"> — {patient.fullName}</span>}
         </h1>
-        <button
+        {/* Đang sửa một đơn cụ thể thì "tạo lại đơn gần nhất" chỉ tổ ghi đè nhầm. */}
+        {!replaceId && <button
           type="button"
           onClick={copyLast}
           className="inline-flex items-center gap-2 text-sm border border-blue-300 text-blue-700 px-4 py-2 rounded-xl hover:bg-blue-50 transition font-medium"
         >
           <IconRefresh size={15} />
           Tạo lại đơn gần nhất
-        </button>
+        </button>}
       </div>
+
+      {replaceId && (
+        <p className="text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-3 py-2">
+          Đang sửa lần khám đã lưu. Khi bấm lưu, thuốc của đơn cũ được <b>hoàn lại kho</b>,
+          đơn cũ bị thay bằng đơn này và không hiện trong lịch sử nữa.
+        </p>
+      )}
 
       {draftRestored && (
         <div className="flex items-start justify-between gap-3 text-sm bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-3 py-2">
@@ -597,7 +625,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
               localStorage.removeItem(visitDraftKey(patientId));
               setDiagCode(""); setDiagName(""); setSecondary([]); setNote("");
               setItems([emptyItem()]); setNumDays("");
-              setHasInjectionRow(false); setHasInfusionRow(false);
+              setPickerKey((k) => k + 1); // dựng lại ô chẩn đoán, xem ghi chú ở khai báo
               setDraftRestored(false);
             }}
             className="font-medium underline shrink-0"
@@ -623,13 +651,14 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
       <div className="card p-5 space-y-4">
         <div>
           <label className="block text-sm mb-1.5 font-medium text-gray-600">Chẩn đoán chính (ICD-10) *</label>
-          <IcdPicker code={diagCode} name={diagName} onPick={(c, n) => { setDiagCode(c); setDiagName(n); }} />
+          <IcdPicker key={pickerKey} code={diagCode} name={diagName} onPick={(c, n) => { setDiagCode(c); setDiagName(n); }} />
         </div>
         <div>
           <label className="block text-sm mb-1.5 font-medium text-gray-600">
             Chẩn đoán phụ <span className="text-gray-400 font-normal">(có thể nhiều mã)</span>
           </label>
           <IcdMultiPicker
+            key={pickerKey}
             items={secondary}
             onAdd={(d) => setSecondary((s) => [...s, d])}
             onRemove={(code) => setSecondary((s) => s.filter((d) => d.code !== code))}
@@ -659,29 +688,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
       </div>
 
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-semibold text-ink">Đơn thuốc</label>
-          <div className="flex items-center gap-4 flex-wrap">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={hasInjectionRow}
-                onChange={(e) => toggleInjection(e.target.checked)}
-              />
-              <span className="text-purple-600"><IconSyringe size={15} /></span>
-              Có tiêm thuốc
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={hasInfusionRow}
-                onChange={(e) => toggleInfusion(e.target.checked)}
-              />
-              <span className="text-sky-600"><IconDroplet size={15} /></span>
-              Có truyền dịch
-            </label>
-          </div>
-        </div>
+        <label className="text-sm font-semibold text-ink block mb-3">Đơn thuốc</label>
 
         <div className="space-y-4">
           {items.map((it, idx) => (
@@ -797,13 +804,32 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setItems([...items, emptyItem()])}
-          className="mt-3 w-full text-sm border border-dashed border-blue-400 text-blue-700 rounded-lg py-2 hover:bg-blue-50"
-        >
-          + Thêm thuốc
-        </button>
+        {/* Ba nút riêng thay cho hai checkbox cũ: một lần khám có thể có NHIỀU mũi tiêm
+            hoặc nhiều chai dịch, mà checkbox chỉ diễn tả được có/không nên trước đây
+            kẹt ở đúng một dòng mỗi loại. */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+          <button
+            type="button"
+            onClick={() => addRow(false, false)}
+            className="text-sm border border-dashed border-blue-400 text-blue-700 rounded-lg py-2 hover:bg-blue-50"
+          >
+            + Thuốc uống
+          </button>
+          <button
+            type="button"
+            onClick={() => addRow(true, false)}
+            className="text-sm border border-dashed border-purple-400 text-purple-700 rounded-lg py-2 hover:bg-purple-50 inline-flex items-center justify-center gap-1.5"
+          >
+            <IconSyringe size={15} /> + Thuốc tiêm
+          </button>
+          <button
+            type="button"
+            onClick={() => addRow(false, true)}
+            className="text-sm border border-dashed border-sky-400 text-sky-700 rounded-lg py-2 hover:bg-sky-50 inline-flex items-center justify-center gap-1.5"
+          >
+            <IconDroplet size={15} /> + Dịch truyền
+          </button>
+        </div>
 
         <div className="flex items-center gap-2 mt-4 pt-4 border-t">
           <label className="text-sm font-medium">Số ngày uống (cả đơn):</label>
@@ -825,13 +851,17 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
       )}
       <div className="flex gap-3">
         <button type="submit" disabled={saving} className="btn-primary px-6">
-          {saving ? "Đang lưu..." : "Lưu lần khám + đơn thuốc"}
+          {saving ? "Đang lưu..." : replaceId ? "Lưu bản sửa" : "Lưu lần khám + đơn thuốc"}
         </button>
         <button type="button" onClick={() => router.back()} className="btn-ghost">
           Hủy
         </button>
       </div>
-      <p className="text-xs text-gray-500">Lưu đơn sẽ tự trừ kho theo tổng số lượng từng thuốc.</p>
+      <p className="text-xs text-gray-500">
+        {replaceId
+          ? "Lưu bản sửa sẽ hoàn thuốc của đơn cũ về kho rồi trừ lại theo đơn mới."
+          : "Lưu đơn sẽ tự trừ kho theo tổng số lượng từng thuốc."}
+      </p>
     </form>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { IconDroplet, IconPrinter, IconRefresh, IconSyringe, Loading } from "@/components/ui";
+import { IconDroplet, IconPencil, IconPrinter, IconRefresh, IconSyringe, Loading } from "@/components/ui";
 import { api } from "@/lib/api";
 import { GENDER_LABEL, type VisitDetail } from "@/lib/types";
 
@@ -30,6 +30,17 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
 
   const doseLabel = (n: number) => (n > 0 ? String(n) : "–");
 
+  /**
+   * Chỉ sửa được đơn TRONG NGÀY KHÁM — sửa đơn cũ làm lệch dòng thời gian tồn kho.
+   * Backend mới là chốt chặn thật (VisitService.replace); ở đây chỉ ẩn nút cho gọn mắt,
+   * đừng bao giờ coi việc ẩn nút là một biện pháp bảo vệ.
+   *
+   * "sv-SE" cho ra YYYY-MM-DD nên so sánh chuỗi là so sánh ngày; kèm timeZone để hai máy
+   * lệch múi giờ vẫn cùng hiểu "hôm nay" theo giờ phòng khám.
+   */
+  const dayVN = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
+  const canEdit = dayVN(new Date(visit.visitDate)) === dayVN(new Date());
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-4 no-print flex-wrap gap-2">
@@ -38,6 +49,15 @@ export default function VisitDetailPage({ params }: { params: Promise<{ id: stri
           <Link href={`/patients/${visit.patient.id}`} className="btn-ghost">
             ← Hồ sơ bệnh nhân
           </Link>
+          {canEdit && (
+            <Link
+              href={`/patients/${visit.patient.id}/new-visit?replace=${visit.id}`}
+              className="inline-flex items-center gap-2 border border-amber-300 text-amber-700 px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-amber-50 transition"
+            >
+              <IconPencil size={15} />
+              Sửa đơn
+            </Link>
+          )}
           {visit.items.length > 0 && (
             <Link
               href={`/patients/${visit.patient.id}/new-visit?copyFrom=${visit.id}`}

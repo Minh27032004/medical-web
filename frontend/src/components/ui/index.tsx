@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Droplet,
   Mail,
+  Pencil,
   Pill,
   Plus,
   Printer,
@@ -35,6 +36,7 @@ export const IconAlert = make(TriangleAlert);
 export const IconMail = make(Mail);
 export const IconPrinter = make(Printer);
 export const IconRefresh = make(RefreshCw);
+export const IconPencil = make(Pencil);
 export const IconX = make(X);
 export const IconPlus = make(Plus);
 export const IconSearch = make(Search);
