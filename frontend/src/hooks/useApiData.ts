@@ -20,24 +20,33 @@ export function useApiData<T>(key: string) {
   // Chỉ hiện skeleton khi CHƯA có gì để hiện; có bản cũ thì render luôn, khỏi nháy.
   const [loading, setLoading] = useState(() => !cacheHas(key));
   const [failed, setFailed] = useState(false);
-  // Bỏ qua phản hồi về muộn của key cũ (đổi từ khóa tìm kiếm nhanh tay).
-  const latestKey = useRef(key);
+
+  /**
+   * Đánh số từng LƯỢT tải; chỉ lượt mới nhất được quyền ghi kết quả.
+   *
+   * Vì sao đếm lượt chứ không so key: so key chỉ chặn được phản hồi về muộn của key CŨ
+   * (đổi từ khóa tìm kiếm nhanh tay), không chặn được hai lượt CÙNG key chồng nhau —
+   * cả hai đều thấy key khớp nên đều ghi. Mạng chậm mà bấm lưu/thử lại hai nhịp là đủ:
+   * lượt sau về trước hiện số mới, lượt trước về sau đè lại số CŨ, và đè cả vào cache
+   * nên rời trang quay lại vẫn sai. Với sổ sách thuốc thì đó là kiểu sai nguy hiểm nhất.
+   */
+  const seq = useRef(0);
 
   const fetchNow = useCallback(async (showSkeleton: boolean) => {
-    latestKey.current = key;
+    const mine = ++seq.current;
     if (showSkeleton) setLoading(true);
     try {
       const fresh = await api<T>(key);
-      if (latestKey.current !== key) return;
+      if (mine !== seq.current) return; // đã có lượt mới hơn → kết quả này lỗi thời, vứt
       cacheSet(key, fresh);
       setData(fresh);
       setFailed(false);
     } catch {
-      if (latestKey.current !== key) return;
+      if (mine !== seq.current) return;
       // Có bản cũ thì cứ để bác sĩ đọc tiếp, đừng đập đi thay bằng màn hình lỗi.
       if (!cacheHas(key)) setFailed(true);
     } finally {
-      if (latestKey.current === key) setLoading(false);
+      if (mine === seq.current) setLoading(false);
     }
   }, [key]);
 

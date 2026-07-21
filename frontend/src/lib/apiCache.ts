@@ -6,8 +6,31 @@
  */
 const cache = new Map<string, unknown>();
 
+/**
+ * Trần số mục — quá thì bỏ mục LÂU KHÔNG ĐỤNG NHẤT (LRU).
+ *
+ * Vì sao cần trần: key là nguyên đường dẫn kèm query, nên mỗi từ khóa tìm kiếm và mỗi
+ * trang sinh một mục mới và nằm lại tới khi đóng tab. Nặng nhất là kho thuốc — nó tải
+ * size=500 nên MỖI từ khóa là một mảng 500 bản ghi. Gõ tìm cả buổi thì RAM tab phình dần,
+ * và dữ liệu bệnh nhân cũng nằm lại lâu hơn mức cần — hơi ngược với lý do không dùng
+ * localStorage ở trên.
+ *
+ * 40 là ước lượng: đủ giữ trọn các trang bác sĩ đi tới đi lui trong một ca khám, mà xấu
+ * nhất (toàn mục kho 500 dòng) vẫn chỉ vài MB.
+ */
+const MAX_ENTRIES = 40;
+
+/** Map giữ thứ tự chèn: xóa rồi set lại = đẩy mục xuống cuối hàng, tức "vừa mới đụng". */
+function touch(key: string, value: unknown): void {
+  cache.delete(key);
+  cache.set(key, value);
+}
+
 export function cacheGet<T>(key: string): T | undefined {
-  return cache.get(key) as T | undefined;
+  if (!cache.has(key)) return undefined;
+  const value = cache.get(key) as T | undefined;
+  touch(key, value); // đọc cũng tính là đụng, nếu không thì thành FIFO chứ không phải LRU
+  return value;
 }
 
 export function cacheHas(key: string): boolean {
@@ -15,7 +38,9 @@ export function cacheHas(key: string): boolean {
 }
 
 export function cacheSet(key: string, value: unknown): void {
-  cache.set(key, value);
+  touch(key, value);
+  // keys().next() = mục ở đầu hàng = lâu không đụng nhất.
+  if (cache.size > MAX_ENTRIES) cache.delete(cache.keys().next().value!);
 }
 
 /**
