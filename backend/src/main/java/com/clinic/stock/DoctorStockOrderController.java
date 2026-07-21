@@ -1,6 +1,7 @@
 package com.clinic.stock;
 
 import com.clinic.auth.UserRepository;
+import com.clinic.common.Pageables;
 import com.clinic.stock.StockOrderService.CreateRequest;
 import com.clinic.stock.StockOrderService.OrderDto;
 import com.clinic.stock.StockOrderService.SuggestionDto;
@@ -9,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -43,10 +46,14 @@ public class DoctorStockOrderController {
         return service.quickSuggestions(doctorId(jwt));
     }
 
-    /** Danh sách CHỈ tóm tắt (không kèm dòng thuốc) — chi tiết lấy qua GET /{id}. */
+    /** Danh sách CHỈ tóm tắt (không kèm dòng thuốc), phân trang — chi tiết lấy qua GET /{id}. */
     @GetMapping
-    public List<StockOrderSummary> list(@AuthenticationPrincipal Jwt jwt) {
-        return service.list(doctorId(jwt));
+    public Page<StockOrderSummary> list(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        return service.list(doctorId(jwt), Pageables.of(page, size, 100));
     }
 
     @GetMapping("/{id}")

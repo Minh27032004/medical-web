@@ -1,6 +1,7 @@
 package com.clinic.patient;
 
 import com.clinic.common.ApiException;
+import com.clinic.common.Pageables;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,7 +81,7 @@ public class PatientService {
     @Transactional(readOnly = true)
     public Page<PatientDto> search(UUID doctorId, String q, int page, int size) {
         var query = q == null ? "" : q.trim();
-        return repository.search(doctorId, query, PageRequest.of(page, Math.min(size, 100)))
+        return repository.search(doctorId, query, Pageables.of(page, size, 100))
             .map(PatientService::toDto);
     }
 

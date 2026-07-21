@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 import { IconAlert, IconDroplet, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import type { Diagnosis, Icd10, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
+import type { Diagnosis, Icd10, Page, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
 /** Ghi chú nhanh — bấm để chèn vào ô ghi chú khám. */
@@ -15,6 +15,17 @@ const QUICK_NOTES = [
 ];
 
 interface ItemForm {
+  /**
+   * Khóa React ổn định theo DÒNG, không phải theo vị trí.
+   *
+   * Dùng key={index} thì mỗi lần chèn hay xóa một dòng ở giữa, mọi dòng phía sau đổi
+   * index nhưng React vẫn coi là cùng component → state RIÊNG bên trong MedicineInput
+   * (danh sách gợi ý đang mở, ô đang focus) ở lại nguyên chỗ cũ và dính sang dòng khác.
+   * Ô nhập thì đúng vì value đến từ state cha, nhưng dropdown gợi ý thì nhảy lung tung.
+   * Trước đây thêm thuốc luôn nối vào cuối nên hiếm gặp; từ khi có ba nút thêm dòng
+   * (dòng tiêm chèn ngay sau cụm tiêm) thì chèn giữa là chuyện thường.
+   */
+  uid: string;
   medicineId: string | null;
   medicineName: string;
   baseUnitLabel: string | null;
@@ -30,6 +41,7 @@ interface ItemForm {
 }
 
 const emptyItem = (injection = false, infusion = false): ItemForm => ({
+  uid: crypto.randomUUID(),
   medicineId: null,
   medicineName: "",
   baseUnitLabel: null,
@@ -406,7 +418,9 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     setDiagName(d.diagName);
     setSecondary(d.secondary ?? []);
     setNote(d.note ?? "");
-    if (d.items?.length) setItems(d.items);
+    // Nháp lưu trước khi có uid thì thiếu khóa — cấp bù, nếu không React nhận key
+    // undefined cho mọi dòng và quay về đúng cái hành vi theo-vị-trí ta vừa bỏ.
+    if (d.items?.length) setItems(d.items.map((it) => ({ ...it, uid: it.uid ?? crypto.randomUUID() })));
     setNumDays(d.numDays ?? "");
     setDraftRestored(true);
   }, [patientId, loadFrom]);
@@ -444,6 +458,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const applyRxItems = useCallback((rx: RxItem[]) => {
     setItems(
       rx.map((r) => ({
+        uid: crypto.randomUUID(),
         medicineId: r.medicineId,
         medicineName: r.medicineName,
         baseUnitLabel: r.baseUnitLabel,
@@ -496,12 +511,16 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   /** Nút "Tạo lại đơn gần nhất" (§5.4) — copy CẢ chẩn đoán + thuốc từ lần khám gần nhất. */
   async function copyLast() {
     try {
-      const visits = await api<VisitRow[]>(`/api/doctor/patients/${patientId}/visits`);
-      if (visits.length === 0) {
+      // size=1: chỉ cần đúng lần khám gần nhất, không việc gì kéo cả lịch sử về rồi bỏ đi.
+      const page = await api<Page<VisitRow>>(
+        `/api/doctor/patients/${patientId}/visits?page=0&size=1`
+      );
+      const last = page.content[0];
+      if (!last) {
         setError("Bệnh nhân chưa có đơn nào trước đó");
         return;
       }
-      await loadFromVisit(visits[0].id); // đã sắp mới→cũ, phần tử đầu là gần nhất
+      await loadFromVisit(last.id); // đã sắp mới→cũ, phần tử đầu là gần nhất
       setError("");
     } catch {
       setError("Không lấy được đơn gần nhất");
@@ -701,7 +720,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
 
         <div className="space-y-4">
           {items.map((it, idx) => (
-            <div key={idx} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : it.infusion ? "border-sky-300 bg-sky-50/30" : "border-gray-200"}`}>
+            <div key={it.uid} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : it.infusion ? "border-sky-300 bg-sky-50/30" : "border-gray-200"}`}>
               <div className="flex items-start gap-2 flex-wrap">
                 {it.injection && <span className="text-purple-600 py-2.5"><IconSyringe size={16} /></span>}
                 {it.infusion && <span className="text-sky-600 py-2.5"><IconDroplet size={16} /></span>}

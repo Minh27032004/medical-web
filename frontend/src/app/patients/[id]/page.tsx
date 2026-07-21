@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pager from "@/components/Pager";
 import PatientForm from "@/components/PatientForm";
 import { Badge, IconAlert, IconPlus, IconSyringe, Loading } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
 import { api } from "@/lib/api";
-import { GENDER_LABEL, type Patient, type VisitRow } from "@/lib/types";
+import { GENDER_LABEL, type Page, type Patient, type VisitRow } from "@/lib/types";
 
 /** Nhãn buổi khám suy từ giờ (§ hiển thị): Sáng < 12h, Chiều 12–18h, Tối ≥ 18h. */
 function sessionLabel(iso: string) {
@@ -24,13 +25,17 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const [deleting, setDeleting] = useState(false);
   const [deletingVisit, setDeletingVisit] = useState<VisitRow | null>(null);
   const [restoreStock, setRestoreStock] = useState(false);
+  const [visitPageNo, setVisitPageNo] = useState(0);
   const router = useRouter();
 
   // Hai nguồn riêng để mỗi cái tự cache: quay lại hồ sơ vừa xem là hiện ngay.
   const { data: patient, failed: patientFailed, reload: reloadPatient } =
     useApiData<Patient>(`/api/doctor/patients/${id}`);
-  const { data: visits = [], reload: reloadVisits } =
-    useApiData<VisitRow[]>(`/api/doctor/patients/${id}/visits`);
+  // 20 lần khám mỗi trang, mới → cũ. Bác sĩ hầu như chỉ nhìn vài lần gần nhất; bệnh nhân
+  // mạn tính tái khám hàng tháng thì sau vài năm kéo về cả trăm dòng là phí.
+  const { data: visitPage, failed: visitsFailed, reload: reloadVisits } =
+    useApiData<Page<VisitRow>>(`/api/doctor/patients/${id}/visits?page=${visitPageNo}&size=20`);
+  const visits = visitPage?.content ?? [];
 
   /** Xóa mềm hồ sơ — lịch sử khám giữ nguyên, chỉ ẩn bệnh nhân khỏi danh sách. */
   async function removePatient() {
@@ -47,7 +52,11 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
    */
   async function removeVisit(v: VisitRow) {
     await api(`/api/doctor/visits/${v.id}?restoreStock=${restoreStock}`, { method: "DELETE" });
-    reloadVisits();
+    // Xóa dòng cuối cùng của một trang lẻ thì trang đó thành rỗng và bác sĩ nhìn vào khoảng
+    // trắng; lùi một trang để luôn có gì đó để đọc. Đổi số trang tự kéo dữ liệu mới nên
+    // không gọi reload nữa, tránh hai request cho cùng một thao tác.
+    if (visits.length === 1 && visitPageNo > 0) setVisitPageNo((p) => p - 1);
+    else reloadVisits();
   }
 
   // Gom theo NGÀY (visits đã sắp mới→cũ): mỗi ngày một dòng, nhiều buổi chung một ô.
@@ -175,10 +184,27 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         </label>
       </ConfirmDialog>
 
+      {/* Tổng lượt lấy từ totalElements (cả bệnh nhân), còn số ngày chỉ tính trên TRANG
+          đang xem — nói rõ ràng để không đọc nhầm thành tổng số ngày đã khám. */}
       <h2 className="font-bold text-lg text-ink mt-6 mb-3">
-        Lịch sử khám <span className="text-gray-400 font-normal text-sm">({visits.length} lượt · {byDay.length} ngày)</span>
+        Lịch sử khám{" "}
+        <span className="text-gray-400 font-normal text-sm">
+          ({visitPage?.totalElements ?? 0} lượt
+          {visits.length > 0 && ` · trang này ${byDay.length} ngày`})
+        </span>
       </h2>
-      {visits.length === 0 && <p className="text-gray-500 text-sm">Chưa có lần khám nào.</p>}
+      {/* Tải hỏng KHÁC với chưa từng khám. Gộp hai cái làm một là nói với bác sĩ rằng
+          bệnh nhân chưa có tiền sử, trong khi thực ra là mạng vừa rớt — với hồ sơ y tế
+          thì đó là thông tin sai, không phải chỉ là hiển thị xấu. */}
+      {visitsFailed && (
+        <p className="text-sm text-red-600">
+          Không tải được lịch sử khám.{" "}
+          <button onClick={reloadVisits} className="underline font-medium">Thử lại</button>
+        </p>
+      )}
+      {!visitsFailed && visits.length === 0 && (
+        <p className="text-gray-500 text-sm">Chưa có lần khám nào.</p>
+      )}
 
       {visits.length > 0 && (
         <div className="card overflow-hidden">
@@ -236,6 +262,12 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       )}
+
+      <Pager
+        page={visitPageNo}
+        totalPages={visitPage?.totalPages ?? 1}
+        onPage={setVisitPageNo}
+      />
     </div>
   );
 }

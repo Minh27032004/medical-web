@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,16 +26,25 @@ interface StockOrderRepository extends JpaRepository<StockOrder, UUID> {
     /**
      * MỘT query cho cả danh sách: size(o.items) thành subquery đếm, không nạp collection,
      * không đụng tới bảng medicines. Thay cho findByDoctorId... + toDto() vốn gây N+1.
+     *
+     * CÓ PHÂN TRANG: trước đây trả trọn lịch sử nhập kho từ ngày đầu dùng phần mềm — con số
+     * chỉ tăng, không bao giờ giảm, nên trang Nhập kho chậm dần theo tháng mà không có mốc
+     * nào báo hiệu. Index idx_stock_orders_doctor (doctor_id, created_at desc) khớp đúng cả
+     * lọc lẫn sắp xếp nên phân trang chỉ đọc đúng phần cần.
+     *
+     * countQuery phải khai riêng: Spring Data không tự suy được câu đếm từ một câu select
+     * dùng constructor expression.
      */
-    @Query("""
+    @Query(value = """
         select new com.clinic.stock.StockOrderSummary(
             o.id, o.code, o.status, o.source, o.note,
             o.createdAt, o.receivedAt, o.cancelledAt, size(o.items))
         from StockOrder o
         where o.doctorId = :doctorId
         order by o.createdAt desc
-        """)
-    List<StockOrderSummary> findSummaries(@Param("doctorId") UUID doctorId);
+        """,
+        countQuery = "select count(o) from StockOrder o where o.doctorId = :doctorId")
+    Page<StockOrderSummary> findSummaries(@Param("doctorId") UUID doctorId, Pageable pageable);
 
     Optional<StockOrder> findByIdAndDoctorId(UUID id, UUID doctorId);
 
@@ -98,10 +109,10 @@ public class StockOrderService {
 
     // ===== CRUD đơn =====
 
-    /** Danh sách: CHỈ tóm tắt. Chi tiết dòng thuốc lấy qua get(id) khi bác sĩ mở đơn. */
+    /** Danh sách: CHỈ tóm tắt, có phân trang. Chi tiết dòng thuốc lấy qua get(id) khi mở đơn. */
     @Transactional(readOnly = true)
-    public List<StockOrderSummary> list(UUID doctorId) {
-        return repository.findSummaries(doctorId);
+    public Page<StockOrderSummary> list(UUID doctorId, Pageable pageable) {
+        return repository.findSummaries(doctorId, pageable);
     }
 
     @Transactional(readOnly = true)

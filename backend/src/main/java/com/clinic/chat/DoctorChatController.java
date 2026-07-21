@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,6 +43,9 @@ public class DoctorChatController {
     private final PatientService patientService;
     private final ChatMessageRepository chatRepo;
     private final ObjectMapper objectMapper;
+
+    /** Trần số dòng lịch sử khám trả về trong một câu trả lời chat. */
+    private static final int MAX_HISTORY_ROWS = 50;
 
     /** sessionId (V16) do FE sinh mỗi lần MỞ chat — ngữ cảnh chỉ kế thừa trong cùng phiên. */
     public record ChatRequest(String question, UUID sessionId) {}
@@ -192,13 +196,19 @@ public class DoctorChatController {
         if (p.isEmpty()) return notFoundPatient(name);
         // Truy vấn thẳng theo patientId. Trước đây kéo TOÀN BỘ lần khám 1 năm của phòng khám
         // (kèm enrich tên bệnh nhân + cờ tiêm cho từng dòng) rồi lọc trong Java — tốn vô ích.
+        // Khung chat không phải chỗ đọc trăm dòng: lấy 50 lần gần nhất, nhưng vẫn nói ĐÚNG
+        // tổng số lần khám để bác sĩ biết còn nữa và mở hồ sơ bệnh nhân xem tiếp.
+        var page = visitService.visitsOfPatient(doctorId, p.get().getId(), PageRequest.of(0, MAX_HISTORY_ROWS));
         var rows = new ArrayList<Map<String, Object>>();
-        for (var v : visitService.visitsOfPatient(doctorId, p.get().getId())) {
+        for (var v : page.getContent()) {
             rows.add(rowOf(v));
         }
-        return new ChatResponse("PATIENT_HISTORY",
-            "Lịch sử khám của " + p.get().getFullName() + " — " + rows.size() + " lần",
-            rows, null);
+        var title = "Lịch sử khám của " + p.get().getFullName()
+            + " — " + page.getTotalElements() + " lần";
+        if (page.getTotalElements() > rows.size()) {
+            title += " (hiện " + rows.size() + " lần gần nhất)";
+        }
+        return new ChatResponse("PATIENT_HISTORY", title, rows, null);
     }
 
     private ChatResponse lastVisit(UUID doctorId, String name) {

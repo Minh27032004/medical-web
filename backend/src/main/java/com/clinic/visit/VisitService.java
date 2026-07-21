@@ -15,6 +15,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -27,8 +30,9 @@ interface VisitRepository extends JpaRepository<Visit, UUID> {
     List<Visit> findByDoctorIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
         UUID doctorId, Instant from, Instant to);
 
-    List<Visit> findByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
-        UUID doctorId, UUID patientId);
+    /** Lịch sử khám của MỘT bệnh nhân, mới → cũ, có phân trang (hồ sơ bệnh nhân). */
+    Page<Visit> findByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
+        UUID doctorId, UUID patientId, Pageable pageable);
 
     List<Visit> findByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
         UUID doctorId, UUID patientId, Instant from, Instant to);
@@ -211,12 +215,20 @@ public class VisitService {
                 doctorId, fromI, toI));
     }
 
+    /**
+     * Lịch sử khám của một bệnh nhân — CÓ PHÂN TRANG.
+     *
+     * Trước đây trả trọn danh sách. Bệnh nhân mạn tính tái khám hàng tháng thì sau vài năm
+     * mỗi lần mở hồ sơ là kéo về cả trăm dòng, trong khi bác sĩ hầu như chỉ nhìn vài lần
+     * gần nhất. Phân trang ở tầng DB nên không phải nạp rồi mới cắt.
+     */
     @Transactional(readOnly = true)
-    public List<VisitRow> visitsOfPatient(UUID doctorId, UUID patientId) {
+    public Page<VisitRow> visitsOfPatient(UUID doctorId, UUID patientId, Pageable pageable) {
         patientService.findOwned(doctorId, patientId);
-        return toRows(doctorId,
-            visitRepository.findByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
-                doctorId, patientId));
+        var page = visitRepository.findByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
+            doctorId, patientId, pageable);
+        // toRows gom tên bệnh nhân + cờ có-tiêm theo LÔ, nên chỉ chạy trên trang hiện tại.
+        return new PageImpl<>(toRows(doctorId, page.getContent()), pageable, page.getTotalElements());
     }
 
     /** Lần khám gần nhất của bệnh nhân (kèm tên + có tiêm) — cho trợ lý chat LAST_VISIT. */

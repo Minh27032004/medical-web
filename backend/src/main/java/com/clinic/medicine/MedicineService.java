@@ -1,6 +1,7 @@
 package com.clinic.medicine;
 
 import com.clinic.common.ApiException;
+import com.clinic.common.Pageables;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -154,7 +155,7 @@ public class MedicineService {
     @Transactional(readOnly = true)
     public Page<MedicineDto> search(UUID doctorId, String q, int page, int size) {
         return repository.search(doctorId, q == null ? "" : q.trim(),
-                PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE)))
+                Pageables.of(page, size, MAX_PAGE_SIZE))
             .map(this::toDto);
     }
 

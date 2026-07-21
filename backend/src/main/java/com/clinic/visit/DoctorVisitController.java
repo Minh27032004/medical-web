@@ -1,5 +1,6 @@
 package com.clinic.visit;
 
+import com.clinic.common.Pageables;
 import com.clinic.visit.VisitService.CreateRequest;
 import com.clinic.visit.VisitService.ItemDto;
 import com.clinic.visit.VisitService.VisitDetail;
@@ -8,6 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -77,10 +79,15 @@ public class DoctorVisitController {
         return visitService.detail(doctorId(jwt), id);
     }
 
+    /** Lịch sử khám của một bệnh nhân — phân trang, mới → cũ. */
     @GetMapping("/patients/{patientId}/visits")
-    public List<VisitRow> visitsOfPatient(@AuthenticationPrincipal Jwt jwt,
-                                          @PathVariable UUID patientId) {
-        return visitService.visitsOfPatient(doctorId(jwt), patientId);
+    public Page<VisitRow> visitsOfPatient(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID patientId,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        return visitService.visitsOfPatient(doctorId(jwt), patientId, Pageables.of(page, size, 100));
     }
 
     /** Nút "Tạo lại đơn gần nhất" — trả các dòng thuốc của lần khám trước để FE điền form. */

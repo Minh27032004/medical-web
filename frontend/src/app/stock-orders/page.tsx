@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pager from "@/components/Pager";
 import {
   Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSearch, LoadError, Loading,
 } from "@/components/ui";
@@ -57,8 +58,12 @@ function readDraft(): Draft | null {
 
 export default function StockOrdersPage() {
   // Danh sách CHỈ tóm tắt — dòng thuốc của từng đơn nạp riêng khi bấm mở.
-  const { data: orders = [], loading, failed: loadFailed, reload: load } =
-    useApiData<StockOrderSummary[]>("/api/doctor/stock-orders");
+  // 20 đơn mỗi trang: lịch sử nhập kho chỉ dài thêm chứ không bao giờ ngắn lại, để nguyên
+  // thì trang này chậm dần theo tháng mà không có mốc nào báo hiệu.
+  const [page, setPage] = useState(0);
+  const { data: orderPage, loading, failed: loadFailed, reload: load } =
+    useApiData<Page<StockOrderSummary>>(`/api/doctor/stock-orders?page=${page}&size=20`);
+  const orders = orderPage?.content ?? [];
 
   const [mode, setMode] = useState<Mode>(null);
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -200,7 +205,10 @@ export default function StockOrdersPage() {
     // lúc tải file sẽ giữ form mở với nguyên các dòng cũ, bác sĩ bấm "Xuất file" lần nữa
     // là tạo ĐƠN THỨ HAI trùng nội dung; xác nhận cả hai thì tồn kho cộng gấp đôi.
     closeDraft();
-    load();
+    // Đơn mới đứng đầu danh sách (sắp theo ngày tạo giảm dần). Đang đứng ở trang 2 mà chỉ
+    // reload thì bác sĩ vừa lưu xong lại không thấy đơn đâu — về trang đầu để nó hiện ra.
+    if (page === 0) load();
+    else setPage(0);
     try {
       await apiDownload(`/api/doctor/stock-orders/${created.id}/export`, `${created.code}.xlsx`);
     } catch {
@@ -304,6 +312,8 @@ export default function StockOrdersPage() {
           </div>
         </div>
       )}
+
+      <Pager page={page} totalPages={orderPage?.totalPages ?? 1} onPage={setPage} />
 
       <ConfirmDialog
         open={!!receiving}
