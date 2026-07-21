@@ -347,6 +347,33 @@ public class VisitService {
                 "Chỉ sửa được đơn trong ngày khám. Đơn cũ hơn thì xóa rồi kê lại nếu cần.");
         }
 
+        // Bản sửa PHẢI cùng bệnh nhân. patientId đến từ URL của form, không phải từ bản
+        // ghi cũ — lệch một ký tự trên thanh địa chỉ là xóa lần khám của người này rồi
+        // dựng lại nó cho người khác, và không có gì trên màn hình báo cho bác sĩ biết.
+        if (!old.getPatientId().equals(req.patientId())) {
+            throw ApiException.badRequest("Bản sửa phải cùng bệnh nhân với lần khám gốc");
+        }
+
+        /*
+         * Chặn TRƯỚC khi động vào kho: softDelete cố tình BỎ QUA việc hoàn những thuốc đã
+         * đổi cấu trúc đơn vị sau lúc kê (số cũ khác hệ quy chiếu, cộng vào là sai tồn).
+         * Với xóa thì bỏ qua là đúng. Nhưng với sửa thì create ngay sau đó VẪN trừ kho
+         * theo đơn mới → thuốc đó bị trừ hai lần mà không có lỗi nào báo ra. Thà từ chối
+         * sửa còn hơn làm lệch sổ thuốc một cách âm thầm.
+         */
+        prescriptionRepository.findByVisitIdAndDoctorId(oldVisitId, doctorId).ifPresent(p -> {
+            for (var i : p.getItems()) {
+                if (i.getMedicineId() == null || i.getTotalQuantityBase().signum() <= 0) continue;
+                var m = medicineService.findOwnedForUpdateOrNull(doctorId, i.getMedicineId());
+                if (m == null) continue; // thuốc đã xóa khỏi kho — create sẽ báo lỗi rõ hơn
+                if (!i.getBaseUnit().equals(m.getBaseUnit())) {
+                    throw ApiException.badRequest("Thuốc \"" + i.getMedicineName()
+                        + "\" đã đổi đơn vị sau khi kê nên không sửa được đơn này."
+                        + " Hãy xóa lần khám (có tick hoàn kho) rồi kê lại.");
+                }
+            }
+        });
+
         softDelete(doctorId, oldVisitId, true); // hoàn kho theo snapshot đơn cũ
         var created = create(doctorId, req);    // trừ kho theo đơn mới
 

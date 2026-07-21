@@ -411,8 +411,17 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     setDraftRestored(true);
   }, [patientId, loadFrom]);
 
-  // Tự lưu nháp mỗi khi đơn đổi.
+  /**
+   * Tự lưu nháp mỗi khi đơn đổi.
+   *
+   * KHÔNG ghi nháp khi form mở từ một lần khám có sẵn (?copyFrom= / ?replace=): nội dung
+   * đó vốn đã nằm trong DB, mở lại là có, nên chẳng cứu được gì — trong khi nó ĐÈ mất
+   * nháp thật của bệnh nhân. Nguy hơn nữa: bỏ dở giữa chừng thì lần sau bấm "Tạo lần khám
+   * mới" sẽ khôi phục nguyên nội dung đơn đã lưu, bác sĩ tưởng đang soạn mới mà thực ra
+   * đang nhìn bản sao của đơn cũ — lưu tiếp là ra một lần khám trùng.
+   */
   useEffect(() => {
+    if (loadFrom) return;
     const draft: VisitDraft = {
       diagCode, diagName, secondary, note, items, numDays,
       savedAt: new Date().toISOString(),
@@ -421,7 +430,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     if (!hasContent) return; // form trống thì không tạo nháp rác
     draftRef.current = draft;
     localStorage.setItem(visitDraftKey(patientId), JSON.stringify(draft));
-  }, [patientId, diagCode, diagName, secondary, note, items, numDays]);
+  }, [patientId, loadFrom, diagCode, diagName, secondary, note, items, numDays]);
 
   // Ghi thêm một lần lúc rời trang: effect trên chạy sau khi vẽ, gõ xong bấm đi ngay
   // thì thay đổi cuối có thể chưa kịp lưu.
