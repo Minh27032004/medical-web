@@ -5,6 +5,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe, LoadError } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
+import { blockImplicitSubmit, useFocusField } from "@/hooks/useFocusField";
 import { api, ApiError } from "@/lib/api";
 import type { Medicine, Page, Template } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
@@ -42,6 +43,7 @@ export default function TemplatesPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<Template | null>(null); // mẫu chờ xác nhận xóa
+  const focusField = useFocusField();
 
   // Filter + phân trang (client-side trên danh sách đã tải).
   const [q, setQ] = useState("");
@@ -125,7 +127,7 @@ export default function TemplatesPage() {
       </p>
 
       {form && (
-        <form onSubmit={save} className="card p-5 mb-4 space-y-3">
+        <form onSubmit={save} onKeyDown={blockImplicitSubmit} className="card p-5 mb-4 space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm mb-1.5 font-medium text-gray-600">Tên hiển thị *</label>
@@ -147,6 +149,9 @@ export default function TemplatesPage() {
                 injection: m?.injection ?? false,
                 infusion: m?.infusion ?? false,
               })}
+                // Chọn xong thuốc kho là sang ngay phần liều — bấm Enter tiếp là tick
+                // "Sáng" và vào ô liều luôn, giống hệt màn kê đơn.
+                onPicked={() => focusField("chk:doseMorning")}
               />
             </div>
           </div>
@@ -164,6 +169,19 @@ export default function TemplatesPage() {
                         type="checkbox"
                         checked={checked}
                         onChange={(e) => setForm({ ...form, [f]: e.target.checked ? "1" : "" })}
+                        data-focus-key={`chk:${f}`}
+                        /**
+                         * Enter = tick buổi này rồi vào thẳng ô liều (mặc định "1" đã bôi
+                         * đen, gõ số khác là đè). Space vẫn bật/tắt như checkbox chuẩn —
+                         * giữ nguyên để còn đường BỎ tick; Enter không bỏ tick vì lỡ tay
+                         * xóa mất liều đã gõ khó chịu hơn nhiều so với phải bấm Space.
+                         */
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          if (!checked) setForm({ ...form, [f]: "1" });
+                          focusField(`dose:${f}`);
+                        }}
                       />
                       {label}
                     </label>
@@ -172,6 +190,7 @@ export default function TemplatesPage() {
                         type="number" min={0} step="any"
                         value={form[f]}
                         onChange={(e) => setForm({ ...form, [f]: e.target.value })}
+                        data-focus-key={`dose:${f}`}
                         className="input-sm w-14 px-1 text-center"
                       />
                     )}
@@ -309,10 +328,18 @@ export default function TemplatesPage() {
   );
 }
 
-function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine | null) => void }) {
+function MedicinePicker({
+  value, onPick, onPicked,
+}: { value: string; onPick: (m: Medicine | null) => void; onPicked: () => void }) {
   const [input, setInput] = useState(value);
   const [options, setOptions] = useState<Medicine[]>([]);
   const [open, setOpen] = useState(false);
+  /**
+   * Dòng gợi ý đang chọn bằng BÀN PHÍM; -1 = chưa chọn gì. Bắt đầu từ -1 để Enter không
+   * tự gắn đại một thuốc kho vào mẫu — gắn sai thuốc là mọi đơn kê từ mẫu này về sau đều
+   * trừ nhầm tồn. Muốn chọn thì bấm ↓.
+   */
+  const [active, setActive] = useState(-1);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -321,7 +348,7 @@ function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
       api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(q)}&size=8`, { signal: ctrl.signal })
-        .then((p) => { setOptions(p.content); setOpen(p.content.length > 0); })
+        .then((p) => { setOptions(p.content); setActive(-1); setOpen(p.content.length > 0); })
         .catch(() => {});
     }, 250);
     return () => { clearTimeout(timer); ctrl.abort(); };
@@ -335,22 +362,58 @@ function MedicinePicker({ value, onPick }: { value: string; onPick: (m: Medicine
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
+  function pick(m: Medicine) {
+    onPick(m);
+    setInput(m.name);
+    setOpen(false);
+    onPicked();
+  }
+
+  /**
+   * Enter luôn nghĩa là "xong ô này, đi tiếp": có dòng đang chọn (↓/↑) thì gắn thuốc kho
+   * đó, không có thì bỏ qua liên kết kho và sang phần liều — không tự gắn đại. Trước đây
+   * Enter ở đây rơi xuống form và lưu luôn thuốc mẫu; nay form đã chặn Enter, nếu không
+   * bắt ở đây thì Enter thành phím chết.
+   */
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === "Escape") { setOpen(false); setActive(-1); return; }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen = open ? options[active] : undefined;
+      if (chosen) pick(chosen);
+      else { setOpen(false); onPicked(); }
+      return;
+    }
+    if (!open || options.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => (i + 1) % options.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => (i <= 0 ? options.length : i) - 1);
+    }
+  }
+
   return (
     <div ref={wrapRef} className="relative">
       <input
         value={input}
         onChange={(e) => { setInput(e.target.value); onPick(null); }}
+        onKeyDown={onKey}
         placeholder="(tùy chọn) gõ tên thuốc kho..."
         className="input"
       />
       {open && (
         <div className="absolute z-20 top-full left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-lg mt-1 max-h-52 overflow-y-auto">
-          {options.map((m) => (
+          {options.map((m, i) => (
             <button
               key={m.id}
               type="button"
-              onClick={() => { onPick(m); setInput(m.name); setOpen(false); }}
-              className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm"
+              onClick={() => pick(m)}
+              // Không setActive khi rê chuột — xem ghi chú cùng chỗ ở form kê đơn.
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 ${
+                i === active ? "bg-blue-100 ring-1 ring-inset ring-blue-400" : ""
+              }`}
             >
               {m.injection && <span className="text-purple-600 inline-block align-text-bottom mr-1"><IconSyringe size={13} /></span>}
               {m.infusion && <span className="text-sky-600 inline-block align-text-bottom mr-1"><IconDroplet size={13} /></span>}

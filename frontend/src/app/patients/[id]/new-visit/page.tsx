@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 import { IconAlert, IconDroplet, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
+import { blockImplicitSubmit, useFocusField } from "@/hooks/useFocusField";
 import { api, ApiError } from "@/lib/api";
 import type { Diagnosis, Icd10, Page, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
@@ -231,10 +232,23 @@ function IcdMultiPicker({
 
 /** Ô thuốc có autocomplete: thuốc mẫu trước (tự điền liều), thuốc kho sau, kèm tồn (§5.4). */
 function MedicineInput({
-  item, onChange,
-}: { item: ItemForm; onChange: (patch: Partial<ItemForm>) => void }) {
+  item, onChange, focusKey, onPicked,
+}: {
+  item: ItemForm;
+  onChange: (patch: Partial<ItemForm>) => void;
+  focusKey: string;
+  onPicked: () => void;
+}) {
   const [options, setOptions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
+  /**
+   * Dòng gợi ý đang chọn bằng BÀN PHÍM. -1 = chưa chọn gì, và đó là giá trị khởi đầu có
+   * chủ ý: tên thuốc ở đây được phép là chữ tự do (thuốc ngoài kho, `medicineId` = null).
+   * Nếu Enter mặc định lấy dòng đầu, bác sĩ gõ "Paracetamol 500mg" rồi Enter sẽ bị thay
+   * âm thầm thành "Paracetamol 250mg" đang gợi ý — sai thuốc trên đơn in ra và trừ nhầm
+   * kho. Phải bấm ↓ để chọn thì mới là chủ đích.
+   */
+  const [active, setActive] = useState(-1);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -246,6 +260,7 @@ function MedicineInput({
         .then((r) => {
           const filtered = r.filter((s) => s.injection === item.injection && s.infusion === item.infusion);
           setOptions(filtered);
+          setActive(-1); // danh sách đổi thì bỏ chọn, tránh Enter lấy nhầm dòng của lần gõ trước
           setOpen(filtered.length > 0);
         })
         .catch(() => {});
@@ -277,6 +292,34 @@ function MedicineInput({
       }),
     });
     setOpen(false);
+    onPicked();
+  }
+
+  /**
+   * Bàn phím trong ô tên thuốc. Enter LUÔN có nghĩa "xong ô này, đi tiếp":
+   *  - đang chọn một dòng gợi ý (↓/↑) → lấy dòng đó rồi sang ô liều;
+   *  - không chọn dòng nào → GIỮ NGUYÊN chữ đã gõ (thuốc ngoài kho), đóng gợi ý, sang ô
+   *    liều. Không bao giờ tự ý thay tên thuốc bác sĩ vừa gõ.
+   * Trước đây Enter ở đây rơi xuống form và LƯU cả lần khám — nay form đã chặn Enter, nếu
+   * không bắt ở đây thì Enter thành phím chết.
+   */
+  function onKey(e: React.KeyboardEvent) {
+    if (e.key === "Escape") { setOpen(false); setActive(-1); return; }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen = open ? options[active] : undefined;
+      if (chosen) pick(chosen);
+      else { setOpen(false); onPicked(); }
+      return;
+    }
+    if (!open || options.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => (i + 1) % options.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => (i <= 0 ? options.length : i) - 1);
+    }
   }
 
   return (
@@ -284,6 +327,8 @@ function MedicineInput({
       <input
         value={item.medicineName}
         onChange={(e) => onChange({ medicineName: e.target.value, medicineId: null, stockDisplay: null })}
+        onKeyDown={onKey}
+        data-focus-key={focusKey}
         placeholder={item.injection ? "Tên thuốc tiêm..." : item.infusion ? "Tên dịch truyền..." : "Tên thuốc..."}
         className="input"
       />
@@ -297,7 +342,12 @@ function MedicineInput({
               key={i}
               type="button"
               onClick={() => pick(s)}
-              className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm flex justify-between gap-2"
+              // KHÔNG setActive khi rê chuột: con trỏ vô tình nằm trên danh sách sẽ biến
+              // dòng dưới nó thành "đang chọn", rồi Enter lấy nhầm thuốc đó. Hover chỉ tô
+              // nền cho đẹp; dòng chọn bằng bàn phím có viền riêng để phân biệt.
+              className={`w-full text-left px-3 py-2 text-sm flex justify-between gap-2 hover:bg-blue-50 ${
+                i === active ? "bg-blue-100 ring-1 ring-inset ring-blue-400" : ""
+              }`}
             >
               <span className="inline-flex items-center gap-1.5">
                 {s.type === "TEMPLATE" && <span className="text-amber-500" title="Thuốc mẫu"><IconStar size={13} /></span>}
@@ -396,6 +446,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
    * nên dùng key để remount — cách React khuyến nghị cho đúng tình huống này.
    */
   const [pickerKey, setPickerKey] = useState(0);
+  const focusField = useFocusField();
 
   useEffect(() => {
     api<Patient>(`/api/doctor/patients/${patientId}`).then(setPatient).catch(() => {});
@@ -535,9 +586,12 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
    * nào cùng nhóm thì nối vào cuối.
    */
   function addRow(injection: boolean, infusion: boolean) {
+    // Tạo dòng NGOÀI updater để lấy được uid mà hẹn focus. Để trong updater thì React
+    // Strict Mode gọi hai lần, sinh hai uid và cái ta giữ lại là uid bị vứt đi.
+    const row = emptyItem(injection, infusion);
+    focusField(`name:${row.uid}`); // gõ tên thuốc được ngay, khỏi rê chuột
     setItems((arr) => {
       const last = arr.findLastIndex((i) => i.injection === injection && i.infusion === infusion);
-      const row = emptyItem(injection, infusion);
       if (last === -1) return [...arr, row];
       return [...arr.slice(0, last + 1), row, ...arr.slice(last + 1)];
     });
@@ -616,7 +670,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   }
 
   return (
-    <form onSubmit={submit} className="max-w-3xl mx-auto space-y-5">
+    <form onSubmit={submit} onKeyDown={blockImplicitSubmit} className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="page-title">
           {replaceId ? "Sửa đơn khám" : "Lần khám mới"}
@@ -724,13 +778,24 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
               <div className="flex items-start gap-2 flex-wrap">
                 {it.injection && <span className="text-purple-600 py-2.5"><IconSyringe size={16} /></span>}
                 {it.infusion && <span className="text-sky-600 py-2.5"><IconDroplet size={16} /></span>}
-                <MedicineInput item={it} onChange={(p) => updateItem(idx, p)} />
+                <MedicineInput
+                  item={it}
+                  onChange={(p) => updateItem(idx, p)}
+                  focusKey={`name:${it.uid}`}
+                  // Chọn xong thuốc là nhảy thẳng tới ô liều đầu tiên của dòng đó: thuốc
+                  // tiêm/truyền vào ô số ống/chai, thuốc uống vào checkbox "Sáng" (bấm
+                  // Enter tiếp là tick và vào ô liều luôn).
+                  onPicked={() => focusField(
+                    it.injection || it.infusion ? `qty:${it.uid}` : `chk:doseMorning:${it.uid}`
+                  )}
+                />
                 {it.injection || it.infusion ? (
                   <div className="text-center">
                     <input
                       type="number" min={0} step="any"
                       value={it.doseMorning}
                       onChange={(e) => updateItem(idx, { doseMorning: e.target.value })}
+                      data-focus-key={`qty:${it.uid}`}
                       className="input-sm w-24 py-2 text-center"
                     />
                     <p className="text-[10px] text-gray-500">{it.injection ? "Số ống" : "Số chai"}</p>
@@ -746,6 +811,20 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                               type="checkbox"
                               checked={checked}
                               onChange={(e) => updateItem(idx, { [f]: e.target.checked ? "1" : "" })}
+                              data-focus-key={`chk:${f}:${it.uid}`}
+                              /**
+                               * Enter = tick buổi này rồi vào thẳng ô liều (mặc định "1"
+                               * đã bôi đen, gõ số khác là đè). Space vẫn là bật/tắt như
+                               * checkbox chuẩn — giữ nguyên để còn đường BỎ tick.
+                               * Enter không bỏ tick, vì lỡ tay xóa mất liều đã gõ thì
+                               * khó chịu hơn nhiều so với phải bấm Space.
+                               */
+                              onKeyDown={(e) => {
+                                if (e.key !== "Enter") return;
+                                e.preventDefault();
+                                if (!checked) updateItem(idx, { [f]: "1" });
+                                focusField(`dose:${f}:${it.uid}`);
+                              }}
                             />
                             {label}
                           </label>
@@ -754,6 +833,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                               type="number" min={0} step="any"
                               value={it[f]}
                               onChange={(e) => updateItem(idx, { [f]: e.target.value })}
+                              data-focus-key={`dose:${f}:${it.uid}`}
                               className="input-sm w-14 px-1 text-center"
                             />
                           )}
