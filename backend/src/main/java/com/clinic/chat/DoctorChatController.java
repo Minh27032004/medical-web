@@ -108,10 +108,19 @@ public class DoctorChatController {
             var raw = gemini.generate(CLASSIFY_PROMPT.formatted(today),
                 context + "Câu hỏi hiện tại: " + req.question());
             var json = objectMapper.readTree(raw);
-            intent = json.path("intent").asText("UNKNOWN");
-            if (json.hasNonNull("from")) from = LocalDate.parse(json.get("from").asText());
-            if (json.hasNonNull("to")) to = LocalDate.parse(json.get("to").asText());
-            if (json.hasNonNull("name")) name = json.get("name").asText("");
+            // Parse HẾT vào biến tạm rồi mới gán. Trước đây intent được gán TRƯỚC khi parse
+            // from/to: model trả "from":"null" (bản flash-lite vẫn trả chuỗi này) là
+            // LocalDate.parse ném lỗi giữa chừng, intent VISIT_COUNT vẫn giữ nhưng khoảng ngày
+            // âm thầm rơi về hôm nay — bác sĩ hỏi "tháng này" lại nhận số của hôm nay mà
+            // không có dấu hiệu gì. Hỏng thì phải hỏng cả cụm, thành UNKNOWN và hỏi lại.
+            var parsedIntent = json.path("intent").asText("UNKNOWN");
+            var parsedFrom = parseDate(json, "from", today);
+            var parsedTo = parseDate(json, "to", today);
+            var parsedName = parseText(json, "name");
+            intent = parsedIntent;
+            from = parsedFrom;
+            to = parsedTo;
+            name = parsedName;
         } catch (Exception e) {
             log.warn("Không parse được intent, coi như UNKNOWN", e);
         }
@@ -136,6 +145,23 @@ public class DoctorChatController {
 
         persist(doctorId, req.sessionId(), req.question().trim(), intent, name, from, to, resp);
         return resp;
+    }
+
+    /**
+     * Đọc một trường text của JSON model trả về. Model đôi khi trả CHUỖI "null" thay vì null
+     * JSON (quan sát được ở gemini-3.1-flash-lite) — coi cả hai là "không có".
+     */
+    private static String parseText(tools.jackson.databind.JsonNode json, String field) {
+        if (!json.hasNonNull(field)) return "";
+        var v = json.get(field).asText("").trim();
+        return "null".equalsIgnoreCase(v) ? "" : v;
+    }
+
+    /** Ngày: thiếu/null/"null" → dùng mặc định; sai định dạng → ném lỗi để cả cụm về UNKNOWN. */
+    private static LocalDate parseDate(tools.jackson.databind.JsonNode json, String field,
+                                       LocalDate fallback) {
+        var v = parseText(json, field);
+        return v.isEmpty() ? fallback : LocalDate.parse(v);
     }
 
     /** Ghép ngữ cảnh 5 lượt gần nhất thành text cho Gemini để hiểu câu hỏi nối tiếp. */

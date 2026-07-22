@@ -67,5 +67,9 @@ app:
     jwt-secret: ${SUPABASE_JWT_SECRET:}
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    # alias luôn trỏ bản flash mới nhất (gemini-2.5-flash bị khóa với API key tạo mới từ 2026)
-    model: ${GEMINI_MODEL:gemini-flash-latest}
+    # KHÔNG dùng alias `gemini-flash-latest`: nó tự trỏ sang bản flash mới nhất, và từ
+    # gemini-3-flash-preview thì model BẬT reasoning mặc định — đo thực tế 13–26 GIÂY chỉ để
+    # chọn 1 trong 10 intent, không tắt được bằng thinking_level. Ghim bản *-flash-lite:
+    # cùng độ chính xác trên bộ câu hỏi của phòng khám nhưng ~1.0s. Đổi model là việc phải
+    # ĐO LẠI, không phải cứ mới hơn là tốt hơn.
+    model: ${GEMINI_MODEL:gemini-3.5-flash-lite}
