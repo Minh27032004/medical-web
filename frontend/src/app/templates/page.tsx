@@ -168,7 +168,12 @@ export default function TemplatesPage() {
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={(e) => setForm({ ...form, [f]: e.target.checked ? "1" : "" })}
+                        onChange={(e) => {
+                          setForm({ ...form, [f]: e.target.checked ? "1" : "" });
+                          // Tick bằng Space/chuột cũng vào ô liều — ô đó đã ra khỏi thứ
+                          // tự Tab nên đây là đường duy nhất tới nó bằng bàn phím.
+                          if (e.target.checked) focusField(`dose:${f}`);
+                        }}
                         data-focus-key={`chk:${f}`}
                         /**
                          * Enter = tick buổi này rồi vào thẳng ô liều (mặc định "1" đã bôi
@@ -191,6 +196,9 @@ export default function TemplatesPage() {
                         value={form[f]}
                         onChange={(e) => setForm({ ...form, [f]: e.target.value })}
                         data-focus-key={`dose:${f}`}
+                        // Ra khỏi thứ tự Tab để Tab chỉ nhảy giữa 4 buổi — xem ghi chú
+                        // đầy đủ ở form kê đơn. Vẫn focus được bằng focusField/chuột.
+                        tabIndex={-1}
                         className="input-sm w-14 px-1 text-center"
                       />
                     )}

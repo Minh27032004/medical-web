@@ -810,7 +810,14 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={(e) => updateItem(idx, { [f]: e.target.checked ? "1" : "" })}
+                              onChange={(e) => {
+                                updateItem(idx, { [f]: e.target.checked ? "1" : "" });
+                                // Tick bằng Space hay bằng chuột cũng vào thẳng ô liều.
+                                // Bắt buộc phải có: ô liều đã bị loại khỏi thứ tự Tab nên
+                                // nếu không đưa con trỏ vào đây thì tick bằng Space xong
+                                // sẽ không còn đường nào tới ô đó bằng bàn phím.
+                                if (e.target.checked) focusField(`dose:${f}:${it.uid}`);
+                              }}
                               data-focus-key={`chk:${f}:${it.uid}`}
                               /**
                                * Enter = tick buổi này rồi vào thẳng ô liều (mặc định "1"
@@ -834,6 +841,18 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
                               value={it[f]}
                               onChange={(e) => updateItem(idx, { [f]: e.target.value })}
                               data-focus-key={`dose:${f}:${it.uid}`}
+                              /**
+                               * Ra khỏi thứ tự Tab: một dòng thuốc uống có tới 4 ô liều,
+                               * để trong chuỗi thì Tab đi Sáng → ô liều → Trưa → ô liều...
+                               * mất gấp đôi số phím chỉ để lướt qua bốn buổi. Nay Tab chỉ
+                               * nhảy giữa các buổi, còn ô liều được đưa con trỏ vào đúng
+                               * lúc vừa tick buổi đó.
+                               *
+                               * tabIndex -1 KHÔNG làm ô mất khả năng focus — nó chỉ rút ô
+                               * khỏi chuỗi Tab; focusField() và click chuột vẫn vào được,
+                               * và Tab từ trong ô này vẫn đi tiếp sang buổi kế.
+                               */
+                              tabIndex={-1}
                               className="input-sm w-14 px-1 text-center"
                             />
                           )}
