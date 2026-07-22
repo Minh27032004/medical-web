@@ -37,6 +37,13 @@ interface VisitRepository extends JpaRepository<Visit, UUID> {
     List<Visit> findByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
         UUID doctorId, UUID patientId, Instant from, Instant to);
 
+    /**
+     * ĐẾM số lần khám trong khoảng. Trợ lý chat chỉ cần con số, nên để DB đếm thay vì kéo
+     * hàng chục entity Visit qua đường truyền sang Mumbai rồi gọi .size() ở Java.
+     */
+    int countByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetween(
+        UUID doctorId, UUID patientId, Instant from, Instant to);
+
     Optional<Visit> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
 
     Optional<Visit> findFirstByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
@@ -241,7 +248,9 @@ public class VisitService {
     /** Đếm số lần khám của bệnh nhân trong khoảng (null = 30 ngày gần nhất) — chat VISIT_COUNT. */
     @Transactional(readOnly = true)
     public int countVisits(UUID doctorId, UUID patientId, LocalDate from, LocalDate to) {
-        return rangeVisits(doctorId, patientId, from, to).size();
+        var span = rangeInstants(from, to);
+        return visitRepository.countByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetween(
+            doctorId, patientId, span[0], span[1]);
     }
 
     /** Đếm số lần khám CÓ TIÊM của bệnh nhân trong khoảng — chat INJECTION_COUNT. */
@@ -254,12 +263,19 @@ public class VisitService {
     }
 
     private List<Visit> rangeVisits(UUID doctorId, UUID patientId, LocalDate from, LocalDate to) {
+        var span = rangeInstants(from, to);
+        return visitRepository.findByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
+            doctorId, patientId, span[0], span[1]);
+    }
+
+    /** [from 00:00, to+1 00:00) theo giờ phòng khám; null = 30 ngày gần nhất. */
+    private static Instant[] rangeInstants(LocalDate from, LocalDate to) {
         var toDate = to != null ? to : LocalDate.now(CLINIC_ZONE);
         var fromDate = from != null ? from : toDate.minusDays(30);
-        var fromI = fromDate.atStartOfDay(CLINIC_ZONE).toInstant();
-        var toI = toDate.plusDays(1).atStartOfDay(CLINIC_ZONE).toInstant();
-        return visitRepository.findByDoctorIdAndPatientIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
-            doctorId, patientId, fromI, toI);
+        return new Instant[] {
+            fromDate.atStartOfDay(CLINIC_ZONE).toInstant(),
+            toDate.plusDays(1).atStartOfDay(CLINIC_ZONE).toInstant()
+        };
     }
 
     @Transactional(readOnly = true)

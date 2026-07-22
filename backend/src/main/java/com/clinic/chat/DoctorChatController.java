@@ -4,7 +4,6 @@ import com.clinic.medicine.MedicineService;
 import com.clinic.patient.Patient;
 import com.clinic.patient.PatientService;
 import com.clinic.visit.VisitService;
-import tools.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -30,6 +29,15 @@ import org.springframework.web.bind.annotation.RestController;
  * Chat nội bộ (§5.7): LLM CHỈ trả {intent, params} JSON → backend map vào query template
  * whitelist, luôn ràng buộc doctor_id. LLM không bao giờ chạm DB.
  * Có NGỮ CẢNH: nạp 5 lượt gần nhất (V9) để hiểu câu hỏi nối tiếp ("... còn mấy lần tiêm?").
+ *
+ * ĐƯỜNG ĐI CỦA MỘT CÂU HỎI (đo trên production: mỗi round-trip DB ~100ms, Gemini ~740ms):
+ *   1. `intent` có sẵn trong request (bác sĩ bấm chip gợi ý) → KHÔNG gọi Gemini, không nạp
+ *      ngữ cảnh. Chip là câu cố định, intent đã biết chắc — hỏi lại model là tự trả 740ms
+ *      cho một thứ mình đã biết.
+ *   2. Không có → IntentClassifier (có cache) mới gọi Gemini.
+ * Ngữ cảnh chỉ nạp khi phiên ĐÃ có lượt trước (turnIndex > 0) — câu đầu phiên thì bảng
+ * chat_messages chắc chắn chưa có gì trong phiên này, query đi cũng chỉ tốn 100ms để nhận
+ * về danh sách rỗng.
  */
 @Slf4j
 @RestController
@@ -37,45 +45,44 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class DoctorChatController {
 
-    private final GeminiClient gemini;
+    private final IntentClassifier classifier;
     private final VisitService visitService;
     private final MedicineService medicineService;
     private final PatientService patientService;
     private final ChatMessageRepository chatRepo;
-    private final ObjectMapper objectMapper;
+    private final ChatHistoryService historyService;
 
     /** Trần số dòng lịch sử khám trả về trong một câu trả lời chat. */
     private static final int MAX_HISTORY_ROWS = 50;
 
-    /** sessionId (V16) do FE sinh mỗi lần MỞ chat — ngữ cảnh chỉ kế thừa trong cùng phiên. */
-    public record ChatRequest(String question, UUID sessionId) {}
+    /**
+     * Yêu cầu chat.
+     *
+     * @param sessionId (V16) FE sinh mỗi lần MỞ chat — ngữ cảnh chỉ kế thừa trong cùng phiên.
+     * @param intent    TẦNG 0: chip gợi ý gửi thẳng intent đã biết, bỏ qua LLM. Chỉ nhận giá
+     *                  trị trong {@link #DIRECT_INTENTS}; sai thì rơi về phân loại bình thường.
+     * @param name      tên bệnh nhân/thuốc đi kèm chip (chip có ô nhập).
+     * @param range     khoảng ngày của chip, dạng từ khóa (TODAY/THIS_MONTH) — backend tự quy
+     *                  ra ngày. KHÔNG cho FE gửi ngày cụ thể: mốc thời gian phải tính theo
+     *                  giờ phòng khám ở server, không theo đồng hồ máy bác sĩ.
+     * @param turnIndex số lượt đã hỏi trong phiên; 0 = câu đầu → khỏi nạp ngữ cảnh.
+     */
+    public record ChatRequest(String question, UUID sessionId, String intent, String name,
+                              String range, Integer turnIndex) {}
 
     public record ChatResponse(String intent, String title, List<Map<String, Object>> rows,
                                String message) {}
 
     public record HistoryItem(String question, String intent, String answerSummary, Instant createdAt) {}
 
-    /** Intent có dùng khoảng ngày — quyết định có lưu param_from/to để cấp ngữ cảnh lượt sau. */
-    private static final Set<String> DATE_INTENTS = Set.of(
-        "VISITS_BY_DATE", "INJECTION_BY_DATE", "VISIT_COUNT", "INJECTION_COUNT");
-
-    private static final String CLASSIFY_PROMPT = """
-        Bạn là bộ phân loại câu hỏi cho hệ quản lý phòng khám. Hôm nay là %s (giờ Việt Nam).
-        Trả về DUY NHẤT một JSON: {"intent": "...", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "name": "..."}
-        Các intent hợp lệ:
-        - VISITS_BY_DATE: danh sách bệnh nhân/lần khám trong một khoảng ngày (from, to)
-        - INJECTION_BY_DATE: các lần khám CÓ TIÊM thuốc trong khoảng ngày (from, to)
-        - PATIENT_HISTORY: lịch sử khám (danh sách) của MỘT bệnh nhân (name)
-        - LAST_VISIT: lần khám GẦN NHẤT của MỘT bệnh nhân là khi nào (name)
-        - VISIT_COUNT: ĐẾM số lần khám của MỘT bệnh nhân trong khoảng (name, from, to)
-        - INJECTION_COUNT: ĐẾM số lần CÓ TIÊM của MỘT bệnh nhân trong khoảng (name, from, to)
-        - MEDICINE_STOCK: tồn kho của MỘT thuốc theo tên (name)
-        - LOW_STOCK: những thuốc đang dưới ngưỡng cảnh báo (sắp hết)
-        - LOWEST_STOCK: thuốc nào tồn THẤP NHẤT / ít nhất và còn bao nhiêu
-        - UNKNOWN: không thuộc các loại trên
-        Quy đổi mốc thời gian tương đối (hôm nay, hôm qua, tuần này, tháng này...) thành ngày cụ thể.
-        Trường không dùng thì bỏ qua. Không thêm chữ nào ngoài JSON.
-        """;
+    /**
+     * Intent mà FE được phép chỉ định thẳng. Đây KHÔNG phải lỗ hổng: mỗi intent vẫn đi qua
+     * đúng query template cũ và vẫn lọc theo doctorId lấy từ JWT — bác sĩ tự gõ câu hỏi cũng
+     * ra được đúng chừng đó intent. Whitelist ở đây chỉ để một giá trị lạ không lọt vào switch.
+     */
+    private static final Set<String> DIRECT_INTENTS = Set.of(
+        "VISITS_BY_DATE", "INJECTION_BY_DATE", "PATIENT_HISTORY", "LAST_VISIT",
+        "VISIT_COUNT", "INJECTION_COUNT", "MEDICINE_STOCK", "LOW_STOCK", "LOWEST_STOCK");
 
     @GetMapping("/history")
     public List<HistoryItem> history(@AuthenticationPrincipal Jwt jwt) {
@@ -95,34 +102,38 @@ public class DoctorChatController {
         }
 
         var today = LocalDate.now(VisitService.CLINIC_ZONE);
-        // Không có sessionId (client cũ) thì KHÔNG lấy ngữ cảnh — thà mất tính năng hỏi nối
-        // tiếp còn hơn kế thừa nhầm đối tượng của phiên khác.
-        var context = req.sessionId() == null ? "" : buildContext(
-            chatRepo.findTop5ByDoctorIdAndSessionIdOrderByCreatedAtDesc(doctorId, req.sessionId()));
 
-        String intent = "UNKNOWN";
-        LocalDate from = today;
-        LocalDate to = today;
-        String name = "";
-        try {
-            var raw = gemini.generate(CLASSIFY_PROMPT.formatted(today),
-                context + "Câu hỏi hiện tại: " + req.question());
-            var json = objectMapper.readTree(raw);
-            // Parse HẾT vào biến tạm rồi mới gán. Trước đây intent được gán TRƯỚC khi parse
-            // from/to: model trả "from":"null" (bản flash-lite vẫn trả chuỗi này) là
-            // LocalDate.parse ném lỗi giữa chừng, intent VISIT_COUNT vẫn giữ nhưng khoảng ngày
-            // âm thầm rơi về hôm nay — bác sĩ hỏi "tháng này" lại nhận số của hôm nay mà
-            // không có dấu hiệu gì. Hỏng thì phải hỏng cả cụm, thành UNKNOWN và hỏi lại.
-            var parsedIntent = json.path("intent").asText("UNKNOWN");
-            var parsedFrom = parseDate(json, "from", today);
-            var parsedTo = parseDate(json, "to", today);
-            var parsedName = parseText(json, "name");
-            intent = parsedIntent;
-            from = parsedFrom;
-            to = parsedTo;
-            name = parsedName;
-        } catch (Exception e) {
-            log.warn("Không parse được intent, coi như UNKNOWN", e);
+        String intent;
+        LocalDate from;
+        LocalDate to;
+        String name;
+
+        var direct = req.intent() != null && DIRECT_INTENTS.contains(req.intent());
+        if (direct) {
+            // TẦNG 0 — bác sĩ bấm chip gợi ý: intent đã biết chắc, không gọi Gemini, không nạp
+            // ngữ cảnh. Cắt trọn ~740ms (LLM) + ~100ms (query ngữ cảnh) khỏi đường đi.
+            intent = req.intent();
+            name = req.name() == null ? "" : req.name().trim();
+            var span = rangeOf(req.range(), today);
+            from = span[0];
+            to = span[1];
+        } else {
+            // Ngữ cảnh chỉ có ý nghĩa từ lượt thứ hai trở đi. Không có sessionId (client cũ)
+            // thì KHÔNG lấy ngữ cảnh — thà mất tính năng hỏi nối tiếp còn hơn kế thừa nhầm
+            // đối tượng của phiên khác.
+            // turnIndex thiếu = tab đang chạy bản JS cũ (chưa reload sau deploy): giữ nguyên
+            // hành vi cũ là nạp ngữ cảnh, đừng lặng lẽ tắt tính năng hỏi nối tiếp của họ.
+            var needContext = req.sessionId() != null
+                && (req.turnIndex() == null || req.turnIndex() > 0);
+            var context = needContext
+                ? buildContext(chatRepo.findTop5ByDoctorIdAndSessionIdOrderByCreatedAtDesc(
+                    doctorId, req.sessionId()))
+                : "";
+            var c = classifier.classify(req.question(), context, today);
+            intent = c.intent();
+            from = c.from();
+            to = c.to();
+            name = c.name();
         }
 
         // Whitelist intent → query template (luôn theo doctorId)
@@ -143,25 +154,21 @@ public class DoctorChatController {
                 + "\"thuốc nào sắp hết\", \"thuốc nào tồn thấp nhất\".");
         };
 
-        persist(doctorId, req.sessionId(), req.question().trim(), intent, name, from, to, resp);
+        // Ghi nhật ký CHẠY NGẦM — trả lời xong rồi mới lưu, bác sĩ không chờ thêm INSERT.
+        historyService.record(doctorId, req.sessionId(), req.question().trim(), intent, name,
+            from, to, resp.title() != null ? resp.title() : resp.message());
         return resp;
     }
 
     /**
-     * Đọc một trường text của JSON model trả về. Model đôi khi trả CHUỖI "null" thay vì null
-     * JSON (quan sát được ở gemini-3.1-flash-lite) — coi cả hai là "không có".
+     * Từ khóa khoảng ngày của chip → cặp [from, to] tính theo giờ phòng khám.
+     * Giá trị lạ thì coi như hôm nay — chip chỉ sinh ra hai giá trị này.
      */
-    private static String parseText(tools.jackson.databind.JsonNode json, String field) {
-        if (!json.hasNonNull(field)) return "";
-        var v = json.get(field).asText("").trim();
-        return "null".equalsIgnoreCase(v) ? "" : v;
-    }
-
-    /** Ngày: thiếu/null/"null" → dùng mặc định; sai định dạng → ném lỗi để cả cụm về UNKNOWN. */
-    private static LocalDate parseDate(tools.jackson.databind.JsonNode json, String field,
-                                       LocalDate fallback) {
-        var v = parseText(json, field);
-        return v.isEmpty() ? fallback : LocalDate.parse(v);
+    private static LocalDate[] rangeOf(String range, LocalDate today) {
+        if ("THIS_MONTH".equals(range)) {
+            return new LocalDate[] {today.withDayOfMonth(1), today};
+        }
+        return new LocalDate[] {today, today};
     }
 
     /** Ghép ngữ cảnh 5 lượt gần nhất thành text cho Gemini để hiểu câu hỏi nối tiếp. */
@@ -182,25 +189,6 @@ public class DoctorChatController {
         sb.append("Nếu câu hỏi hiện tại nói TIẾP mà KHÔNG nêu tên/đối tượng, hãy KẾ THỪA 'đối tượng' "
             + "của lượt gần nhất có nó; tương tự với khoảng thời gian.\n\n");
         return sb.toString();
-    }
-
-    private void persist(UUID doctorId, UUID sessionId, String question, String intent, String name,
-                         LocalDate from, LocalDate to, ChatResponse resp) {
-        try {
-            var m = new ChatMessage();
-            m.setDoctorId(doctorId);
-            m.setSessionId(sessionId);
-            m.setQuestion(question);
-            m.setIntent(intent);
-            m.setParamName(name == null || name.isBlank() ? null : name);
-            boolean dateBased = DATE_INTENTS.contains(intent);
-            m.setParamFrom(dateBased ? from : null);
-            m.setParamTo(dateBased ? to : null);
-            m.setAnswerSummary(resp.title() != null ? resp.title() : resp.message());
-            chatRepo.save(m);
-        } catch (Exception e) {
-            log.warn("Không lưu được lịch sử chat (bỏ qua)", e); // lỗi lưu không được làm hỏng câu trả lời
-        }
     }
 
     // ===== Handlers (mỗi cái là 1 "template" query, luôn lọc doctorId) =====
