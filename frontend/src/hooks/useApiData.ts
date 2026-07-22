@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { cacheGet, cacheHas, cacheSet } from "@/lib/apiCache";
+import { cacheGet, cacheHas, cacheSet, dedupeInflight } from "@/lib/apiCache";
 
 /**
  * Cache dữ liệu GET dùng chung cả phiên, theo kiểu stale-while-revalidate:
@@ -36,7 +36,8 @@ export function useApiData<T>(key: string) {
     const mine = ++seq.current;
     if (showSkeleton) setLoading(true);
     try {
-      const fresh = await api<T>(key);
+      // Gộp với lượt cùng key đang bay (vd nhiều ô autocomplete trên một form).
+      const fresh = await dedupeInflight(key, () => api<T>(key));
       if (mine !== seq.current) return; // đã có lượt mới hơn → kết quả này lỗi thời, vứt
       cacheSet(key, fresh);
       setData(fresh);

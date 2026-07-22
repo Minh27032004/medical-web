@@ -4,7 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 import { IconAlert, IconDroplet, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
 import { blockImplicitSubmit, useFocusField } from "@/hooks/useFocusField";
+import { useIcd10, useSuggestions } from "@/hooks/usePreloaded";
 import { api, ApiError } from "@/lib/api";
+import { filterIcd, filterSuggestions } from "@/lib/search";
 import type { Diagnosis, Icd10, Page, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
@@ -76,9 +78,9 @@ function IcdPicker({
   code, name, onPick,
 }: { code: string; name: string; onPick: (code: string, name: string) => void }) {
   const [input, setInput] = useState(code ? `${code} — ${name}` : "");
-  const [options, setOptions] = useState<Icd10[]>([]);
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false); // đã chọn/Esc → đừng bật lại danh sách
   const wrapRef = useRef<HTMLDivElement>(null);
+  const all = useIcd10();
 
   // Đồng bộ text khi code được set TỪ NGOÀI (vd "Tạo lại đơn" đổ chẩn đoán cũ vào).
   // Khi user gõ, onChange đặt code = "" nên effect không ghi đè.
@@ -86,21 +88,15 @@ function IcdPicker({
     if (code) setInput(`${code} — ${name}`);
   }, [code, name]);
 
-  useEffect(() => {
-    const q = input.trim();
-    if (!q || q.includes("—")) { setOptions([]); return; }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => {
-      api<Icd10[]>(`/api/doctor/icd10?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
-        .then((r) => { setOptions(r); setOpen(r.length > 0); })
-        .catch(() => {});
-    }, 250);
-    return () => { clearTimeout(timer); ctrl.abort(); };
-  }, [input]);
+  // Lọc trong RAM — tính ngay lúc render, không effect, không request, không debounce.
+  // "—" trong ô nghĩa là đang hiện "MÃ — Tên" đã chọn xong, không phải từ khóa đang gõ.
+  const q = input.trim();
+  const options = q.includes("—") ? [] : filterIcd(all, q);
+  const open = !dismissed && options.length > 0;
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setDismissed(true);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -109,7 +105,7 @@ function IcdPicker({
   function pick(o: Icd10) {
     onPick(o.code, o.name);
     setInput(`${o.code} — ${o.name}`);
-    setOpen(false);
+    setDismissed(true);
   }
 
   // gõ mã rồi space/enter → chọn kết quả khớp mã đầu tiên
@@ -127,7 +123,7 @@ function IcdPicker({
     <div ref={wrapRef} className="relative">
       <input
         value={input}
-        onChange={(e) => { setInput(e.target.value); onPick("", ""); }}
+        onChange={(e) => { setInput(e.target.value); setDismissed(false); onPick("", ""); }}
         onKeyDown={onKey}
         className={`input ${code ? "border-blue-400 bg-blue-50/40" : ""}`}
         required={!code}
@@ -155,25 +151,17 @@ function IcdMultiPicker({
   items, onAdd, onRemove,
 }: { items: Diagnosis[]; onAdd: (d: Diagnosis) => void; onRemove: (code: string) => void }) {
   const [input, setInput] = useState("");
-  const [options, setOptions] = useState<Icd10[]>([]);
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const all = useIcd10();
 
-  useEffect(() => {
-    const q = input.trim();
-    if (!q) { setOptions([]); return; }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => {
-      api<Icd10[]>(`/api/doctor/icd10?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
-        .then((r) => { setOptions(r); setOpen(r.length > 0); })
-        .catch(() => {});
-    }, 250);
-    return () => { clearTimeout(timer); ctrl.abort(); };
-  }, [input]);
+  // Lọc tại chỗ, không request — xem ghi chú ở IcdPicker.
+  const options = filterIcd(all, input);
+  const open = !dismissed && options.length > 0;
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setDismissed(true);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -181,7 +169,7 @@ function IcdMultiPicker({
 
   function add(o: Icd10) {
     if (!items.some((d) => d.code === o.code)) onAdd({ code: o.code, name: o.name });
-    setInput(""); setOptions([]); setOpen(false);
+    setInput(""); setDismissed(true);
   }
 
   function onKey(e: React.KeyboardEvent) {
@@ -208,7 +196,7 @@ function IcdMultiPicker({
       )}
       <input
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={(e) => { setInput(e.target.value); setDismissed(false); }}
         onKeyDown={onKey}
         className="input"
       />
@@ -239,8 +227,7 @@ function MedicineInput({
   focusKey: string;
   onPicked: () => void;
 }) {
-  const [options, setOptions] = useState<Suggestion[]>([]);
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   /**
    * Dòng gợi ý đang chọn bằng BÀN PHÍM. -1 = chưa chọn gì, và đó là giá trị khởi đầu có
    * chủ ý: tên thuốc ở đây được phép là chữ tự do (thuốc ngoài kho, `medicineId` = null).
@@ -248,29 +235,35 @@ function MedicineInput({
    * âm thầm thành "Paracetamol 250mg" đang gợi ý — sai thuốc trên đơn in ra và trừ nhầm
    * kho. Phải bấm ↓ để chọn thì mới là chủ đích.
    */
-  const [active, setActive] = useState(-1);
+  const [sel, setSel] = useState({ q: "", i: -1 });
   const wrapRef = useRef<HTMLDivElement>(null);
+  const all = useSuggestions();
 
-  useEffect(() => {
-    const q = item.medicineName.trim();
-    if (!q || item.medicineId) { setOptions([]); return; }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => {
-      api<Suggestion[]>(`/api/doctor/suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
-        .then((r) => {
-          const filtered = r.filter((s) => s.injection === item.injection && s.infusion === item.infusion);
-          setOptions(filtered);
-          setActive(-1); // danh sách đổi thì bỏ chọn, tránh Enter lấy nhầm dòng của lần gõ trước
-          setOpen(filtered.length > 0);
-        })
-        .catch(() => {});
-    }, 250);
-    return () => { clearTimeout(timer); ctrl.abort(); };
-  }, [item.medicineName, item.medicineId, item.injection, item.infusion]);
+  /**
+   * Lọc trong RAM ngay lúc render — không request, không debounce, danh sách hiện tức thì.
+   * Vẫn giữ đúng hai luật cũ: chỉ gợi ý khi CHƯA chốt thuốc (medicineId rỗng), và dòng
+   * tiêm chỉ thấy thuốc tiêm, dòng truyền chỉ thấy dịch truyền.
+   */
+  const options = item.medicineId
+    ? []
+    : filterSuggestions(all, item.medicineName).filter(
+        (s) => s.injection === item.injection && s.infusion === item.infusion
+      );
+  const open = !dismissed && options.length > 0;
+
+  /**
+   * Dòng đang chọn chỉ có nghĩa với ĐÚNG từ khóa đã sinh ra nó — gõ thêm một chữ là danh
+   * sách khác hẳn, giữ lại chỉ số cũ thì Enter lấy nhầm thuốc. Suy ra tại chỗ thay vì
+   * dùng effect setActive: bớt một vòng render, và không có khoảnh khắc nào chỉ số cũ
+   * còn sống cùng danh sách mới.
+   */
+  const active = sel.q === item.medicineName ? sel.i : -1;
+  const setActive = (next: number | ((i: number) => number)) =>
+    setSel({ q: item.medicineName, i: typeof next === "function" ? next(active) : next });
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setDismissed(true);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -291,7 +284,7 @@ function MedicineInput({
         ...deriveUsage(s.usageNote),
       }),
     });
-    setOpen(false);
+    setDismissed(true);
     onPicked();
   }
 
@@ -304,12 +297,12 @@ function MedicineInput({
    * không bắt ở đây thì Enter thành phím chết.
    */
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === "Escape") { setOpen(false); setActive(-1); return; }
+    if (e.key === "Escape") { setDismissed(true); setActive(-1); return; }
     if (e.key === "Enter") {
       e.preventDefault();
       const chosen = open ? options[active] : undefined;
       if (chosen) pick(chosen);
-      else { setOpen(false); onPicked(); }
+      else { setDismissed(true); onPicked(); }
       return;
     }
     if (!open || options.length === 0) return;
@@ -326,7 +319,10 @@ function MedicineInput({
     <div ref={wrapRef} className="relative flex-1 min-w-44">
       <input
         value={item.medicineName}
-        onChange={(e) => onChange({ medicineName: e.target.value, medicineId: null, stockDisplay: null })}
+        onChange={(e) => {
+          setDismissed(false);
+          onChange({ medicineName: e.target.value, medicineId: null, stockDisplay: null });
+        }}
         onKeyDown={onKey}
         data-focus-key={focusKey}
         placeholder={item.injection ? "Tên thuốc tiêm..." : item.infusion ? "Tên dịch truyền..." : "Tên thuốc..."}

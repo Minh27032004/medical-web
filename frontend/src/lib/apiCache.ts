@@ -57,4 +57,30 @@ export function cacheSet(key: string, value: unknown): void {
  */
 export function cacheClear(): void {
   cache.clear();
+  inflight.clear();
+}
+
+/** Các lượt tải ĐANG bay, theo key — để nhiều nơi hỏi cùng lúc chỉ tốn một request. */
+const inflight = new Map<string, Promise<unknown>>();
+
+/**
+ * Gộp các lượt tải trùng key đang chạy song song thành MỘT request.
+ *
+ * Vì sao cần: form kê đơn có nhiều dòng thuốc, mỗi dòng là một ô autocomplete cùng hỏi
+ * danh sách gợi ý. Không gộp thì mở form có 5 dòng là bắn 5 request y hệt nhau cùng lúc
+ * — cache chỉ cứu được từ lần thứ hai trở đi, vì lúc đó chưa lượt nào kịp về để ghi vào.
+ * Cùng lý do với hai component bất kỳ dùng chung một key.
+ *
+ * Chỉ gộp lúc ĐANG BAY: xong là xóa khỏi bảng, nên đây không phải cache thứ hai và không
+ * làm dữ liệu cũ nằm lại lâu hơn.
+ */
+export function dedupeInflight<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const running = inflight.get(key) as Promise<T> | undefined;
+  if (running) return running;
+  const p = run().finally(() => {
+    // Chỉ xóa nếu vẫn là lượt của mình — cacheClear() có thể đã dọn sạch giữa chừng.
+    if (inflight.get(key) === p) inflight.delete(key);
+  });
+  inflight.set(key, p);
+  return p;
 }

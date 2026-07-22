@@ -55,9 +55,18 @@ public class DoctorTemplateController {
         templateService.softDelete(doctorId(jwt), id);
     }
 
-    /** Autocomplete khi kê đơn: thuốc mẫu trước, thuốc kho sau (§5.4). */
+    /**
+     * Autocomplete khi kê đơn: thuốc mẫu trước, thuốc kho sau (§5.4).
+     * Nay là ĐƯỜNG LUI — frontend dùng /suggest/all rồi lọc tại chỗ.
+     */
     @GetMapping("/suggest")
     public List<Suggestion> suggest(@AuthenticationPrincipal Jwt jwt, @RequestParam String q) {
         return templateService.suggest(doctorId(jwt), q);
+    }
+
+    /** Toàn bộ gợi ý của bác sĩ, tải MỘT lần rồi lọc phía client — xem TemplateService.suggestAll. */
+    @GetMapping("/suggest/all")
+    public List<Suggestion> suggestAll(@AuthenticationPrincipal Jwt jwt) {
+        return templateService.suggestAll(doctorId(jwt));
     }
 }

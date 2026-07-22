@@ -31,6 +31,9 @@ interface MedicineTemplateRepository extends JpaRepository<MedicineTemplate, UUI
     List<MedicineTemplate> search(@Param("doctorId") UUID doctorId, @Param("q") String q, Pageable pageable);
 
     Optional<MedicineTemplate> findByIdAndDoctorIdAndDeletedAtIsNull(UUID id, UUID doctorId);
+
+    /** Toàn bộ thuốc mẫu còn sống của bác sĩ — cho /suggest/all tải sẵn về client. */
+    List<MedicineTemplate> findByDoctorIdAndDeletedAtIsNullOrderByName(UUID doctorId);
 }
 
 @Service
@@ -108,28 +111,76 @@ public class TemplateService {
         var templates = repository.search(doctorId, query, PageRequest.of(0, 5));
         var medMap = medicineService.mapByIds(doctorId, medicineIds(templates)); // tránh N+1
         for (var t : templates) {
-            Medicine m = t.getMedicineId() == null ? null : medMap.get(t.getMedicineId());
-            out.add(new Suggestion("TEMPLATE", t.getId(), t.getMedicineId(), t.getName(),
-                m != null ? m.getBaseUnit() : null,
-                m != null ? MedicineService.UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()) : null,
-                m != null ? MedicineService.stockDisplay(m) : null,
-                m != null && m.isInjection(), m != null && m.isInfusion(),
-                t.getDefaultDoseMorning(), t.getDefaultDoseNoon(),
-                t.getDefaultDoseAfternoon(), t.getDefaultDoseEvening(),
-                t.getDefaultUsageNote(), t.getDefaultNumDays()));
+            out.add(toSuggestion(t, t.getMedicineId() == null ? null : medMap.get(t.getMedicineId())));
         }
         // 15 chứ không phải 8: một kho 180 thuốc có thể có tới 21 tên chứa "pa"; cắt ở 8
         // là bác sĩ không thấy thuốc mình cần dù kho có. Danh sách vẫn đủ ngắn để chọn nhanh.
         for (var m : medicineService.searchEntities(doctorId, query, 15)) {
-            var already = out.stream().anyMatch(s -> m.getId().equals(s.medicineId()));
-            if (already) continue;
-            out.add(new Suggestion("MEDICINE", null, m.getId(), m.getName(),
-                m.getBaseUnit(),
-                MedicineService.UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()),
-                MedicineService.stockDisplay(m), m.isInjection(), m.isInfusion(),
-                null, null, null, null, null, null));
+            if (out.stream().anyMatch(s -> m.getId().equals(s.medicineId()))) continue;
+            out.add(toSuggestion(m));
         }
         return out;
+    }
+
+    /**
+     * Trần số gợi ý tải sẵn. Kho thực tế cỡ 180 thuốc; 2000 là chỗ thở rất rộng mà payload
+     * vẫn chỉ vài trăm KB. Vượt trần thì bác sĩ mất phần đuôi danh sách chứ không phải mất
+     * cả tính năng — và /suggest?q= cũ vẫn còn đó làm đường lui.
+     */
+    private static final int MAX_ALL = 2000;
+
+    /**
+     * TOÀN BỘ gợi ý kê đơn của một bác sĩ (thuốc mẫu trước, thuốc kho sau) — client giữ
+     * sẵn rồi lọc tại chỗ khi gõ.
+     *
+     * Vì sao cần: suggest(q) bên trên chạy BA query cho MỖI ký tự bác sĩ gõ (tìm thuốc
+     * mẫu, nạp thuốc kho của các mẫu đó, rồi tìm thuốc kho). Mỗi vòng tới Supabase tốn
+     * ~200-300ms nên danh sách hiện ra sau gần một giây — với thao tác gõ liên tục thì đó
+     * là cả một quãng chờ.
+     *
+     * Ở đây chỉ HAI query cho cả phiên làm việc, và query thứ hai (toàn bộ kho) cũng chính
+     * là thứ dùng để map thuốc cho từng mẫu — nên không cần mapByIds nữa, bớt được một
+     * vòng nữa so với đường cũ.
+     *
+     * Vẫn lọc theo doctorId lấy từ JWT ở mọi query — quy tắc số 1 của dự án.
+     */
+    @Transactional(readOnly = true)
+    public List<Suggestion> suggestAll(UUID doctorId) {
+        var templates = repository.findByDoctorIdAndDeletedAtIsNullOrderByName(doctorId);
+        var medicines = medicineService.searchEntities(doctorId, "", MAX_ALL);
+        var medMap = medicines.stream().collect(Collectors.toMap(Medicine::getId, m -> m));
+
+        var out = new ArrayList<Suggestion>(templates.size() + medicines.size());
+        for (var t : templates) {
+            out.add(toSuggestion(t, t.getMedicineId() == null ? null : medMap.get(t.getMedicineId())));
+        }
+        var covered = out.stream().map(Suggestion::medicineId).filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        for (var m : medicines) {
+            if (!covered.contains(m.getId())) out.add(toSuggestion(m));
+        }
+        return out;
+    }
+
+    /** Thuốc mẫu → gợi ý; medicine có thể null (mẫu chưa gắn thuốc kho). */
+    private static Suggestion toSuggestion(MedicineTemplate t, Medicine m) {
+        return new Suggestion("TEMPLATE", t.getId(), t.getMedicineId(), t.getName(),
+            m != null ? m.getBaseUnit() : null,
+            m != null ? MedicineService.UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()) : null,
+            m != null ? MedicineService.stockDisplay(m) : null,
+            m != null && m.isInjection(), m != null && m.isInfusion(),
+            t.getDefaultDoseMorning(), t.getDefaultDoseNoon(),
+            t.getDefaultDoseAfternoon(), t.getDefaultDoseEvening(),
+            t.getDefaultUsageNote(), t.getDefaultNumDays());
+    }
+
+    /** Thuốc kho → gợi ý (không có liều mặc định). */
+    private static Suggestion toSuggestion(Medicine m) {
+        return new Suggestion("MEDICINE", null, m.getId(), m.getName(),
+            m.getBaseUnit(),
+            MedicineService.UNIT_LABEL.getOrDefault(m.getBaseUnit(), m.getBaseUnit()),
+            MedicineService.stockDisplay(m), m.isInjection(), m.isInfusion(),
+            null, null, null, null, null, null);
     }
 
     private void apply(UUID doctorId, MedicineTemplate t, UpsertRequest req) {

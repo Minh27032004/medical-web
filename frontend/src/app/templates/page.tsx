@@ -6,8 +6,10 @@ import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe, LoadError } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
 import { blockImplicitSubmit, useFocusField } from "@/hooks/useFocusField";
+import { useMedicines } from "@/hooks/usePreloaded";
 import { api, ApiError } from "@/lib/api";
-import type { Medicine, Page, Template } from "@/lib/types";
+import { containsVi, normalizeVi } from "@/lib/search";
+import type { Medicine, Template } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
 const PAGE_SIZE = 10;
@@ -340,31 +342,32 @@ function MedicinePicker({
   value, onPick, onPicked,
 }: { value: string; onPick: (m: Medicine | null) => void; onPicked: () => void }) {
   const [input, setInput] = useState(value);
-  const [options, setOptions] = useState<Medicine[]>([]);
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   /**
    * Dòng gợi ý đang chọn bằng BÀN PHÍM; -1 = chưa chọn gì. Bắt đầu từ -1 để Enter không
    * tự gắn đại một thuốc kho vào mẫu — gắn sai thuốc là mọi đơn kê từ mẫu này về sau đều
    * trừ nhầm tồn. Muốn chọn thì bấm ↓.
    */
-  const [active, setActive] = useState(-1);
+  const [sel, setSel] = useState({ q: "", i: -1 });
   const wrapRef = useRef<HTMLDivElement>(null);
+  const all = useMedicines();
 
-  useEffect(() => {
-    const q = input.trim();
-    if (!q) { setOptions([]); return; }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => {
-      api<Page<Medicine>>(`/api/doctor/medicines?q=${encodeURIComponent(q)}&size=8`, { signal: ctrl.signal })
-        .then((p) => { setOptions(p.content); setActive(-1); setOpen(p.content.length > 0); })
-        .catch(() => {});
-    }, 250);
-    return () => { clearTimeout(timer); ctrl.abort(); };
-  }, [input]);
+  /**
+   * Lọc trong RAM, không request mỗi lần gõ — kho tải sẵn một lần (xem usePreloaded).
+   * Cắt 8 dòng như trần size=8 của endpoint cũ để danh sách vẫn ngắn, dễ chọn.
+   */
+  const nq = normalizeVi(input.trim());
+  const options = nq ? all.filter((m) => containsVi(m.name, nq)).slice(0, 8) : [];
+  const open = !dismissed && options.length > 0;
+
+  // Dòng đang chọn chỉ có nghĩa với đúng từ khóa sinh ra nó — xem ghi chú ở form kê đơn.
+  const active = sel.q === input ? sel.i : -1;
+  const setActive = (next: number | ((i: number) => number)) =>
+    setSel({ q: input, i: typeof next === "function" ? next(active) : next });
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setDismissed(true);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
@@ -373,7 +376,7 @@ function MedicinePicker({
   function pick(m: Medicine) {
     onPick(m);
     setInput(m.name);
-    setOpen(false);
+    setDismissed(true);
     onPicked();
   }
 
@@ -384,12 +387,12 @@ function MedicinePicker({
    * bắt ở đây thì Enter thành phím chết.
    */
   function onKey(e: React.KeyboardEvent) {
-    if (e.key === "Escape") { setOpen(false); setActive(-1); return; }
+    if (e.key === "Escape") { setDismissed(true); setActive(-1); return; }
     if (e.key === "Enter") {
       e.preventDefault();
       const chosen = open ? options[active] : undefined;
       if (chosen) pick(chosen);
-      else { setOpen(false); onPicked(); }
+      else { setDismissed(true); onPicked(); }
       return;
     }
     if (!open || options.length === 0) return;
@@ -406,7 +409,7 @@ function MedicinePicker({
     <div ref={wrapRef} className="relative">
       <input
         value={input}
-        onChange={(e) => { setInput(e.target.value); onPick(null); }}
+        onChange={(e) => { setInput(e.target.value); setDismissed(false); onPick(null); }}
         onKeyDown={onKey}
         placeholder="(tùy chọn) gõ tên thuốc kho..."
         className="input"

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,6 +30,36 @@ public class Icd10Controller {
 
     public record Icd10Dto(String code, String name) {}
 
+    /**
+     * Trần số mã trả về ở /all. Bảng hiện có ~86 mã và chỉ lớn lên khi ai đó chèn thêm.
+     * Đặt trần để nếu một ngày nó phình ra thì client không lặng lẽ tải về payload khổng
+     * lồ — lúc đó vẫn còn endpoint tìm kiếm bên dưới làm đường lui.
+     */
+    private static final int MAX_ALL = 5000;
+
+    /**
+     * TOÀN BỘ bảng ICD-10 để client giữ sẵn rồi lọc tại chỗ.
+     *
+     * Vì sao trả hết thay vì tìm từng lần gõ: search() bên dưới chạy BA query cho mỗi ký
+     * tự (khớp mã chính xác, prefix mã, rồi tên), mà mỗi vòng tới Supabase tốn ~200-300ms
+     * — gõ một chữ phải chờ gần một giây, cộng debounce 250ms nữa thành "mấy giây" đúng
+     * như bác sĩ phàn nàn. Cả bảng chỉ ~86 dòng (~5KB): tải MỘT lần rồi lọc trong RAM là
+     * tức thì, và ICD-10 gần như bất biến nên giữ cả phiên vẫn đúng dữ liệu.
+     *
+     * Một query duy nhất, không tham số, không đụng dữ liệu bác sĩ — bảng này dùng chung.
+     */
+    @GetMapping("/all")
+    public List<Icd10Dto> all() {
+        return repository.findAll(PageRequest.of(0, MAX_ALL, Sort.by("code"))).getContent()
+            .stream()
+            .map(c -> new Icd10Dto(c.getCode(), c.getName()))
+            .toList();
+    }
+
+    /**
+     * Tìm kiếm phía server — nay là ĐƯỜNG LUI, không còn nằm trên đường gõ phím của bác sĩ.
+     * Giữ lại vì nó không phụ thuộc trần MAX_ALL ở trên.
+     */
     @GetMapping
     public List<Icd10Dto> search(@RequestParam String q) {
         var query = q.trim();
