@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
-import { IconAlert, IconDroplet, IconRefresh, IconStar, IconSyringe, IconX } from "@/components/ui";
+import { IconAlert, IconDroplet, IconRefresh, IconStar, IconSyringe, IconX, LoadError } from "@/components/ui";
 import { blockImplicitSubmit, useFocusField } from "@/hooks/useFocusField";
 import { useIcd10, useSuggestions } from "@/hooks/usePreloaded";
 import { api, ApiError } from "@/lib/api";
@@ -444,9 +444,31 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const [pickerKey, setPickerKey] = useState(0);
   const focusField = useFocusField();
 
-  useEffect(() => {
-    api<Patient>(`/api/doctor/patients/${patientId}`).then(setPatient).catch(() => {});
+  /**
+   * Không tải được hồ sơ bệnh nhân → KHÔNG cho kê đơn.
+   *
+   * Trước đây lỗi ở đây bị `.catch(() => {})` nuốt gọn và form vẫn hiện đầy đủ. Nguy hiểm
+   * không nằm ở chỗ mất cái tên trên tiêu đề, mà ở hai banner CẢNH BÁO ngay dưới nó: "Bệnh
+   * nhân DỊ ỨNG THUỐC" và "Bệnh nền" chỉ render khi `patient` có giá trị. Hồ sơ tải hụt là
+   * chúng lặng lẽ biến mất, và bác sĩ kê nguyên một đơn cho người dị ứng mà màn hình không
+   * hề gợn — đúng loại lỗi tệ nhất: không báo gì, chỉ bớt đi một cảnh báo an toàn.
+   *
+   * Thà chặn hẳn và bắt tải lại, còn hơn cho kê đơn trên thông tin thiếu.
+   */
+  const [patientFailed, setPatientFailed] = useState(false);
+
+  /**
+   * Cờ lỗi chỉ được XÓA khi tải lại THÀNH CÔNG, không xóa ngay lúc bắt đầu gọi. Xóa sớm
+   * thì bấm "Thử lại" lúc mạng vẫn hỏng sẽ nháy về form kê đơn một nhịp rồi mới quay lại
+   * màn lỗi — vừa giật vừa để lọt một khoảnh khắc bác sĩ gõ được vào form thiếu cảnh báo.
+   */
+  const loadPatient = useCallback(() => {
+    api<Patient>(`/api/doctor/patients/${patientId}`)
+      .then((p) => { setPatient(p); setPatientFailed(false); })
+      .catch(() => setPatientFailed(true));
   }, [patientId]);
+
+  useEffect(() => { loadPatient(); }, [loadPatient]);
 
   /**
    * Khôi phục nháp của ĐÚNG bệnh nhân này. Trong effect vì trang có prerender.
@@ -663,6 +685,24 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
       setError(err instanceof ApiError ? err.message : "Lưu thất bại");
       setSaving(false);
     }
+  }
+
+  // Chặn kê đơn khi chưa chắc đang kê cho ai — xem ghi chú ở khai báo patientFailed.
+  if (patientFailed) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-4">
+        <h1 className="page-title">{replaceId ? "Sửa đơn khám" : "Lần khám mới"}</h1>
+        <p className="flex items-center gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <IconAlert size={15} />
+          Chưa mở được hồ sơ bệnh nhân nên chưa thể kê đơn — cảnh báo dị ứng và bệnh nền
+          cũng lấy từ hồ sơ này.
+        </p>
+        <LoadError onRetry={loadPatient} />
+        <button type="button" onClick={() => router.back()} className="btn-ghost">
+          Quay lại
+        </button>
+      </div>
+    );
   }
 
   return (

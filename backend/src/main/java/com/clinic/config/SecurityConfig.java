@@ -90,7 +90,20 @@ public class SecurityConfig {
         var origins = new java.util.ArrayList<>(
             java.util.Arrays.stream(frontendOrigin.split(","))
                 .map(String::trim).filter(s -> !s.isBlank()).toList());
-        if (!origins.contains("http://localhost:3000")) {
+        /*
+         * CHỈ mở cho localhost khi đây thực sự là môi trường dev.
+         *
+         * Trước đây localhost:3000 được thêm VÔ ĐIỀU KIỆN, nghĩa là backend production
+         * cũng chấp nhận request từ máy bất kỳ đang chạy dev server. Token vẫn phải hợp lệ
+         * nên đây không phải lỗ hổng tự thân, nhưng nó biến một token bị lộ (máy bác sĩ bị
+         * chiếm, XSS ở đâu đó) thành khai thác được ngay từ trình duyệt của kẻ tấn công —
+         * trong khi CORS sinh ra chính là để bịt đường đó.
+         *
+         * Dấu hiệu "đang là dev": FRONTEND_ORIGIN tự nó trỏ về localhost. Trên Render biến
+         * này là domain Vercel thật (xem docs/DEPLOY.md) nên nhánh dưới không chạy.
+         */
+        var isLocalDev = origins.stream().anyMatch(o -> o.startsWith("http://localhost"));
+        if (isLocalDev && !origins.contains("http://localhost:3000")) {
             origins.add("http://localhost:3000");
         }
         config.setAllowedOrigins(origins);
