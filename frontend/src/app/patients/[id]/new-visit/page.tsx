@@ -43,27 +43,141 @@ interface ItemForm {
   infusion: boolean;
 }
 
+/**
+ * Dòng thuốc luôn sinh ra TRẮNG — không liều, không cách dùng.
+ *
+ * Mỗi nhóm luôn có sẵn một dòng trống làm ô nhập tiếp theo (xem `normalizeItems`), nên
+ * dòng trắng là thứ bác sĩ nhìn thấy thường xuyên nhất. Điền sẵn "1 ống" hay tô sáng nút
+ * "Sau ăn" cho một dòng chưa có thuốc nào chỉ làm màn hình nhiễu và khiến người đọc phải
+ * tự phân biệt "đã kê" với "còn trống". Mặc định được bật ĐÚNG lúc dòng có tên thuốc —
+ * xem `withFirstNameDefaults`.
+ */
 const emptyItem = (injection = false, infusion = false): ItemForm => ({
   uid: crypto.randomUUID(),
   medicineId: null,
   medicineName: "",
   baseUnitLabel: null,
   stockDisplay: null,
-  // Tiêm/truyền mặc định 1 ống / 1 chai — đại đa số mũi tiêm là một ống, điền sẵn để bác
-  // sĩ chỉ phải gõ khi khác 1. Thuốc uống để trống vì liều mỗi buổi không có giá trị nào
-  // là "thường gặp" đủ để đoán hộ.
-  doseMorning: injection || infusion ? "1" : "",
+  doseMorning: "",
   doseNoon: "",
   doseAfternoon: "",
   doseEvening: "",
-  // Thuốc uống mặc định SAU ĂN — thực tế rất ít thuốc uống trước ăn, chọn sẵn cho đỡ
-  // phải bấm mỗi dòng. Bác sĩ bấm "Trước ăn" để đổi, hoặc bấm lại "Sau ăn" để bỏ chọn.
-  // Tiêm/truyền để trống vì đã có nhãn cố định "theo chỉ định", không liên quan bữa ăn.
-  usageMode: injection || infusion ? "" : "after",
+  usageMode: "",
   usageCustom: "",
   injection,
   infusion,
 });
+
+/**
+ * Thứ tự nhóm trên màn hình = thứ tự thao tác thực tế trong phòng khám: truyền dịch trước,
+ * rồi thuốc tiêm, cuối cùng là thuốc uống mang về. Cũng là thứ tự lưu vào đơn, nên đơn in
+ * ra đọc theo đúng trình tự thực hiện.
+ */
+const KINDS = ["infusion", "injection", "oral"] as const;
+type Kind = (typeof KINDS)[number];
+
+const kindOf = (it: Pick<ItemForm, "injection" | "infusion">): Kind =>
+  it.infusion ? "infusion" : it.injection ? "injection" : "oral";
+
+const newRowOf = (kind: Kind) => emptyItem(kind === "injection", kind === "infusion");
+
+/**
+ * Nhãn + màu từng nhóm. Trước đây loại thuốc chỉ được nhận ra qua màu viền của dòng — nay
+ * ba nút "+ thuốc..." không còn nữa nên phải có tiêu đề nhóm, nếu không bác sĩ mở form ra
+ * chỉ thấy ba ô trống giống hệt nhau mà không biết ô nào là gì.
+ */
+const KIND_META: Record<Kind, { label: string; icon: React.ReactNode; head: string; box: string }> = {
+  infusion: {
+    label: "Dịch truyền",
+    icon: <IconDroplet size={14} />,
+    head: "text-sky-700",
+    box: "border-sky-300 bg-sky-50/30",
+  },
+  injection: {
+    label: "Thuốc tiêm",
+    icon: <IconSyringe size={14} />,
+    head: "text-purple-700",
+    box: "border-purple-300 bg-purple-50/30",
+  },
+  oral: {
+    label: "Thuốc uống",
+    icon: null,
+    head: "text-gray-600",
+    box: "border-gray-200",
+  },
+};
+
+const isBlank = (it: ItemForm) => !it.medicineName.trim();
+
+/**
+ * Chuẩn hóa danh sách thuốc sau MỌI thay đổi. Hai bất biến:
+ *
+ *  1. Xếp theo nhóm truyền → tiêm → uống.
+ *  2. Mỗi nhóm kết thúc bằng ĐÚNG MỘT dòng trống — chính là ô nhập tiếp theo.
+ *
+ * Bất biến (2) thay cho ba nút "+ thêm thuốc" trước đây: gõ tên vào dòng trống cuối là
+ * nhóm đó tự mọc thêm một dòng trống mới, xóa tên đi thì dòng thừa tự thu lại. Bác sĩ
+ * không phải bấm nút nào để có chỗ gõ, và cũng không bao giờ nhìn thấy hai ô trống liền
+ * nhau.
+ *
+ * Dòng trống Ở GIỮA nhóm được giữ nguyên — đó là dòng bác sĩ vừa xóa tên để gõ lại, cắt
+ * mất là con trỏ rơi ra ngoài giữa lúc đang gõ. Chỉ chuỗi trống ở CUỐI mới bị gộp về một,
+ * và dòng được giữ là dòng trống ĐẦU chuỗi (dòng có thể đang được focus), không phải dòng
+ * mới tinh — nên uid không đổi và React không remount ô đang gõ.
+ *
+ * Hàm này chạy BÊN TRONG updater của setItems và có sinh uid mới, tức là không thuần túy.
+ * Chấp nhận được ở đây, khác với `addRow` cũ: uid sinh ra chỉ dùng làm key cho một dòng
+ * TRỐNG chưa ai đụng tới, nên Strict Mode gọi updater hai lần rồi vứt uid lần đầu cũng
+ * không ai thấy. Chỗ cũ phải tạo dòng ngoài updater vì còn cần chính uid đó để hẹn focus.
+ */
+function normalizeItems(arr: ItemForm[]): ItemForm[] {
+  return KINDS.flatMap((kind) => {
+    const rows = arr.filter((it) => kindOf(it) === kind);
+    let end = rows.length;
+    while (end > 0 && isBlank(rows[end - 1])) end--;
+    return [...rows.slice(0, end), rows[end] ?? newRowOf(kind)];
+  });
+}
+
+/**
+ * Ba dòng trống — truyền / tiêm / uống — cho một form mở mới.
+ *
+ * uid CỐ ĐỊNH chứ không random. Lý do không hiển nhiên: uid bị in ra DOM qua
+ * `data-focus-key`, mà trang này render cả ở server. `crypto.randomUUID()` cho giá trị khác
+ * nhau giữa lượt render trên server và lượt hydrate ở client, nên React báo hydration
+ * mismatch ("some attributes of the server rendered HTML didn't match") rồi VỨT phần HTML
+ * server đã dựng và vẽ lại từ đầu.
+ *
+ * Ba dòng mở đầu lúc nào cũng y hệt nhau nên id tĩnh là đủ. Các dòng mọc thêm về sau chỉ
+ * sinh ra SAU khi đã hydrate (do bác sĩ gõ tên thuốc) nên vẫn dùng randomUUID an toàn.
+ */
+const initialItems = (): ItemForm[] =>
+  KINDS.map((kind) => ({ ...newRowOf(kind), uid: `seed-${kind}` }));
+
+/**
+ * Bật mặc định đúng KHOẢNH KHẮC dòng có tên thuốc lần đầu (gõ ký tự đầu tiên, hoặc chọn
+ * từ gợi ý). Trước đó dòng để trắng hoàn toàn.
+ *
+ *  - Thuốc uống: Sáng + Chiều, mỗi buổi 1, cách dùng "Sau ăn" — phác đồ hay gặp nhất,
+ *    bác sĩ chỉ phải sửa khi khác.
+ *  - Tiêm/truyền: 1 ống / 1 chai.
+ *
+ * Chỉ chạy khi dòng CHƯA có gì để đè: đã có liều (thuốc mẫu tự điền, hoặc bác sĩ gõ trước
+ * khi gõ tên) thì giữ nguyên. Và chỉ chạy ở lần đầu có tên — đổi tên thuốc về sau không
+ * tick lại những buổi bác sĩ đã cố ý bỏ.
+ */
+function withFirstNameDefaults(prev: ItemForm, next: ItemForm): ItemForm {
+  if (prev.medicineName.trim() || !next.medicineName.trim()) return next;
+  const noDose = !next.doseMorning && !next.doseNoon && !next.doseAfternoon && !next.doseEvening;
+  if (next.injection || next.infusion) {
+    return noDose ? { ...next, doseMorning: "1" } : next;
+  }
+  return {
+    ...next,
+    ...(noDose && { doseMorning: "1", doseAfternoon: "1" }),
+    ...(!next.usageMode && { usageMode: "after" as UsageMode }),
+  };
+}
 
 /** Tổng số lượng 1 thuốc (đơn vị nhỏ nhất) = (liều mỗi buổi cộng lại) × số ngày của cả đơn. */
 function totalOf(it: ItemForm, days: number): number {
@@ -418,7 +532,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   const [diagName, setDiagName] = useState("");
   const [secondary, setSecondary] = useState<Diagnosis[]>([]);
   const [note, setNote] = useState("");
-  const [items, setItems] = useState<ItemForm[]>([emptyItem()]);
+  const [items, setItems] = useState<ItemForm[]>(initialItems);
   const [numDays, setNumDays] = useState(""); // số ngày dùng chung cho CẢ đơn
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -489,7 +603,9 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     setNote(d.note ?? "");
     // Nháp lưu trước khi có uid thì thiếu khóa — cấp bù, nếu không React nhận key
     // undefined cho mọi dòng và quay về đúng cái hành vi theo-vị-trí ta vừa bỏ.
-    if (d.items?.length) setItems(d.items.map((it) => ({ ...it, uid: it.uid ?? crypto.randomUUID() })));
+    if (d.items?.length) {
+      setItems(normalizeItems(d.items.map((it) => ({ ...it, uid: it.uid ?? crypto.randomUUID() }))));
+    }
     setNumDays(d.numDays ?? "");
     setDraftRestored(true);
   }, [patientId, loadFrom]);
@@ -525,21 +641,25 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
 
   /** Đổ danh sách thuốc từ một đơn cũ vào form + suy số ngày chung. */
   const applyRxItems = useCallback((rx: RxItem[]) => {
+    // normalize: xếp lại theo nhóm và cấp cho mỗi nhóm một dòng trống, để đơn cũ mở ra là
+    // kê thêm được ngay chứ không phải đơn "đầy" không còn chỗ gõ.
     setItems(
-      rx.map((r) => ({
-        uid: crypto.randomUUID(),
-        medicineId: r.medicineId,
-        medicineName: r.medicineName,
-        baseUnitLabel: r.baseUnitLabel,
-        stockDisplay: null,
-        doseMorning: r.doseMorning ? String(r.doseMorning) : "",
-        doseNoon: r.doseNoon ? String(r.doseNoon) : "",
-        doseAfternoon: r.doseAfternoon ? String(r.doseAfternoon) : "",
-        doseEvening: r.doseEvening ? String(r.doseEvening) : "",
-        ...deriveUsage(r.usageNote),
-        injection: r.injection,
-        infusion: r.infusion,
-      }))
+      normalizeItems(
+        rx.map((r) => ({
+          uid: crypto.randomUUID(),
+          medicineId: r.medicineId,
+          medicineName: r.medicineName,
+          baseUnitLabel: r.baseUnitLabel,
+          stockDisplay: null,
+          doseMorning: r.doseMorning ? String(r.doseMorning) : "",
+          doseNoon: r.doseNoon ? String(r.doseNoon) : "",
+          doseAfternoon: r.doseAfternoon ? String(r.doseAfternoon) : "",
+          doseEvening: r.doseEvening ? String(r.doseEvening) : "",
+          ...deriveUsage(r.usageNote),
+          injection: r.injection,
+          infusion: r.infusion,
+        }))
+      )
     );
     const d = rx.find((r) => !r.injection && !r.infusion && r.numDays)?.numDays;
     setNumDays(d ? String(d) : "");
@@ -562,8 +682,21 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
       setError(replaceId ? "Không tải được đơn cần sửa" : "Không tải được đơn cần tạo lại"));
   }, [loadFrom, replaceId, loadFromVisit]);
 
-  function updateItem(idx: number, patch: Partial<ItemForm>) {
-    setItems((arr) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  /**
+   * Sửa một dòng thuốc theo UID chứ không theo vị trí: danh sách được `normalizeItems`
+   * xếp lại theo nhóm sau mỗi lần đổi, nên chỉ số của một dòng không còn là thứ ổn định
+   * để tham chiếu.
+   */
+  function updateItem(uid: string, patch: Partial<ItemForm>) {
+    setItems((arr) =>
+      normalizeItems(
+        arr.map((it) => (it.uid === uid ? withFirstNameDefaults(it, { ...it, ...patch }) : it))
+      )
+    );
+  }
+
+  function removeItem(uid: string) {
+    setItems((arr) => normalizeItems(arr.filter((it) => it.uid !== uid)));
   }
 
   /** Chèn 1 cụm ghi chú nhanh vào ô ghi chú (không trùng lặp). */
@@ -594,25 +727,6 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     } catch {
       setError("Không lấy được đơn gần nhất");
     }
-  }
-
-  /**
-   * Thêm một dòng thuốc mới đúng nhóm (uống / tiêm / truyền).
-   *
-   * Chèn ngay SAU dòng cuối cùng cùng nhóm chứ không đẩy xuống đáy, để các mũi tiêm nằm
-   * liền nhau — đọc lại đơn theo cụm dễ soát hơn là xen kẽ với thuốc uống. Chưa có dòng
-   * nào cùng nhóm thì nối vào cuối.
-   */
-  function addRow(injection: boolean, infusion: boolean) {
-    // Tạo dòng NGOÀI updater để lấy được uid mà hẹn focus. Để trong updater thì React
-    // Strict Mode gọi hai lần, sinh hai uid và cái ta giữ lại là uid bị vứt đi.
-    const row = emptyItem(injection, infusion);
-    focusField(`name:${row.uid}`); // gõ tên thuốc được ngay, khỏi rê chuột
-    setItems((arr) => {
-      const last = arr.findLastIndex((i) => i.injection === injection && i.infusion === infusion);
-      if (last === -1) return [...arr, row];
-      return [...arr.slice(0, last + 1), row, ...arr.slice(last + 1)];
-    });
   }
 
   async function submit(e: React.FormEvent) {
@@ -687,6 +801,171 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
     }
   }
 
+  /**
+   * Một dòng thuốc. `isTail` = ô nhập trống chốt nhóm: chưa có thuốc nào nên không có
+   * nút xóa và cũng chưa hiện hàng cách dùng.
+   */
+  function renderRow(it: ItemForm, isTail: boolean) {
+    return (
+      <div key={it.uid} className={`border rounded-xl p-3 ${KIND_META[kindOf(it)].box}`}>
+        <div className="flex items-start gap-2 flex-wrap">
+          <MedicineInput
+            item={it}
+            onChange={(p) => updateItem(it.uid, p)}
+            focusKey={`name:${it.uid}`}
+            // Chọn xong thuốc là nhảy thẳng tới ô liều đầu tiên của dòng đó: thuốc
+            // tiêm/truyền vào ô số ống/chai, thuốc uống vào checkbox "Sáng" (bấm
+            // Enter tiếp là tick và vào ô liều luôn).
+            onPicked={() => focusField(
+              it.injection || it.infusion ? `qty:${it.uid}` : `chk:doseMorning:${it.uid}`
+            )}
+          />
+          {it.injection || it.infusion ? (
+            <div className="text-center">
+              <input
+                type="number" min={0} step="any"
+                value={it.doseMorning}
+                onChange={(e) => updateItem(it.uid, { doseMorning: e.target.value })}
+                data-focus-key={`qty:${it.uid}`}
+                className="input-sm w-24 py-2 text-center"
+              />
+              <p className="text-[10px] text-gray-500">{it.injection ? "Số ống" : "Số chai"}</p>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3">
+              {SESSIONS.map(([f, label]) => {
+                const checked = it[f] !== "";
+                return (
+                  <div key={f} className="text-center">
+                    <label className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer justify-center h-9">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          updateItem(it.uid, { [f]: e.target.checked ? "1" : "" });
+                          // Tick bằng Space hay bằng chuột cũng vào thẳng ô liều.
+                          // Bắt buộc phải có: ô liều đã bị loại khỏi thứ tự Tab nên
+                          // nếu không đưa con trỏ vào đây thì tick bằng Space xong
+                          // sẽ không còn đường nào tới ô đó bằng bàn phím.
+                          if (e.target.checked) focusField(`dose:${f}:${it.uid}`);
+                        }}
+                        data-focus-key={`chk:${f}:${it.uid}`}
+                        /**
+                         * Enter = tick buổi này rồi vào thẳng ô liều (mặc định "1"
+                         * đã bôi đen, gõ số khác là đè). Space vẫn là bật/tắt như
+                         * checkbox chuẩn — giữ nguyên để còn đường BỎ tick.
+                         * Enter không bỏ tick, vì lỡ tay xóa mất liều đã gõ thì
+                         * khó chịu hơn nhiều so với phải bấm Space.
+                         */
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          if (!checked) updateItem(it.uid, { [f]: "1" });
+                          focusField(`dose:${f}:${it.uid}`);
+                        }}
+                      />
+                      {label}
+                    </label>
+                    {checked && (
+                      <input
+                        type="number" min={0} step="any"
+                        value={it[f]}
+                        onChange={(e) => updateItem(it.uid, { [f]: e.target.value })}
+                        data-focus-key={`dose:${f}:${it.uid}`}
+                        /**
+                         * Ra khỏi thứ tự Tab: một dòng thuốc uống có tới 4 ô liều,
+                         * để trong chuỗi thì Tab đi Sáng → ô liều → Trưa → ô liều...
+                         * mất gấp đôi số phím chỉ để lướt qua bốn buổi. Nay Tab chỉ
+                         * nhảy giữa các buổi, còn ô liều được đưa con trỏ vào đúng
+                         * lúc vừa tick buổi đó.
+                         *
+                         * tabIndex -1 KHÔNG làm ô mất khả năng focus — nó chỉ rút ô
+                         * khỏi chuỗi Tab; focusField() và click chuột vẫn vào được,
+                         * và Tab từ trong ô này vẫn đi tiếp sang buổi kế.
+                         */
+                        tabIndex={-1}
+                        className="input-sm w-14 px-1 text-center"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {!isTail && (
+            <button
+              type="button"
+              onClick={() => removeItem(it.uid)}
+              className="text-gray-400 hover:text-red-600 py-2.5 ml-auto transition-colors"
+              aria-label="Bỏ thuốc này"
+            >
+              <IconX size={16} />
+            </button>
+          )}
+        </div>
+        {/* Hàng cách dùng chỉ hiện khi dòng đã có thuốc — dòng trống cuối nhóm để
+            gọn một ô nhập, đỡ ba hàng nút rỗng nằm chình ình giữa đơn. */}
+        {!isBlank(it) && (
+          <div className="flex gap-2 mt-2 flex-wrap items-center">
+            <span className="text-xs text-gray-500">Cách dùng:</span>
+            {/* Tiêm/truyền không dính dáng bữa ăn: bỏ trước/sau ăn, mặc định "theo
+                chỉ định", vẫn cho ghi chỉ định riêng (VD tiêm bắp, truyền chậm). */}
+            {(it.injection || it.infusion) && (
+              <>
+                {it.usageMode !== "other" && (
+                  <span className="text-xs font-medium text-gray-700">
+                    {fixedUsageNote(it.injection, it.infusion)}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => updateItem(it.uid, {
+                    usageMode: it.usageMode === "other" ? "" : "other",
+                    usageCustom: "",
+                  })}
+                  className={`text-xs px-2.5 py-1 rounded-full border ${
+                    it.usageMode === "other"
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  Ghi riêng
+                </button>
+              </>
+            )}
+            {!it.injection && !it.infusion && USAGE_OPTIONS.map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => updateItem(it.uid, { usageMode: it.usageMode === m ? "" : m })}
+                className={`text-xs px-2.5 py-1 rounded-full border ${
+                  it.usageMode === m
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            {it.usageMode === "other" && (
+              <input
+                value={it.usageCustom}
+                onChange={(e) => updateItem(it.uid, { usageCustom: e.target.value })}
+                className="input-sm flex-1 min-w-40"
+                autoFocus
+              />
+            )}
+            {!it.injection && !it.infusion && totalOf(it, Number(numDays) || 0) > 0 && (
+              <span className="text-xs text-blue-700 font-medium ml-auto">
+                = {totalOf(it, Number(numDays) || 0)} {it.baseUnitLabel ?? "đơn vị"}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Chặn kê đơn khi chưa chắc đang kê cho ai — xem ghi chú ở khai báo patientFailed.
   if (patientFailed) {
     return (
@@ -706,7 +985,14 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
   }
 
   return (
-    <form onSubmit={submit} onKeyDown={blockImplicitSubmit} className="max-w-3xl mx-auto space-y-5">
+    /**
+     * Một cột dọc, chiếm trọn bề ngang vùng nội dung (AppShell đã kẹp sẵn ở max-w-7xl).
+     *
+     * Trước đây form bị kẹp thêm `max-w-3xl` (768px) nên trên màn rộng hai bên thừa ra gần
+     * 500px trắng, trong khi dòng thuốc bên trong lại chật: ô tên thuốc, bốn ô liều và hàng
+     * cách dùng phải chen nhau rồi xuống dòng. Bỏ kẹp thì chỗ thừa đó thành chỗ cho đơn thuốc.
+     */
+    <form onSubmit={submit} onKeyDown={blockImplicitSubmit} className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="page-title">
           {replaceId ? "Sửa đơn khám" : "Lần khám mới"}
@@ -742,7 +1028,7 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
               draftRef.current = null;
               localStorage.removeItem(visitDraftKey(patientId));
               setDiagCode(""); setDiagName(""); setSecondary([]); setNote("");
-              setItems([emptyItem()]); setNumDays("");
+              setItems(initialItems()); setNumDays("");
               setPickerKey((k) => k + 1); // dựng lại ô chẩn đoán, xem ghi chú ở khai báo
               setDraftRestored(false);
             }}
@@ -808,193 +1094,24 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
       <div className="card p-5">
         <label className="text-sm font-semibold text-ink block mb-3">Đơn thuốc</label>
 
-        <div className="space-y-4">
-          {items.map((it, idx) => (
-            <div key={it.uid} className={`border rounded-xl p-3 ${it.injection ? "border-purple-300 bg-purple-50/30" : it.infusion ? "border-sky-300 bg-sky-50/30" : "border-gray-200"}`}>
-              <div className="flex items-start gap-2 flex-wrap">
-                {it.injection && <span className="text-purple-600 py-2.5"><IconSyringe size={16} /></span>}
-                {it.infusion && <span className="text-sky-600 py-2.5"><IconDroplet size={16} /></span>}
-                <MedicineInput
-                  item={it}
-                  onChange={(p) => updateItem(idx, p)}
-                  focusKey={`name:${it.uid}`}
-                  // Chọn xong thuốc là nhảy thẳng tới ô liều đầu tiên của dòng đó: thuốc
-                  // tiêm/truyền vào ô số ống/chai, thuốc uống vào checkbox "Sáng" (bấm
-                  // Enter tiếp là tick và vào ô liều luôn).
-                  onPicked={() => focusField(
-                    it.injection || it.infusion ? `qty:${it.uid}` : `chk:doseMorning:${it.uid}`
-                  )}
-                />
-                {it.injection || it.infusion ? (
-                  <div className="text-center">
-                    <input
-                      type="number" min={0} step="any"
-                      value={it.doseMorning}
-                      onChange={(e) => updateItem(idx, { doseMorning: e.target.value })}
-                      data-focus-key={`qty:${it.uid}`}
-                      className="input-sm w-24 py-2 text-center"
-                    />
-                    <p className="text-[10px] text-gray-500">{it.injection ? "Số ống" : "Số chai"}</p>
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-3">
-                    {SESSIONS.map(([f, label]) => {
-                      const checked = it[f] !== "";
-                      return (
-                        <div key={f} className="text-center">
-                          <label className="flex items-center gap-1 text-[11px] text-gray-600 cursor-pointer justify-center h-9">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                updateItem(idx, { [f]: e.target.checked ? "1" : "" });
-                                // Tick bằng Space hay bằng chuột cũng vào thẳng ô liều.
-                                // Bắt buộc phải có: ô liều đã bị loại khỏi thứ tự Tab nên
-                                // nếu không đưa con trỏ vào đây thì tick bằng Space xong
-                                // sẽ không còn đường nào tới ô đó bằng bàn phím.
-                                if (e.target.checked) focusField(`dose:${f}:${it.uid}`);
-                              }}
-                              data-focus-key={`chk:${f}:${it.uid}`}
-                              /**
-                               * Enter = tick buổi này rồi vào thẳng ô liều (mặc định "1"
-                               * đã bôi đen, gõ số khác là đè). Space vẫn là bật/tắt như
-                               * checkbox chuẩn — giữ nguyên để còn đường BỎ tick.
-                               * Enter không bỏ tick, vì lỡ tay xóa mất liều đã gõ thì
-                               * khó chịu hơn nhiều so với phải bấm Space.
-                               */
-                              onKeyDown={(e) => {
-                                if (e.key !== "Enter") return;
-                                e.preventDefault();
-                                if (!checked) updateItem(idx, { [f]: "1" });
-                                focusField(`dose:${f}:${it.uid}`);
-                              }}
-                            />
-                            {label}
-                          </label>
-                          {checked && (
-                            <input
-                              type="number" min={0} step="any"
-                              value={it[f]}
-                              onChange={(e) => updateItem(idx, { [f]: e.target.value })}
-                              data-focus-key={`dose:${f}:${it.uid}`}
-                              /**
-                               * Ra khỏi thứ tự Tab: một dòng thuốc uống có tới 4 ô liều,
-                               * để trong chuỗi thì Tab đi Sáng → ô liều → Trưa → ô liều...
-                               * mất gấp đôi số phím chỉ để lướt qua bốn buổi. Nay Tab chỉ
-                               * nhảy giữa các buổi, còn ô liều được đưa con trỏ vào đúng
-                               * lúc vừa tick buổi đó.
-                               *
-                               * tabIndex -1 KHÔNG làm ô mất khả năng focus — nó chỉ rút ô
-                               * khỏi chuỗi Tab; focusField() và click chuột vẫn vào được,
-                               * và Tab từ trong ô này vẫn đi tiếp sang buổi kế.
-                               */
-                              tabIndex={-1}
-                              className="input-sm w-14 px-1 text-center"
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                    className="text-gray-400 hover:text-red-600 py-2.5 ml-auto transition-colors"
-                    aria-label="Bỏ thuốc này"
-                  >
-                    <IconX size={16} />
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2 mt-2 flex-wrap items-center">
-                <span className="text-xs text-gray-500">Cách dùng:</span>
-                {/* Tiêm/truyền không dính dáng bữa ăn: bỏ trước/sau ăn, mặc định "theo
-                    chỉ định", vẫn cho ghi chỉ định riêng (VD tiêm bắp, truyền chậm). */}
-                {(it.injection || it.infusion) && (
-                  <>
-                    {it.usageMode !== "other" && (
-                      <span className="text-xs font-medium text-gray-700">
-                        {fixedUsageNote(it.injection, it.infusion)}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => updateItem(idx, {
-                        usageMode: it.usageMode === "other" ? "" : "other",
-                        usageCustom: "",
-                      })}
-                      className={`text-xs px-2.5 py-1 rounded-full border ${
-                        it.usageMode === "other"
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      Ghi riêng
-                    </button>
-                  </>
-                )}
-                {!it.injection && !it.infusion && USAGE_OPTIONS.map(([m, label]) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => updateItem(idx, { usageMode: it.usageMode === m ? "" : m })}
-                    className={`text-xs px-2.5 py-1 rounded-full border ${
-                      it.usageMode === m
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-                {it.usageMode === "other" && (
-                  <input
-                    value={it.usageCustom}
-                    onChange={(e) => updateItem(idx, { usageCustom: e.target.value })}
-                    className="input-sm flex-1 min-w-40"
-                    autoFocus
-                  />
-                )}
-                {!it.injection && !it.infusion && totalOf(it, Number(numDays) || 0) > 0 && (
-                  <span className="text-xs text-blue-700 font-medium ml-auto">
-                    = {totalOf(it, Number(numDays) || 0)} {it.baseUnitLabel ?? "đơn vị"}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="space-y-5">
+          {KINDS.map((kind) => {
+            const meta = KIND_META[kind];
+            const rows = items.filter((it) => kindOf(it) === kind);
+            return (
+              <section key={kind} className="space-y-2">
+                <h3 className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide ${meta.head}`}>
+                  {meta.icon}
+                  {meta.label}
+                </h3>
+                {/* Dòng cuối nhóm luôn là ô nhập trống — bất biến của normalizeItems. */}
+                {rows.map((it, i) => renderRow(it, i === rows.length - 1))}
+              </section>
+            );
+          })}
         </div>
 
-        {/* Ba nút riêng thay cho hai checkbox cũ: một lần khám có thể có NHIỀU mũi tiêm
-            hoặc nhiều chai dịch, mà checkbox chỉ diễn tả được có/không nên trước đây
-            kẹt ở đúng một dòng mỗi loại. */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
-          <button
-            type="button"
-            onClick={() => addRow(false, false)}
-            className="text-sm border border-dashed border-blue-400 text-blue-700 rounded-lg py-2 hover:bg-blue-50"
-          >
-            + Thuốc uống
-          </button>
-          <button
-            type="button"
-            onClick={() => addRow(true, false)}
-            className="text-sm border border-dashed border-purple-400 text-purple-700 rounded-lg py-2 hover:bg-purple-50 inline-flex items-center justify-center gap-1.5"
-          >
-            <IconSyringe size={15} /> + Thuốc tiêm
-          </button>
-          <button
-            type="button"
-            onClick={() => addRow(false, true)}
-            className="text-sm border border-dashed border-sky-400 text-sky-700 rounded-lg py-2 hover:bg-sky-50 inline-flex items-center justify-center gap-1.5"
-          >
-            <IconDroplet size={15} /> + Dịch truyền
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+        <div className="flex items-center gap-2 flex-wrap mt-4 pt-4 border-t">
           <label className="text-sm font-medium">Số ngày uống (cả đơn):</label>
           <input
             type="number" min={1}
