@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Bell,
   Bot,
   ClipboardList,
   FileText,
@@ -123,12 +122,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              className="w-10 h-10 rounded-lg border border-gray-200 bg-white shadow-xs flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition"
-              aria-label="Thông báo"
-            >
-              <Bell size={18} strokeWidth={1.8} />
-            </button>
+            {/* Nút chuông đã gỡ: nó không có onClick nên người dùng bàn phím Tab vào rồi
+                bấm Enter mà không có gì xảy ra, và screen reader vẫn đọc "Thông báo, nút"
+                — một lời hứa sai. Dựng lại cùng lúc với tính năng thông báo thật. */}
             <span className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-semibold shrink-0 ring-2 ring-white shadow-xs">
               {initial}
             </span>
