@@ -7,7 +7,7 @@ import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconSyringe, LoadError, Loading } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
 import { api } from "@/lib/api";
-import type { VisitRow } from "@/lib/types";
+import type { Page, VisitRow } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
@@ -31,28 +31,37 @@ export default function HistoryPage() {
   const [from, setFrom] = useState(daysAgo(6));
   const [to, setTo] = useState(daysAgo(0));
   const [page, setPage] = useState(0);
-  const { data: visits = [], loading, failed, reload: load } = useApiData<VisitRow[]>(
-    `/api/doctor/visits?from=${from}&to=${to}`
+  /**
+   * Phân trang Ở SERVER: `page` nằm trong khóa cache nên đổi trang là một lượt tải riêng.
+   *
+   * Trước đây trang này kéo TRỌN khoảng ngày rồi cắt bằng slice() — bấm chip "30 ngày" ở
+   * phòng khám đông là tải về cả nghìn dòng để hiện 10. Đánh đổi: đổi trang giờ tốn một
+   * vòng mạng thay vì tức thì, giống hệt trang Bệnh nhân vốn đã phân trang server.
+   */
+  const { data, loading, failed, reload: load } = useApiData<Page<VisitRow>>(
+    `/api/doctor/visits?from=${from}&to=${to}&page=${page}&size=${PAGE_SIZE}`
   );
+  // useMemo: `?? []` tạo mảng mới mỗi lần render, làm useMemo byDay bên dưới tính lại vô ích
+  // (cùng quy ước với trang Kho thuốc).
+  const visits = useMemo(() => data?.content ?? [], [data]);
+  const totalPages = data?.totalPages ?? 1;
+  const total = data?.totalElements ?? 0; // tổng CẢ khoảng ngày, không phải số dòng trang này
   const [deleting, setDeleting] = useState<VisitRow | null>(null); // lần khám chờ xác nhận xóa
   const [restoreStock, setRestoreStock] = useState(false);
 
   useEffect(() => setPage(0), [from, to]); // đổi khoảng ngày → về trang đầu
 
-  const totalPages = Math.max(1, Math.ceil(visits.length / PAGE_SIZE));
-  const pageVisits = visits.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-
   // Gom theo ngày cho dễ đọc (trong phạm vi trang hiện tại).
   const byDay = useMemo(() => {
     const map = new Map<string, VisitRow[]>();
-    for (const v of pageVisits) {
+    for (const v of visits) {
       const day = new Date(v.visitDate).toLocaleDateString("vi-VN");
       const arr = map.get(day);
       if (arr) arr.push(v);
       else map.set(day, [v]);
     }
     return [...map.entries()];
-  }, [pageVisits]);
+  }, [visits]);
 
   // Nút filter đang chọn? so khớp from/to với preset.
   const activePreset = QUICK.find(([, n]) => from === daysAgo(n) && to === daysAgo(0))?.[1];
@@ -100,15 +109,17 @@ export default function HistoryPage() {
 
       {loading && <Loading />}
       {!loading && failed && <LoadError onRetry={load} />}
-      {!loading && !failed && visits.length === 0 && (
+      {!loading && !failed && total === 0 && (
         <EmptyState
           title="Không có lần khám nào trong khoảng này"
           hint="Thử mở rộng khoảng ngày, hoặc chọn nhanh 30 ngày ở trên."
         />
       )}
 
-      {!loading && !failed && visits.length > 0 && (
-        <p className="text-xs text-gray-400 mb-2">{visits.length} lượt khám</p>
+      {/* Tổng của CẢ khoảng ngày (totalElements), không phải số dòng đang hiện — nếu đếm
+          theo trang thì bấm sang trang 2 con số sẽ nhảy lung tung. */}
+      {!loading && !failed && total > 0 && (
+        <p className="text-xs text-gray-400 mb-2">{total} lượt khám</p>
       )}
 
       {/* MỘT KHUNG cho MỘT NGÀY: tiêu đề ngày nằm trong khung, các lượt khám là dòng

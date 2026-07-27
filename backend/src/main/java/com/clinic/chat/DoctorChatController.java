@@ -17,6 +17,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -195,7 +196,14 @@ public class DoctorChatController {
 
     private ChatResponse visitsResponse(UUID doctorId, LocalDate from, LocalDate to, boolean onlyInjection) {
         var rows = new ArrayList<Map<String, Object>>();
-        for (var v : visitService.history(doctorId, from, to)) {
+        /*
+         * unpaged() CÓ CHỦ ĐÍCH: khác với endpoint /api/doctor/visits (đã phân trang), chỗ
+         * này lọc onlyInjection Ở JAVA rồi lấy rows.size() làm con số báo cho bác sĩ. Cắt
+         * trang ở tầng DB sẽ làm câu trả lời "… — N kết quả" đếm thiếu mà không báo gì —
+         * sai kiểu âm thầm. Muốn giới hạn thì phải đẩy điều kiện tiêm xuống DB trước, đó là
+         * việc riêng chứ không phải hệ quả của việc phân trang màn hình Lịch sử khám.
+         */
+        for (var v : visitService.history(doctorId, from, to, Pageable.unpaged())) {
             if (onlyInjection && !v.hasInjection()) continue;
             rows.add(rowOf(v));
         }

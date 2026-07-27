@@ -27,8 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 /** MỌI finder đều kèm deletedAtIsNull — lần khám đã xóa mềm (V12) không được lọt vào bất kỳ đâu. */
 interface VisitRepository extends JpaRepository<Visit, UUID> {
 
-    List<Visit> findByDoctorIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
-        UUID doctorId, Instant from, Instant to);
+    /** Lịch sử khám của CẢ phòng khám trong khoảng ngày, mới → cũ, có phân trang. */
+    Page<Visit> findByDoctorIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
+        UUID doctorId, Instant from, Instant to, Pageable pageable);
 
     /** Lịch sử khám của MỘT bệnh nhân, mới → cũ, có phân trang (hồ sơ bệnh nhân). */
     Page<Visit> findByDoctorIdAndPatientIdAndDeletedAtIsNullOrderByVisitDateDesc(
@@ -159,6 +160,25 @@ public class VisitService {
         prescription.setDoctorId(doctorId);
         prescription.setVisitId(visit.getId());
 
+        /*
+         * Khóa ghi TẤT CẢ thuốc của đơn trong MỘT query, trước khi vào vòng lặp.
+         *
+         * Trước đây mỗi dòng thuốc gọi findOwnedForUpdate riêng → N round-trip TUẦN TỰ tới
+         * Supabase (Mumbai) từ backend (Singapore). Đơn 8 thuốc là 8 lần chờ nối đuôi nhau,
+         * và đó là thao tác bác sĩ làm nhiều nhất trong ngày.
+         *
+         * distinct(): cùng một thuốc kê hai dòng chỉ cần khóa một lần. Hai dòng đó vẫn nhận
+         * CÙNG một entity từ map (persistence context chỉ giữ một bản cho mỗi id), nên hai
+         * lần deductStock vẫn cộng dồn đúng như cũ.
+         */
+        var lockedMedicines = medicineService.mapForUpdate(doctorId,
+            req.items() == null ? List.<UUID>of()
+                : req.items().stream()
+                    .map(ItemRequest::medicineId)
+                    .filter(java.util.Objects::nonNull)
+                    .distinct()
+                    .toList());
+
         if (req.items() != null) {
             for (var in : req.items()) {
                 if (in.medicineId() == null && isBlank(in.medicineName())) continue;
@@ -183,9 +203,14 @@ public class VisitService {
                 item.setTotalQuantityBase(total);
 
                 if (in.medicineId() != null) {
-                    // Khóa ghi ngay từ lúc nạp: trừ kho là read-modify-write, không khóa thì
+                    // Đã khóa ghi ở lô trên: trừ kho là read-modify-write, không khóa thì
                     // hai đơn lưu đồng thời cùng một thuốc sẽ mất một lượt trừ.
-                    var medicine = medicineService.findOwnedForUpdate(doctorId, in.medicineId());
+                    var medicine = lockedMedicines.get(in.medicineId());
+                    if (medicine == null) {
+                        // Không nằm trong lô đã khóa = không thuộc kho của bác sĩ này, hoặc
+                        // đã xóa mềm. Giữ nguyên thông điệp của findOwnedForUpdate cũ.
+                        throw ApiException.notFound("Không tìm thấy thuốc trong kho");
+                    }
                     item.setMedicineId(medicine.getId());
                     item.setMedicineName(medicine.getName()); // snapshot
                     item.setBaseUnit(medicine.getBaseUnit()); // snapshot
@@ -210,16 +235,23 @@ public class VisitService {
 
     // ===== Đọc =====
 
-    /** Lịch sử khám — mặc định 30 ngày gần nhất (§5.6). from/to theo ngày giờ VN. */
+    /**
+     * Lịch sử khám — mặc định 30 ngày gần nhất (§5.6), from/to theo ngày giờ VN, CÓ PHÂN TRANG.
+     *
+     * Trước đây trả trọn khoảng ngày. Phòng khám 40 lượt/ngày mà bấm chip "30 ngày" là kéo
+     * về hơn nghìn dòng để rồi frontend chỉ hiện 10 — và `toRows` bên dưới còn phải chạy
+     * `visitIdsWithInjection` với mệnh đề IN dài đúng bằng số dòng đó. Phân trang ở tầng DB
+     * nên cả hai chi phí đều chỉ tính trên trang đang xem.
+     *
+     * Cùng lý do đã áp cho visitsOfPatient — endpoint này còn cần hơn vì tập dữ liệu là của
+     * cả phòng khám chứ không phải một bệnh nhân.
+     */
     @Transactional(readOnly = true)
-    public List<VisitRow> history(UUID doctorId, LocalDate from, LocalDate to) {
-        var toDate = to != null ? to : LocalDate.now(CLINIC_ZONE);
-        var fromDate = from != null ? from : toDate.minusDays(30);
-        var fromI = fromDate.atStartOfDay(CLINIC_ZONE).toInstant();
-        var toI = toDate.plusDays(1).atStartOfDay(CLINIC_ZONE).toInstant();
-        return toRows(doctorId,
-            visitRepository.findByDoctorIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
-                doctorId, fromI, toI));
+    public Page<VisitRow> history(UUID doctorId, LocalDate from, LocalDate to, Pageable pageable) {
+        var span = rangeInstants(from, to); // dùng chung helper, đừng lặp lại logic múi giờ
+        var page = visitRepository.findByDoctorIdAndDeletedAtIsNullAndVisitDateBetweenOrderByVisitDateDesc(
+            doctorId, span[0], span[1], pageable);
+        return new PageImpl<>(toRows(doctorId, page.getContent()), pageable, page.getTotalElements());
     }
 
     /**

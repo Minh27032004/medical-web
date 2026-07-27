@@ -64,14 +64,16 @@ public class DoctorVisitController {
         visitService.softDelete(doctorId(jwt), id, restoreStock);
     }
 
-    /** Lịch sử khám — mặc định 30 ngày gần nhất, filter theo ngày (§5.6). */
+    /** Lịch sử khám — mặc định 30 ngày gần nhất, filter theo ngày (§5.6), phân trang. */
     @GetMapping("/visits")
-    public List<VisitRow> history(
+    public Page<VisitRow> history(
         @AuthenticationPrincipal Jwt jwt,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int size
     ) {
-        return visitService.history(doctorId(jwt), from, to);
+        return visitService.history(doctorId(jwt), from, to, Pageables.of(page, size, 100));
     }
 
     @GetMapping("/visits/{id}")

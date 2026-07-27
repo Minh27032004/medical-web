@@ -83,6 +83,27 @@ interface MedicineRepository extends JpaRepository<Medicine, UUID> {
         """)
     Optional<Medicine> findOwnedForUpdate(@Param("id") UUID id, @Param("doctorId") UUID doctorId);
 
+    /**
+     * Như trên nhưng khóa NHIỀU thuốc trong MỘT lượt — dùng khi lưu đơn có nhiều dòng thuốc.
+     *
+     * Vì sao cần: gọi bản một-id trong vòng lặp thì mỗi dòng thuốc là một round-trip TUẦN TỰ
+     * tới DB. Backend chạy ở Render Singapore còn Supabase ở ap-south-1 (Mumbai) — khác vùng,
+     * nên mỗi vòng tốn hàng chục tới hàng trăm ms. Đơn 8 thuốc phải chờ 8 lần như thế trước
+     * khi có gì hiện lên màn hình.
+     *
+     * `order by m.id` KHÔNG phải để hiển thị: nó cố định THỨ TỰ khóa hàng. Vòng lặp cũ khóa
+     * theo thứ tự bác sĩ nhập, nên hai đơn cùng chứa thuốc A và B nhập ngược thứ tự nhau có
+     * thể khóa chéo và deadlock. Khóa theo id tăng dần thì mọi transaction đi cùng một chiều.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select m from Medicine m
+        where m.id in :ids and m.doctorId = :doctorId and m.deletedAt is null
+        order by m.id
+        """)
+    List<Medicine> findAllOwnedForUpdate(@Param("ids") Collection<UUID> ids,
+                                         @Param("doctorId") UUID doctorId);
+
     List<Medicine> findByIdInAndDoctorIdAndDeletedAtIsNull(Collection<UUID> ids, UUID doctorId);
 
     @Query("""
@@ -276,6 +297,20 @@ public class MedicineService {
     /** Như trên nhưng trả null thay vì ném lỗi (thuốc có thể đã bị xóa khỏi kho). */
     public Medicine findOwnedForUpdateOrNull(UUID doctorId, UUID id) {
         return repository.findOwnedForUpdate(id, doctorId).orElse(null);
+    }
+
+    /**
+     * Nạp NHIỀU thuốc KÈM KHÓA GHI trong MỘT query — xem ghi chú ở findAllOwnedForUpdate.
+     * Phải nằm trong transaction của caller (không mở transaction riêng, nếu không khóa sẽ
+     * nhả ngay khi hàm này trả về thay vì giữ tới lúc commit đơn thuốc).
+     *
+     * Id không tìm thấy thì KHÔNG có trong map — caller tự quyết báo lỗi hay bỏ qua, giống
+     * cặp findOwnedForUpdate / findOwnedForUpdateOrNull ở trên.
+     */
+    public Map<UUID, Medicine> mapForUpdate(UUID doctorId, Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return Map.of();
+        return repository.findAllOwnedForUpdate(ids, doctorId).stream()
+            .collect(Collectors.toMap(Medicine::getId, m -> m));
     }
 
     /** Nạp NHIỀU thuốc theo id trong 1 query — tránh N+1 khi map danh sách thuốc mẫu (§5.4). */
