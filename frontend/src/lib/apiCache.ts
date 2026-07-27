@@ -56,9 +56,32 @@ export function cacheSet(key: string, value: unknown): void {
  * nhiều hơn ghi rất nhiều nên gần như không cảm nhận được.
  */
 export function cacheClear(): void {
+  // Giữ lại các key bất biến TRƯỚC khi xóa, rồi đặt lại — xem IMMUTABLE.
+  const keep = IMMUTABLE.filter((k) => cache.has(k)).map((k) => [k, cache.get(k)] as const);
   cache.clear();
   inflight.clear();
+  for (const [k, v] of keep) cache.set(k, v);
 }
+
+/**
+ * Key được MIỄN khỏi cacheClear() — dữ liệu không thao tác ghi nào của bác sĩ đụng tới.
+ *
+ * Vì sao cần: xóa sạch làm cache RỖNG, nên useApiData không còn bản cũ để hiện ngay và
+ * trả về mảng rỗng cho tới khi request mới về. Cụ thể: lưu xong đơn cho bệnh nhân A, sang
+ * bệnh nhân B, mở form khám và gõ mã ICD LUÔN → ô gợi ý trống mất một nhịp (~250-300ms,
+ * đúng bằng một vòng tới Supabase khác vùng). Bảng ICD-10 dùng chung mọi bác sĩ và chỉ
+ * đổi khi ai đó insert bằng tay, nên giữ lại là an toàn.
+ *
+ * ALLOWLIST chứ không phải denylist — có nghi ngờ thì ĐỪNG thêm vào đây: mặc định vẫn là
+ * xóa sạch, tức là vẫn đúng, chỉ chậm hơn một nhịp. Thêm nhầm một key CÓ dữ liệu bác sĩ
+ * thì ngược lại: bác sĩ thấy số cũ sau khi lưu — đúng loại lỗi âm thầm mà ghi chú trên
+ * cảnh báo.
+ *
+ * KHÔNG thêm /api/doctor/suggest/all vào đây dù nó bị cùng triệu chứng và còn nặng hơn:
+ * thêm thuốc mẫu hoặc sửa kho là nó ĐỔI. Muốn xử lý nó phải revalidate ngầm thay vì xóa,
+ * và đó là thay đổi trong useApiData chứ không phải một dòng ở đây.
+ */
+const IMMUTABLE = ["/api/doctor/icd10/all"];
 
 /** Các lượt tải ĐANG bay, theo key — để nhiều nơi hỏi cùng lúc chỉ tốn một request. */
 const inflight = new Map<string, Promise<unknown>>();

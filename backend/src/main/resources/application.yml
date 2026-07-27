@@ -51,6 +51,18 @@ spring:
 
 server:
   port: ${PORT:8080}
+  # Nén JSON trước khi trả về. Trình duyệt gọi THẲNG Render (NEXT_PUBLIC_API_URL), không
+  # đi qua Vercel, mà Render không tự nén response của service → trước đây mọi payload
+  # truyền dạng thô. Nặng nhất là danh sách kho (size=500, mỗi thuốc kèm mảng units) và
+  # /suggest/all — cả hai nằm trên đường mở form kê đơn. JSON nén được ~85%.
+  #
+  # CHỈ application/json, không để mặc định `*/*`: endpoint xuất .xlsx (nhập kho) trả file
+  # vốn ĐÃ là ZIP — nén lần hai chỉ tốn CPU mà giảm gần 0%.
+  compression:
+    enabled: true
+    mime-types: application/json
+    # Dưới ngưỡng này overhead nén không bù nổi; phần lớn response ghi/chi tiết đều nhỏ hơn.
+    min-response-size: 2KB
 
 management:
   endpoints:
