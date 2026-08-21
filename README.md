@@ -10,14 +10,18 @@ Built solo: Spring Boot API, Next.js web client, PostgreSQL, deployed and runnin
 | **API health** | https://clinic-backend-9e93.onrender.com/actuator/health |
 | **Stack** | Java 21 · Spring Boot 3 · PostgreSQL · Next.js 16 · React 19 · Tailwind CSS · Docker |
 
-<!--
-ẢNH CHỤP MÀN HÌNH — thêm vào đây, đây là thứ quyết định người ta có đọc code hay không.
-Chụp 3 ảnh, lưu vào docs/screenshots/, rồi bỏ comment 3 dòng dưới:
+### Screens
 
-![Danh sách bệnh nhân](docs/screenshots/patients.png)
-![Tạo lần khám + kê đơn](docs/screenshots/new-visit.png)
-![Đơn thuốc in ra](docs/screenshots/print.png)
--->
+| | |
+|---|---|
+| ![Patient list](docs/screenshots/patients.png) | ![Visit history](docs/screenshots/history.png) |
+| **Patients** — accent-insensitive search by name or phone | **Visit history** — filtered by date range, diagnosis shown inline |
+| ![New visit with ICD-10 lookup](docs/screenshots/new-visit-icd10.png) | ![Prescription](docs/screenshots/prescription.png) |
+| **New visit** — typing `viem hong` unaccented finds `J02 — Viêm họng cấp` | **Prescription** — printable, four-slot dosing, injections marked |
+| ![Medicine stock](docs/screenshots/inventory.png) | ![Assistant](docs/screenshots/assistant.png) |
+| **Stock** — held as one base quantity, rendered as `1 hộp 9 vỉ 6 viên (196 viên)` | **Assistant** — suggestion chips route straight to a query template |
+
+<sub>Patient names are redacted in these screenshots; the data belongs to a real clinic.</sub>
 
 ---
 
