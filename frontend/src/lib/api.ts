@@ -63,7 +63,7 @@ async function toApiError(res: Response): Promise<ApiError> {
 
 /**
  * Fetch wrapper duy nhất cho toàn app — tự đính JWT của Supabase Auth nếu đã đăng nhập.
- * Không fetch rải rác ngoài file này (quy ước trong .claude/skills/new-feature).
+ * Quy ước: không fetch rải rác ngoài file này.
  *
  * Gặp 401 thì refresh token và thử LẠI ĐÚNG MỘT LẦN. An toàn kể cả với POST/PUT: Spring
  * Security chặn ngay ở filter chain, controller chưa hề chạy nên không có ghi dở dang.

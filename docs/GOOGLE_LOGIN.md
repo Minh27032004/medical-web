@@ -1,7 +1,7 @@
 # Đăng nhập Google + JWT 3 ngày — thiết lập bắt buộc trên Supabase / Google Cloud
 
-Code đã sẵn sàng (V8 migration + backend + frontend). Phần dưới đây **bạn phải làm trên dashboard**
-(Claude không thao tác được), nếu thiếu thì đăng nhập Google sẽ không chạy.
+Code đã sẵn sàng (V8 migration + backend + frontend). Phần dưới đây **phải làm thủ công trên dashboard**
+(không tự động hoá được), nếu thiếu thì đăng nhập Google sẽ không chạy.
 
 ## Mô hình tài khoản (đã code)
 

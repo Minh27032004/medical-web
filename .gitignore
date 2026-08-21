@@ -4,8 +4,10 @@
 !.env.example
 .mcp.json
 
-# Claude Code local
-.claude/settings.local.json
+# Local AI assistant config — khong theo doi
+.claude/
+CLAUDE.md
+AGENTS.md
 
 # Node / Next.js
 node_modules/
