@@ -194,13 +194,21 @@ body {
   .data-table {
     @apply w-full text-sm border-separate border-spacing-0;
   }
-  /* Tiêu đề cột: in hoa + giãn chữ để tách hẳn khỏi phần dữ liệu, đỡ "trôi" như trước */
+  /*
+   * Tiêu đề cột: in hoa + giãn chữ để tách hẳn khỏi phần dữ liệu, đỡ "trôi" như trước.
+   *
+   * py-2.5 (10px) thay cho py-3.5/py-4: màn làm việc thật chỉ cho vùng nội dung ~500px
+   * (1280×720 CSS px vì Windows đang phóng 150%, trừ top bar 72 và padding 64). Mỗi 6px
+   * padding cắt đi trên MỖI dòng đổi được thêm một dòng dữ liệu hiện ra mà không phải
+   * cuộn. Đổi hai con số này là mọi trang danh sách đổi theo — nhớ chỉnh H.tableRow và
+   * H.tableHead trong src/hooks/useRowsPerPage.ts cho khớp.
+   */
   .data-table thead th {
     @apply text-left font-semibold text-xs uppercase tracking-wide text-gray-500
-      px-5 py-3.5 bg-gray-50 border-b border-gray-200 whitespace-nowrap;
+      px-5 py-2.5 bg-gray-50 border-b border-gray-200 whitespace-nowrap;
   }
   .data-table tbody td {
-    @apply px-5 py-4 border-b border-gray-100 align-middle text-gray-700;
+    @apply px-5 py-2.5 border-b border-gray-100 align-middle text-gray-700;
   }
   .data-table tbody tr:last-child td {
     @apply border-b-0;

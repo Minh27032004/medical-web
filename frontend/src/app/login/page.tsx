@@ -95,22 +95,22 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-gray-50">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <Image
             src="/images/logo.png"
             alt="Phòng khám"
             width={229}
             height={192}
             priority
-            className="mx-auto w-auto h-24 object-contain"
+            className="mx-auto w-auto h-20 object-contain"
           />
           <h1 className="text-xl font-semibold text-gray-900 mt-4">Đăng nhập hệ thống</h1>
           <p className="text-sm text-gray-500 mt-1">Hệ thống nội bộ dành cho bác sĩ</p>
         </div>
 
-        <div className="card shadow-sm p-7 space-y-5">
+        <div className="card shadow-sm p-6 space-y-4">
           <button
             onClick={loginGoogle}
             className="btn-ghost w-full py-2.5"

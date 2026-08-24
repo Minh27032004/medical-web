@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FileText,
   HeartPulse,
+  LayoutDashboard,
   LogOut,
   Menu,
   PackagePlus,
@@ -26,16 +27,49 @@ interface NavItem {
   Icon: LucideIcon;
 }
 
-const DOCTOR_NAV: NavItem[] = [
-  { href: "/patients", label: "Bệnh nhân", Icon: Users },
-  { href: "/history", label: "Lịch sử khám", Icon: ClipboardList },
-  { href: "/inventory", label: "Kho thuốc", Icon: Pill },
-  { href: "/stock-orders", label: "Nhập kho", Icon: PackagePlus },
-  { href: "/templates", label: "Thuốc mẫu", Icon: FileText },
-  { href: "/chat", label: "Trợ lý", Icon: Bot },
+/** Một nhóm mục điều hướng; label = null thì không in tiêu đề nhóm. */
+interface NavGroup {
+  label: string | null;
+  items: NavItem[];
+}
+
+/**
+ * Chia nhóm thay vì một danh sách phẳng 7 mục.
+ *
+ * Lý do thật là chiều cao: sidebar cao bằng cửa sổ, mà trên màn 1280×720 (Windows 150%)
+ * cửa sổ chỉ ~600px — 7 mục phẳng chiếm ~330px nên đáy hụt hơn 100px trống trơn, nhìn
+ * rất lệch sau khi nới sidebar lên 320px. Ba tiêu đề nhóm lấp đúng khoảng đó BẰNG THÔNG
+ * TIN chứ không phải bằng cách giãn nút ra cho đầy.
+ *
+ * Thứ tự nhóm theo nhịp làm việc: mở máy xem tổng quan → khám → mới tới chuyện kho.
+ */
+const DOCTOR_NAV: NavGroup[] = [
+  {
+    label: "Khám bệnh",
+    items: [
+      { href: "/dashboard", label: "Tổng quan", Icon: LayoutDashboard },
+      { href: "/patients", label: "Bệnh nhân", Icon: Users },
+      { href: "/history", label: "Lịch sử khám", Icon: ClipboardList },
+    ],
+  },
+  {
+    label: "Kho thuốc",
+    items: [
+      { href: "/inventory", label: "Kho thuốc", Icon: Pill },
+      { href: "/stock-orders", label: "Nhập kho", Icon: PackagePlus },
+      { href: "/templates", label: "Thuốc mẫu", Icon: FileText },
+    ],
+  },
+  {
+    label: "Công cụ",
+    items: [{ href: "/chat", label: "Trợ lý", Icon: Bot }],
+  },
 ];
 
-const ADMIN_NAV: NavItem[] = [{ href: "/admin/doctors", label: "Quản lý bác sĩ", Icon: ShieldCheck }];
+// Admin chỉ có một mục — gắn tiêu đề nhóm cho một dòng là thừa.
+const ADMIN_NAV: NavGroup[] = [
+  { label: null, items: [{ href: "/admin/doctors", label: "Quản lý bác sĩ", Icon: ShieldCheck }] },
+];
 
 /** Dấu thương hiệu — trái tim nhịp tim, nền brand (dùng chung mọi phòng khám). */
 function BrandMark() {
@@ -94,7 +128,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden text-gray-900">
       {/* Sidebar desktop — trắng phẳng, viền phải (chuẩn app shell Untitled UI) */}
-      <aside className="hidden md:flex w-[272px] shrink-0 flex-col bg-white border-r border-gray-200 no-print">
+      {/* 320px thay cho 272px: trang Tổng quan là màn hình nhiều khối cạnh nhau, sidebar hẹp
+          làm cả bố cục lệch về một bên và nhãn dài ("Lịch sử khám", "Quản lý bác sĩ") sát
+          mép. Nội dung chính vẫn còn 1120px trên màn 1440 — thừa cho lưới 3 cột. */}
+      <aside className="hidden md:flex w-80 shrink-0 flex-col bg-white border-r border-gray-200 no-print">
         <SidebarBody me={me} nav={nav} pathname={pathname} onLogout={logout} />
       </aside>
 
@@ -159,7 +196,7 @@ function SidebarBody({
   me, nav, pathname, onLogout,
 }: {
   me: Me | null;
-  nav: NavItem[];
+  nav: NavGroup[];
   pathname: string;
   onLogout: () => void;
 }) {
@@ -177,28 +214,39 @@ function SidebarBody({
         </span>
       </Link>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        {nav.map((n) => {
-          const active = pathname.startsWith(n.href);
-          return (
-            <Link
-              key={n.href}
-              href={n.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                active
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <n.Icon
-                size={20}
-                strokeWidth={1.8}
-                className={`shrink-0 ${active ? "text-blue-600" : "text-gray-400"}`}
-              />
-              <span className="truncate">{n.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {nav.map((group, gi) => (
+          <div key={group.label ?? gi} className={gi > 0 ? "mt-5" : ""}>
+            {group.label && (
+              <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {group.label}
+              </p>
+            )}
+            <div className="space-y-1">
+              {group.items.map((n) => {
+                const active = pathname.startsWith(n.href);
+                return (
+                  <Link
+                    key={n.href}
+                    href={n.href}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-blue-50 text-blue-700"
+                        : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                    }`}
+                  >
+                    <n.Icon
+                      size={20}
+                      strokeWidth={1.8}
+                      className={`shrink-0 ${active ? "text-blue-600" : "text-gray-400"}`}
+                    />
+                    <span className="truncate">{n.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {me && (

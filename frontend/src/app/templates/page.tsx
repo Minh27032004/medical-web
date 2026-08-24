@@ -5,6 +5,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconDroplet, IconPill, IconPlus, IconStar, IconSyringe, LoadError } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
+import { H, useRowsPerPage } from "@/hooks/useRowsPerPage";
 import { blockImplicitSubmit, useFocusField } from "@/hooks/useFocusField";
 import { useMedicines } from "@/hooks/usePreloaded";
 import { api, ApiError } from "@/lib/api";
@@ -12,7 +13,9 @@ import { containsVi, normalizeVi } from "@/lib/search";
 import type { Medicine, Template } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
-const PAGE_SIZE = 10;
+/** Một mẫu = .card px-4 py-3 (12+20+12=44) + viền 2 + khoảng cách space-y-2 (8). */
+const TEMPLATE_ROW = 54;
+
 type StockFilter = "all" | "oral" | "injection" | "infusion";
 
 interface FormState {
@@ -66,8 +69,20 @@ export default function TemplatesPage() {
 
   useEffect(() => setPage(0), [q, filter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  /**
+   * Trừ: hàng tiêu đề + mb-2, dòng mô tả + mb-4, hàng lọc + mb-3, phân trang.
+   * Trên 1280×720 ra khoảng 5 mẫu mỗi trang.
+   *
+   * KHÔNG trừ chiều cao form thêm/sửa: form chỉ mở khi bấm nút, lúc đó danh sách bị đẩy
+   * xuống là điều bác sĩ chủ động gây ra và đang nhìn vào form chứ không phải danh sách.
+   */
+  const pageSize = useRowsPerPage({
+    reserved: H.titleRow + 8 + 20 + 16 + H.titleRow + 12 + H.pager,
+    rowHeight: TEMPLATE_ROW,
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / Math.max(1, pageSize)));
+  const pageItems = pageSize ? filtered.slice(page * pageSize, page * pageSize + pageSize) : [];
 
   function editTemplate(t: Template) {
     setForm({

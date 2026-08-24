@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Pager from "@/components/Pager";
 import { Badge, IconMail, IconPlus, LoadError } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
+import { H, useRowsPerPage } from "@/hooks/useRowsPerPage";
 import { api, ApiError } from "@/lib/api";
 import type { DoctorRow } from "@/lib/types";
 
@@ -15,6 +17,24 @@ export default function AdminDoctorsPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [blocking, setBlocking] = useState<DoctorRow | null>(null); // tài khoản chờ xác nhận khóa
+  const [page, setPage] = useState(0);
+
+  /**
+   * Phân trang CLIENT-SIDE: /api/admin/doctors trả về cả danh sách (List, không phải Page)
+   * nên không cắt được ở server mà không đụng backend. Số bác sĩ của một hệ nội bộ nhỏ,
+   * tải hết một lần là chấp nhận được; cắt ở client chỉ để danh sách luôn vừa MỘT màn.
+   *
+   * Dòng cao 56px vì ô "Đăng nhập" xếp hai dòng (username + email).
+   */
+  const pageSize = useRowsPerPage({
+    reserved: H.titleRow + 20 + H.cardBorder + H.tableHead + H.pager,
+    rowHeight: 56,
+  });
+  const totalPages = Math.max(1, Math.ceil(doctors.length / Math.max(1, pageSize)));
+  const pageItems = useMemo(
+    () => (pageSize ? doctors.slice(page * pageSize, page * pageSize + pageSize) : []),
+    [doctors, page, pageSize]
+  );
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -155,7 +175,7 @@ export default function AdminDoctorsPage() {
               </tr>
             </thead>
             <tbody>
-              {doctors.map((d) => (
+              {pageItems.map((d) => (
                 <tr key={d.id} className={d.blocked ? "opacity-60" : ""}>
                   <td>
                     {d.username && <div className="font-mono">{d.username}</div>}
@@ -187,7 +207,7 @@ export default function AdminDoctorsPage() {
                   </td>
                 </tr>
               ))}
-              {doctors.length === 0 && (
+              {pageSize > 0 && doctors.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-6 text-center text-gray-500">
                     Chưa có bác sĩ nào.
@@ -198,6 +218,8 @@ export default function AdminDoctorsPage() {
           </table>
         </div>
       </div>}
+
+      <Pager page={page} totalPages={totalPages} onPage={setPage} />
 
       <ConfirmDialog
         open={!!blocking}

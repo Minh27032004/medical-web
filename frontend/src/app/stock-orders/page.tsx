@@ -8,6 +8,7 @@ import {
   Badge, EmptyState, IconAlert, IconPill, IconPlus, IconSearch, LoadError, Loading,
 } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
+import { H, useRowsPerPage } from "@/hooks/useRowsPerPage";
 import { api, apiDownload, ApiError } from "@/lib/api";
 import {
   STOCK_ORDER_STATUS_LABEL,
@@ -61,8 +62,22 @@ export default function StockOrdersPage() {
   // 20 đơn mỗi trang: lịch sử nhập kho chỉ dài thêm chứ không bao giờ ngắn lại, để nguyên
   // thì trang này chậm dần theo tháng mà không có mốc nào báo hiệu.
   const [page, setPage] = useState(0);
+  /**
+   * Số đơn mỗi trang = số dòng vừa đúng màn. Trừ: hàng tiêu đề + mb-2, dòng mô tả + mb-5,
+   * viền thẻ, tiêu đề bảng, phân trang. Trên 1280×720 ra khoảng 7 đơn.
+   *
+   * KHÔNG trừ chiều cao thẻ "đơn đang soạn": nó chỉ hiện khi bấm Nhập nhanh/Nhập thủ công,
+   * và lúc đó bác sĩ đang nhìn vào thẻ soạn đơn chứ không phải danh sách bên dưới.
+   */
+  const pageSize = useRowsPerPage({
+    reserved: H.titleRow + 8 + 20 + 20 + H.cardBorder + H.tableHead + H.pager,
+    rowHeight: H.tableRow,
+  });
+
   const { data: orderPage, loading, failed: loadFailed, reload: load } =
-    useApiData<Page<StockOrderSummary>>(`/api/doctor/stock-orders?page=${page}&size=20`);
+    useApiData<Page<StockOrderSummary>>(
+      pageSize ? `/api/doctor/stock-orders?page=${page}&size=${pageSize}` : ""
+    );
   const orders = orderPage?.content ?? [];
 
   const [mode, setMode] = useState<Mode>(null);
@@ -273,17 +288,17 @@ export default function StockOrdersPage() {
         />
       )}
 
-      {loading && <Loading />}
-      {!loading && loadFailed && <LoadError onRetry={load} />}
+      {(loading || pageSize === 0) && <Loading />}
+      {!loading && pageSize > 0 && loadFailed && <LoadError onRetry={load} />}
 
-      {!loading && !loadFailed && orders.length === 0 && !mode && (
+      {!loading && pageSize > 0 && !loadFailed && orders.length === 0 && !mode && (
         <EmptyState
           title="Chưa có đơn nhập kho nào"
           hint="Bấm “Nhập nhanh” để dựng đơn từ các thuốc đang sắp hết, hoặc “Nhập thủ công” để tự chọn."
         />
       )}
 
-      {!loading && !loadFailed && orders.length > 0 && (
+      {!loading && pageSize > 0 && !loadFailed && orders.length > 0 && (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="data-table">

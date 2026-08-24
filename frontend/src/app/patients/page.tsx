@@ -6,6 +6,7 @@ import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconPlus, LoadError, Loading } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
 import { useDebounced } from "@/hooks/useDebounced";
+import { H, useRowsPerPage } from "@/hooks/useRowsPerPage";
 import { GENDER_LABEL, type Page, type Patient } from "@/lib/types";
 
 export default function PatientsPage() {
@@ -14,10 +15,25 @@ export default function PatientsPage() {
   // Chỉ trễ khi GÕ tìm kiếm; lần vào trang & bấm phân trang tải NGAY.
   const dq = useDebounced(q, 300);
 
+  /**
+   * Số dòng mỗi trang = số dòng vừa ĐÚNG màn hình, đo lúc chạy thay vì cố định 10.
+   * Cộng đủ mọi thứ không phải dòng dữ liệu: hàng tiêu đề + mb-5, viền thẻ, tiêu đề bảng,
+   * phân trang. Trên màn 1280×720 (Windows 150%) ra khoảng 8 dòng.
+   */
+  const rowsPerPage = useRowsPerPage({
+    reserved: H.titleRow + 20 + H.cardBorder + H.tableHead + H.pager,
+    rowHeight: H.tableRow,
+  });
+
   // Có cache thì danh sách hiện NGAY khi quay lại trang, bản mới tải ngầm ở nền.
+  // Khóa rỗng khi chưa đo xong → useApiData không gọi API với size sai rồi gọi lại.
   const { data, loading, failed, reload } = useApiData<Page<Patient>>(
-    `/api/doctor/patients?q=${encodeURIComponent(dq)}&page=${page}&size=10`
+    rowsPerPage
+      ? `/api/doctor/patients?q=${encodeURIComponent(dq)}&page=${page}&size=${rowsPerPage}`
+      : ""
   );
+  // Chưa đo xong cũng là "đang tải" — nếu không thì màn hình chớp qua trạng thái rỗng.
+  const busy = loading || rowsPerPage === 0;
   const patients = data?.content ?? [];
   const totalPages = data?.totalPages ?? 1;
 
@@ -43,9 +59,9 @@ export default function PatientsPage() {
         </div>
       </div>
 
-      {loading && <Loading />}
-      {!loading && failed && <LoadError onRetry={reload} />}
-      {!loading && !failed && patients.length === 0 && (
+      {busy && <Loading />}
+      {!busy && failed && <LoadError onRetry={reload} />}
+      {!busy && !failed && patients.length === 0 && (
         <EmptyState
           title={q ? "Không tìm thấy bệnh nhân nào" : "Chưa có bệnh nhân"}
           hint={q ? `Không có ai khớp "${q}" — thử từ khóa khác.` : "Tạo hồ sơ đầu tiên để bắt đầu khám."}

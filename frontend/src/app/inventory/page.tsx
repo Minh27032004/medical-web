@@ -8,10 +8,17 @@ import Pager from "@/components/Pager";
 import { Badge, EmptyState, IconAlert, IconDroplet, IconPill, IconPlus, IconSyringe, LoadError, Loading } from "@/components/ui";
 import { useApiData } from "@/hooks/useApiData";
 import { useDebounced } from "@/hooks/useDebounced";
+import { H, useRowsPerPage } from "@/hooks/useRowsPerPage";
 import { api, ApiError } from "@/lib/api";
 import { type Medicine, type Page } from "@/lib/types";
 
-const PAGE_SIZE = 10;
+/**
+ * Ảnh thuốc 32px thay vì 40px: ảnh là thứ CAO NHẤT trong dòng nên nó một mình quyết định
+ * chiều cao dòng (32 + padding 20 = 52px thay vì 60px). Trên vùng nội dung ~500px, 8px đó
+ * đổi được thêm một thuốc hiện ra mà không phải cuộn.
+ */
+const THUMB = 32;
+
 type StockFilter = "all" | "oral" | "injection" | "infusion" | "low";
 
 export default function InventoryPage() {
@@ -45,8 +52,18 @@ export default function InventoryPage() {
 
   useEffect(() => setPage(0), [q, filter]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  /**
+   * Số dòng mỗi trang = số dòng vừa đúng màn. Trừ: hàng tiêu đề + mb-4, hàng chip lọc
+   * + mb-4, viền thẻ, tiêu đề bảng, phân trang. Trên 1280×720 ra khoảng 5 dòng — ít, nhưng
+   * đó là cái giá của yêu cầu "danh sách đầy vẫn không phải cuộn" khi mỗi dòng có ảnh.
+   */
+  const pageSize = useRowsPerPage({
+    reserved: H.titleRow + 16 + H.chipRow + 16 + H.cardBorder + H.tableHead + H.pager,
+    rowHeight: THUMB + 20,
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / Math.max(1, pageSize)));
+  const pageItems = pageSize ? filtered.slice(page * pageSize, page * pageSize + pageSize) : [];
 
   async function remove(m: Medicine) {
     await api(`/api/doctor/medicines/${m.id}`, { method: "DELETE" });
@@ -108,9 +125,9 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {loading && <Loading />}
-      {!loading && loadFailed && <LoadError onRetry={load} />}
-      {!loading && !loadFailed && filtered.length === 0 && (
+      {(loading || pageSize === 0) && <Loading />}
+      {!loading && pageSize > 0 && loadFailed && <LoadError onRetry={load} />}
+      {!loading && pageSize > 0 && !loadFailed && filtered.length === 0 && (
         <EmptyState
           icon={<IconPill size={22} />}
           action={
@@ -155,12 +172,12 @@ export default function InventoryPage() {
                   <tr key={m.id} className={m.lowStock ? "bg-red-50/50" : ""}>
                     <td>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden shrink-0 relative">
+                        <div className="w-8 h-8 bg-gray-100 rounded-lg overflow-hidden shrink-0 relative">
                           {m.imageUrl ? (
-                            <Image src={m.imageUrl} alt="" fill sizes="40px" className="object-cover" />
+                            <Image src={m.imageUrl} alt="" fill sizes="32px" className="object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400">
-                              {m.injection ? <IconSyringe size={18} /> : m.infusion ? <IconDroplet size={18} /> : <IconPill size={18} />}
+                              {m.injection ? <IconSyringe size={16} /> : m.infusion ? <IconDroplet size={16} /> : <IconPill size={16} />}
                             </div>
                           )}
                         </div>
