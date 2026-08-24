@@ -1,6 +1,7 @@
 package com.clinic.chat;
 
 import com.clinic.medicine.MedicineService;
+import com.clinic.visit.TopCount;
 import com.clinic.patient.Patient;
 import com.clinic.patient.PatientService;
 import com.clinic.visit.VisitService;
@@ -83,7 +84,11 @@ public class DoctorChatController {
      */
     private static final Set<String> DIRECT_INTENTS = Set.of(
         "VISITS_BY_DATE", "INJECTION_BY_DATE", "PATIENT_HISTORY", "LAST_VISIT",
-        "VISIT_COUNT", "INJECTION_COUNT", "MEDICINE_STOCK", "LOW_STOCK", "LOWEST_STOCK");
+        "VISIT_COUNT", "INJECTION_COUNT", "MEDICINE_STOCK", "LOW_STOCK", "LOWEST_STOCK",
+        "TOP_PATIENTS", "TOP_DIAGNOSES", "TOP_MEDICINES");
+
+    /** Số dòng của một bảng xếp hạng — đủ để thấy xu hướng, chưa tới mức phải cuộn. */
+    private static final int TOP_LIMIT = 5;
 
     @GetMapping("/history")
     public List<HistoryItem> history(@AuthenticationPrincipal Jwt jwt) {
@@ -130,6 +135,10 @@ public class DoctorChatController {
                 ? buildContext(chatRepo.findTop5ByDoctorIdAndSessionIdOrderByCreatedAtDesc(
                     doctorId, req.sessionId()))
                 : "";
+            // Log ĐỦ để chẩn đoán "sao câu 2 không hiểu câu 1" mà không phải đoán: có nạp
+            // ngữ cảnh không, nạp được mấy ký tự. Rỗng = hoặc phiên mới, hoặc nhật ký lượt
+            // trước chưa kịp ghi.
+            log.info("Chat: turnIndex={} ngữ cảnh {} ký tự", req.turnIndex(), context.length());
             var c = classifier.classify(req.question(), context, today);
             intent = c.intent();
             from = c.from();
@@ -148,31 +157,38 @@ public class DoctorChatController {
             case "MEDICINE_STOCK" -> medicineStock(doctorId, name);
             case "LOW_STOCK" -> lowStock(doctorId);
             case "LOWEST_STOCK" -> lowestStock(doctorId);
+            case "TOP_PATIENTS" -> topPatients(doctorId, from, to);
+            case "TOP_DIAGNOSES" -> topDiagnoses(doctorId, from, to);
+            case "TOP_MEDICINES" -> topMedicines(doctorId, from, to);
             default -> new ChatResponse("UNKNOWN", null, List.of(),
                 "Tôi trả lời được ví dụ: \"bệnh nhân hôm nay\", \"đơn có tiêm hôm qua\", "
                 + "\"lịch sử khám của <tên>\", \"<tên> khám gần nhất khi nào\", "
                 + "\"tháng này <tên> khám mấy lần\", \"tồn kho <thuốc>\", "
-                + "\"thuốc nào sắp hết\", \"thuốc nào tồn thấp nhất\".");
+                + "\"thuốc nào sắp hết\", \"thuốc nào tồn thấp nhất\", "
+                + "\"tháng này ai khám nhiều nhất\", \"bệnh gì gặp nhiều nhất tuần này\", "
+                + "\"thuốc nào kê nhiều nhất tháng trước\".");
         };
 
         // Ghi nhật ký CHẠY NGẦM — trả lời xong rồi mới lưu, bác sĩ không chờ thêm INSERT.
         historyService.record(doctorId, req.sessionId(), req.question().trim(), intent, name,
-            from, to, resp.title() != null ? resp.title() : resp.message());
+            from, to, summarize(resp));
         return resp;
     }
 
     /**
      * Từ khóa khoảng ngày của chip → cặp [from, to] tính theo giờ phòng khám.
-     * Giá trị lạ thì coi như hôm nay — chip chỉ sinh ra hai giá trị này.
+     *
+     * Dùng CHUNG ChatRange với đường đi qua LLM: trước đây chip tự tính "tháng này" bằng mấy
+     * dòng riêng ở đây, còn câu gõ tay thì do model tính — hai đường ra hai kết quả khác nhau
+     * cho cùng một cụm từ là chuyện chỉ chờ ngày xảy ra. Chip không gửi ngày cụ thể nên
+     * from/to để null; từ khóa lạ rơi về hôm nay.
      */
     private static LocalDate[] rangeOf(String range, LocalDate today) {
-        if ("THIS_MONTH".equals(range)) {
-            return new LocalDate[] {today.withDayOfMonth(1), today};
-        }
-        return new LocalDate[] {today, today};
+        var span = ChatRange.resolve(range, today, today, today);
+        return span;
     }
 
-    /** Ghép ngữ cảnh 5 lượt gần nhất thành text cho Gemini để hiểu câu hỏi nối tiếp. */
+    /** Ghép 5 lượt gần nhất (câu hỏi + tham số + KẾT QUẢ) thành ngữ cảnh cho system prompt. */
     private String buildContext(List<ChatMessage> recentDesc) {
         if (recentDesc.isEmpty()) return "";
         var list = new ArrayList<>(recentDesc);
@@ -303,6 +319,127 @@ public class DoctorChatController {
         return new ChatResponse("LOWEST_STOCK", "Thuốc tồn thấp nhất", List.of(row),
             "Thuốc tồn thấp nhất là " + i.name() + " — còn " + i.stockDisplay()
                 + (i.below() ? " (dưới ngưỡng " + i.threshold() + ")" : "") + ".");
+    }
+
+    /*
+     * ===== Câu hỏi TỔNG HỢP =====
+     * Ba câu cùng một hình dạng: gom nhóm đếm ở DB (đã lọc doctorId) → bảng xếp hạng + một
+     * câu tóm tắt. Câu tóm tắt quan trọng không kém bảng: nó vừa là thứ bác sĩ đọc, vừa là
+     * thứ được ghi vào nhật ký rồi quay lại làm ngữ cảnh cho lượt hỏi kế tiếp.
+     */
+
+    private ChatResponse topPatients(UUID doctorId, LocalDate from, LocalDate to) {
+        var top = visitService.topPatients(doctorId, from, to, TOP_LIMIT);
+        if (top.isEmpty()) {
+            return new ChatResponse("TOP_PATIENTS", null, List.of(),
+                "Không có lần khám nào từ " + from + " đến " + to + ".");
+        }
+        var first = top.get(0);
+        return new ChatResponse("TOP_PATIENTS",
+            "Bệnh nhân khám nhiều nhất từ " + from + " đến " + to,
+            rankRows(top, "Bệnh nhân", "Số lần khám"),
+            "Khám nhiều nhất là " + first.label() + " với " + first.total() + " lần"
+                + " (từ " + from + " đến " + to + ").");
+    }
+
+    private ChatResponse topDiagnoses(UUID doctorId, LocalDate from, LocalDate to) {
+        var top = visitService.topDiagnoses(doctorId, from, to, TOP_LIMIT);
+        if (top.isEmpty()) {
+            return new ChatResponse("TOP_DIAGNOSES", null, List.of(),
+                "Không có lần khám nào từ " + from + " đến " + to + ".");
+        }
+        var first = top.get(0);
+        return new ChatResponse("TOP_DIAGNOSES",
+            "Chẩn đoán gặp nhiều nhất từ " + from + " đến " + to,
+            rankRows(top, "Chẩn đoán", "Số lần"),
+            "Gặp nhiều nhất là " + first.label() + " với " + first.total() + " lần"
+                + " (từ " + from + " đến " + to + ").");
+    }
+
+    private ChatResponse topMedicines(UUID doctorId, LocalDate from, LocalDate to) {
+        var top = visitService.topMedicines(doctorId, from, to, TOP_LIMIT);
+        if (top.isEmpty()) {
+            return new ChatResponse("TOP_MEDICINES", null, List.of(),
+                "Không có đơn thuốc nào từ " + from + " đến " + to + ".");
+        }
+        var first = top.get(0);
+        return new ChatResponse("TOP_MEDICINES",
+            "Thuốc kê nhiều nhất từ " + from + " đến " + to,
+            rankRows(top, "Thuốc", "Số đơn có kê"),
+            "Kê nhiều nhất là " + first.label() + " trong " + first.total() + " đơn"
+                + " (từ " + from + " đến " + to + ").");
+    }
+
+    /** Bảng xếp hạng: thêm cột thứ hạng để đọc được ngay ai đứng đầu mà không phải so số. */
+    private static List<Map<String, Object>> rankRows(List<TopCount> top, String labelCol,
+                                                      String countCol) {
+        var rows = new ArrayList<Map<String, Object>>();
+        for (int i = 0; i < top.size(); i++) {
+            var r = new LinkedHashMap<String, Object>();
+            r.put("#", i + 1);
+            r.put(labelCol, top.get(i).label());
+            r.put(countCol, top.get(i).total());
+            rows.add(r);
+        }
+        return rows;
+    }
+
+    /**
+     * Tóm tắt câu trả lời để LƯU LÀM NGỮ CẢNH cho lượt hỏi kế tiếp.
+     *
+     * Trước đây chỗ này là `title != null ? title : message` — và đó chính là lý do hỏi nối
+     * tiếp không chạy. Với câu "tháng này ai khám nhiều nhất", title là "Bệnh nhân khám nhiều
+     * nhất từ 2026-08-01 đến 2026-08-24": một cái nhãn KHÔNG chứa tên ai. Tên nằm trong
+     * message, nhưng title có trước nên message bị vứt. Ngữ cảnh vẫn được nạp đầy đủ, chỉ là
+     * trong đó không có chữ nào để câu "ông ấy bị bệnh gì?" bám vào.
+     *
+     * Nay gộp cả ba nguồn: nhãn + câu tóm tắt + vài dòng kết quả đầu. Dòng kết quả là thứ
+     * quan trọng nhất với các câu trả lời dạng BẢNG (thuốc sắp hết, bệnh nhân hôm nay) —
+     * chúng vốn không có message nào cả.
+     */
+    private static String summarize(ChatResponse resp) {
+        var parts = new ArrayList<String>();
+        if (resp.title() != null && !resp.title().isBlank()) parts.add(resp.title());
+        if (resp.message() != null && !resp.message().isBlank()) parts.add(resp.message());
+        if (!resp.rows().isEmpty()) {
+            var labels = new ArrayList<String>();
+            for (var row : resp.rows()) {
+                if (labels.size() >= SUMMARY_ROWS) break;
+                var label = rowLabel(row);
+                if (label != null) labels.add(label);
+            }
+            if (!labels.isEmpty()) parts.add("Kết quả: " + String.join(", ", labels));
+        }
+        var summary = String.join(" | ", parts);
+        // Cắt bớt: 5 lượt ngữ cảnh nhân với vài trăm ký tự là đủ làm prompt phình ra mà
+        // không thêm thông tin — phần nhận dạng đối tượng luôn nằm ở đầu chuỗi.
+        return summary.length() <= MAX_SUMMARY_CHARS
+            ? summary
+            : summary.substring(0, MAX_SUMMARY_CHARS) + "…";
+    }
+
+    private static final int SUMMARY_ROWS = 3;
+    private static final int MAX_SUMMARY_CHARS = 300;
+
+    /**
+     * Chữ NHẬN DẠNG của một dòng kết quả (tên bệnh nhân / tên thuốc / chẩn đoán).
+     *
+     * Ưu tiên theo tên cột vì thứ tự cột khác nhau giữa các loại câu trả lời: bảng lần khám
+     * mở đầu bằng "Ngày giờ" — lấy đại cột đầu sẽ ra một mốc thời gian, vô dụng cho việc
+     * hiểu "ông ấy" là ai.
+     */
+    private static String rowLabel(Map<String, Object> row) {
+        for (var key : List.of("Bệnh nhân", "Thuốc", "Chẩn đoán")) {
+            var v = row.get(key);
+            if (v != null && !v.toString().isBlank()) return v.toString();
+        }
+        for (var e : row.entrySet()) {
+            if ("#".equals(e.getKey()) || "visitId".equals(e.getKey())) continue;
+            if (e.getValue() != null && !e.getValue().toString().isBlank()) {
+                return e.getValue().toString();
+            }
+        }
+        return null;
     }
 
     // ===== Helpers =====

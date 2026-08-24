@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -52,6 +53,45 @@ interface VisitRepository extends JpaRepository<Visit, UUID> {
 
     /** Tra theo khóa chống trùng (V15) — KHÔNG lọc deletedAt: đơn đã xóa vẫn tính là đã tạo. */
     Optional<Visit> findByDoctorIdAndClientRequestId(UUID doctorId, UUID clientRequestId);
+
+    /*
+     * ===== Truy vấn TỔNG HỢP cho trợ lý chat =====
+     *
+     * Gom nhóm + đếm Ở DB, không kéo entity về đếm bằng Java: "tháng này bệnh nhân nào khám
+     * nhiều nhất" trên một phòng khám đông là hàng nghìn dòng, mà câu trả lời chỉ cần 5.
+     *
+     * Cả ba câu đều ràng buộc doctor_id ở MỌI bảng tham gia (quy tắc cô lập số 1) — kể cả
+     * bảng Patient, không dựa vào việc "visit đã thuộc bác sĩ này thì patient cũng vậy".
+     */
+
+    /** Bệnh nhân khám nhiều nhất trong khoảng. */
+    @Query("""
+        select new com.clinic.visit.TopCount(p.fullName, count(v))
+        from Visit v, Patient p
+        where p.id = v.patientId
+          and v.doctorId = :doctorId and p.doctorId = :doctorId
+          and v.deletedAt is null and p.deletedAt is null
+          and v.visitDate >= :from and v.visitDate < :to
+        group by p.id, p.fullName
+        order by count(v) desc, p.fullName asc
+        """)
+    List<TopCount> topPatients(@Param("doctorId") UUID doctorId,
+                               @Param("from") Instant from, @Param("to") Instant to,
+                               Pageable pageable);
+
+    /** Chẩn đoán hay gặp nhất trong khoảng — ghép "mã — tên" ngay trong câu truy vấn. */
+    @Query("""
+        select new com.clinic.visit.TopCount(
+            concat(v.diagnosisCode, ' — ', v.diagnosisName), count(v))
+        from Visit v
+        where v.doctorId = :doctorId and v.deletedAt is null
+          and v.visitDate >= :from and v.visitDate < :to
+        group by v.diagnosisCode, v.diagnosisName
+        order by count(v) desc, v.diagnosisCode asc
+        """)
+    List<TopCount> topDiagnoses(@Param("doctorId") UUID doctorId,
+                                @Param("from") Instant from, @Param("to") Instant to,
+                                Pageable pageable);
 }
 
 interface PrescriptionRepository extends JpaRepository<Prescription, UUID> {
@@ -68,6 +108,28 @@ interface PrescriptionRepository extends JpaRepository<Prescription, UUID> {
         """)
     Set<UUID> visitIdsWithInjection(@Param("doctorId") UUID doctorId,
                                     @Param("visitIds") List<UUID> visitIds);
+
+    /**
+     * Thuốc được kê nhiều nhất trong khoảng — đếm theo SỐ ĐƠN có thuốc đó, không phải tổng
+     * số lượng: "kê nhiều nhất" trong đầu bác sĩ là "gặp trong nhiều đơn nhất", còn cộng số
+     * lượng sẽ đẩy mấy thuốc uống dài ngày lên đầu bảng một cách vô nghĩa.
+     *
+     * Gom theo medicineName (bản SNAPSHOT trong đơn) chứ không theo medicineId: dòng thuốc
+     * kê tay không có id, mà đó cũng là thuốc thật đã phát cho bệnh nhân.
+     */
+    @Query("""
+        select new com.clinic.visit.TopCount(i.medicineName, count(i))
+        from Prescription p join p.items i, Visit v
+        where v.id = p.visitId
+          and p.doctorId = :doctorId and v.doctorId = :doctorId
+          and v.deletedAt is null
+          and v.visitDate >= :from and v.visitDate < :to
+        group by i.medicineName
+        order by count(i) desc, i.medicineName asc
+        """)
+    List<TopCount> topMedicines(@Param("doctorId") UUID doctorId,
+                                @Param("from") Instant from, @Param("to") Instant to,
+                                Pageable pageable);
 }
 
 @Service
@@ -292,6 +354,33 @@ public class VisitService {
         if (visits.isEmpty()) return 0;
         var ids = visits.stream().map(Visit::getId).toList();
         return prescriptionRepository.visitIdsWithInjection(doctorId, ids).size();
+    }
+
+    /*
+     * ===== Thống kê cho trợ lý chat =====
+     * Ba câu hỏi "ai/bệnh gì/thuốc gì NHIỀU NHẤT" đi chung một hình dạng: khoảng ngày →
+     * gom nhóm đếm ở DB → cắt top N. Giới hạn ở tầng Pageable để DB chỉ trả về đúng N dòng.
+     */
+
+    /** Bệnh nhân khám nhiều nhất trong khoảng — chat TOP_PATIENTS. */
+    @Transactional(readOnly = true)
+    public List<TopCount> topPatients(UUID doctorId, LocalDate from, LocalDate to, int limit) {
+        var span = rangeInstants(from, to);
+        return visitRepository.topPatients(doctorId, span[0], span[1], PageRequest.of(0, limit));
+    }
+
+    /** Chẩn đoán hay gặp nhất trong khoảng — chat TOP_DIAGNOSES. */
+    @Transactional(readOnly = true)
+    public List<TopCount> topDiagnoses(UUID doctorId, LocalDate from, LocalDate to, int limit) {
+        var span = rangeInstants(from, to);
+        return visitRepository.topDiagnoses(doctorId, span[0], span[1], PageRequest.of(0, limit));
+    }
+
+    /** Thuốc kê nhiều nhất trong khoảng — chat TOP_MEDICINES. */
+    @Transactional(readOnly = true)
+    public List<TopCount> topMedicines(UUID doctorId, LocalDate from, LocalDate to, int limit) {
+        var span = rangeInstants(from, to);
+        return prescriptionRepository.topMedicines(doctorId, span[0], span[1], PageRequest.of(0, limit));
     }
 
     private List<Visit> rangeVisits(UUID doctorId, UUID patientId, LocalDate from, LocalDate to) {

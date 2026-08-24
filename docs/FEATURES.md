@@ -77,11 +77,44 @@ Lập đơn đặt thuốc gửi nhà thuốc, tách khỏi việc cộng tồn.
 ### 3.6 Lịch sử khám
 Mặc định 30 ngày gần nhất, filter theo ngày; bấm một lần khám → hiện đơn thuốc hôm đó.
 
+### 3.6b Tổng quan (Doctor) — trang mặc định sau đăng nhập
+Màn hình mở đầu ngày làm việc, gom 3 câu hỏi bác sĩ luôn hỏi lúc mở máy. **Không có endpoint
+riêng** — dựng từ 3 API sẵn có, mỗi khối tự chịu trạng thái loading/lỗi:
+
+| Khối | Nguồn |
+|---|---|
+| Ca khám hôm nay (số + bảng giờ/bệnh nhân/ICD-10/tiêm) | `GET /api/doctor/visits?from=&to=` cùng ngày |
+| Thuốc sắp hết (số + 4 dòng thiếu nhiều nhất) | `GET /api/doctor/medicines/low-stock` |
+| Đơn nhập chờ xử lý (số + 2 đơn mới nhất) | `GET /api/doctor/stock-orders?status=PENDING` |
+
+Kèm ô tìm nhanh bệnh nhân (cùng endpoint với trang Bệnh nhân) để mở thẳng hồ sơ hoặc bấm
+"+ Khám". Bảng ca khám lấy tối đa 100 dòng/ngày (trần server); vượt thì có dòng dẫn sang
+Lịch sử khám.
+
 ### 3.7 Chat nội bộ (KHÔNG RAG)
 - Trả lời câu hỏi truy vấn dữ liệu của chính bác sĩ: "danh sách bệnh nhân hôm nay",
   "các đơn có tiêm thuốc hôm nay"...
 - LLM chỉ **phân loại intent + trích tham số** (khoảng ngày, có tiêm, tên bệnh nhân...) →
   map vào **query template dựng sẵn** luôn kèm `doctor_id = current`. KHÔNG cho LLM sinh SQL tự do.
+
+**Câu hỏi TỔNG HỢP** — gom nhóm + đếm ở DB, trả bảng xếp hạng 5 dòng:
+
+| Intent | Câu hỏi ví dụ |
+|---|---|
+| `TOP_PATIENTS` | "tháng này bệnh nhân nào khám nhiều nhất" |
+| `TOP_DIAGNOSES` | "tuần này bệnh gì gặp nhiều nhất" |
+| `TOP_MEDICINES` | "tháng trước thuốc nào kê nhiều nhất" |
+
+**Mốc thời gian do BACKEND tính, không phải LLM.** Prompt đưa cho model ngày + thứ + giờ
+lấy từ đồng hồ máy chủ (múi giờ phòng khám); model chỉ chọn MỘT từ khóa
+(`TODAY`, `YESTERDAY`, `THIS_WEEK`, `LAST_WEEK`, `THIS_MONTH`, `LAST_MONTH`, `THIS_YEAR`,
+`LAST_7_DAYS`, `LAST_30_DAYS`, `ALL_TIME`, `CUSTOM`), còn số học lịch nằm ở `ChatRange`.
+Chỉ `CUSTOM` (câu hỏi nêu ngày cụ thể) mới dùng `from`/`to` của model. Chip gợi ý ở frontend
+dùng CHUNG bộ từ khóa này nên hai đường không thể ra hai kết quả khác nhau.
+
+**Ngữ cảnh phiên nằm trong system prompt**, gồm câu hỏi + tham số + **tóm tắt câu trả lời**
+của 5 lượt gần nhất cùng `session_id` — nhờ đó đại từ ("ông ấy", "thuốc đó") trỏ được vào
+KẾT QUẢ của lượt trước, không chỉ vào câu chữ đã hỏi.
 
 ## 4. Logic kho & quy đổi đơn vị (quan trọng nhất)
 

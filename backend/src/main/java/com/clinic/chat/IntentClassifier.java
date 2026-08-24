@@ -1,6 +1,8 @@
 package com.clinic.chat;
 
+import com.clinic.visit.VisitService;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
@@ -36,21 +38,56 @@ public class IntentClassifier {
     private static final int MAX_CACHE_ENTRIES = 500;
 
     private static final String CLASSIFY_PROMPT = """
-        Bạn là bộ phân loại câu hỏi cho hệ quản lý phòng khám. Hôm nay là %s (giờ Việt Nam).
-        Trả về DUY NHẤT một JSON: {"intent": "...", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "name": "..."}
+        Bạn là bộ phân loại câu hỏi cho hệ quản lý phòng khám.
+
+        BÂY GIỜ (lấy từ đồng hồ máy chủ, múi giờ phòng khám Asia/Ho_Chi_Minh):
+        %s
+
+        Trả về DUY NHẤT một JSON:
+        {"intent": "...", "range": "...", "from": "YYYY-MM-DD", "to": "YYYY-MM-DD", "name": "..."}
+
         Các intent hợp lệ:
-        - VISITS_BY_DATE: danh sách bệnh nhân/lần khám trong một khoảng ngày (from, to)
-        - INJECTION_BY_DATE: các lần khám CÓ TIÊM thuốc trong khoảng ngày (from, to)
+        - VISITS_BY_DATE: danh sách bệnh nhân/lần khám trong một khoảng thời gian
+        - INJECTION_BY_DATE: các lần khám CÓ TIÊM thuốc trong khoảng thời gian
         - PATIENT_HISTORY: lịch sử khám (danh sách) của MỘT bệnh nhân (name)
         - LAST_VISIT: lần khám GẦN NHẤT của MỘT bệnh nhân là khi nào (name)
-        - VISIT_COUNT: ĐẾM số lần khám của MỘT bệnh nhân trong khoảng (name, from, to)
-        - INJECTION_COUNT: ĐẾM số lần CÓ TIÊM của MỘT bệnh nhân trong khoảng (name, from, to)
+        - VISIT_COUNT: ĐẾM số lần khám của MỘT bệnh nhân trong khoảng (name)
+        - INJECTION_COUNT: ĐẾM số lần CÓ TIÊM của MỘT bệnh nhân trong khoảng (name)
+        - TOP_PATIENTS: bệnh nhân nào khám NHIỀU NHẤT / hay khám nhất trong khoảng
+        - TOP_DIAGNOSES: bệnh/chẩn đoán nào gặp NHIỀU NHẤT / phổ biến nhất trong khoảng
+        - TOP_MEDICINES: thuốc nào được kê NHIỀU NHẤT trong khoảng
         - MEDICINE_STOCK: tồn kho của MỘT thuốc theo tên (name)
         - LOW_STOCK: những thuốc đang dưới ngưỡng cảnh báo (sắp hết)
         - LOWEST_STOCK: thuốc nào tồn THẤP NHẤT / ít nhất và còn bao nhiêu
         - UNKNOWN: không thuộc các loại trên
-        Quy đổi mốc thời gian tương đối (hôm nay, hôm qua, tuần này, tháng này...) thành ngày cụ thể.
+
+        TRƯỜNG "range" — chọn ĐÚNG MỘT từ khóa, KHÔNG tự tính ngày:
+        %s
+        Chỉ dùng CUSTOM khi câu hỏi nêu ngày/tháng cụ thể; khi đó mới điền from và to.
+        Với mọi cách nói tương đối (hôm nay, hôm qua, tuần này, tuần trước, tháng này,
+        tháng trước, năm nay, 7 ngày qua, từ trước tới nay...) hãy trả về từ khóa tương ứng
+        và BỎ TRỐNG from/to — máy chủ sẽ tự tính ngày.
+        Câu hỏi không nhắc gì tới thời gian: dùng range = "ALL_TIME" cho các câu về MỘT bệnh
+        nhân hoặc kho thuốc, và "THIS_MONTH" cho các câu thống kê TOP_*.
+
         Trường không dùng thì bỏ qua. Không thêm chữ nào ngoài JSON.
+        """;
+
+    /**
+     * Ngữ cảnh phiên được ghép vào SYSTEM PROMPT (không phải vào lượt user).
+     *
+     * Vì sao: ngữ cảnh là LUẬT đọc hiểu câu hỏi ("nếu không nêu tên thì kế thừa tên của lượt
+     * trước"), không phải là lời người dùng vừa nói. Nhét vào lượt user thì model coi mấy
+     * dòng đó ngang hàng với câu hỏi thật và thỉnh thoảng đi phân loại chính chúng — hỏi
+     * "còn mấy lần tiêm?" mà trả về intent của lượt trước đó.
+     */
+    private static final String CONTEXT_HEADER = """
+
+        NGỮ CẢNH PHIÊN HỎI HIỆN TẠI (cũ → mới) — dùng để hiểu câu hỏi nối tiếp:
+        %s
+        Nếu câu hỏi hiện tại nói TIẾP mà KHÔNG nêu tên/đối tượng, hãy KẾ THỪA đối tượng của
+        lượt gần nhất có nó; tương tự với khoảng thời gian. Đại từ (ông ấy, bà ấy, người đó,
+        thuốc đó) trỏ tới đối tượng hoặc KẾT QUẢ của lượt gần nhất.
         """;
 
     private final GeminiClient gemini;
@@ -88,22 +125,47 @@ public class IntentClassifier {
 
     private Classification askModel(String question, String context, LocalDate today) {
         try {
-            var raw = gemini.generate(CLASSIFY_PROMPT.formatted(today),
-                context + "Câu hỏi hiện tại: " + question);
+            var system = CLASSIFY_PROMPT.formatted(nowDescription(), ChatRange.KEYWORDS);
+            if (!context.isEmpty()) system += CONTEXT_HEADER.formatted(context);
+            // Lượt user giờ CHỈ còn đúng câu hỏi — không lẫn ngữ cảnh, không lẫn hướng dẫn.
+            var raw = gemini.generate(system, question);
             var json = objectMapper.readTree(raw);
             // Parse HẾT vào biến tạm rồi mới dựng kết quả. Nếu gán intent trước rồi mới parse
             // from/to, model trả "from":"null" là ném lỗi giữa chừng: intent vẫn giữ nhưng
             // khoảng ngày âm thầm rơi về hôm nay — hỏi "tháng này" lại nhận số của hôm nay.
             var intent = json.path("intent").asText("UNKNOWN");
-            var from = parseDate(json, "from", today);
-            var to = parseDate(json, "to", today);
+            var range = parseText(json, "range");
+            var rawFrom = parseDate(json, "from", today);
+            var rawTo = parseDate(json, "to", today);
             var name = parseText(json, "name");
-            return new Classification(intent, from, to, name, false);
+            // Ngày CUỐI CÙNG do backend quyết: model chỉ chọn từ khóa, ChatRange làm số học
+            // lịch theo đồng hồ máy chủ. from/to của model chỉ dùng khi range = CUSTOM.
+            var span = ChatRange.resolve(range, rawFrom, rawTo, today);
+            return new Classification(intent, span[0], span[1], name, false);
         } catch (Exception e) {
             log.warn("Không phân loại được câu hỏi, coi như UNKNOWN", e);
             return new Classification("UNKNOWN", today, today, "", false);
         }
     }
+
+    /**
+     * Mốc thời gian THẬT lấy từ đồng hồ máy chủ: ngày, THỨ trong tuần và giờ phút.
+     *
+     * Trước đây prompt chỉ đưa mỗi chuỗi ngày. Model muốn hiểu "tuần này" thì phải tự suy
+     * hôm nay là thứ mấy từ con số ngày — nó làm được, nhưng sai đủ thường xuyên để bác sĩ
+     * nhận ra con số lệch. Nói thẳng thứ mấy và mấy giờ thì không còn gì để suy.
+     */
+    private static String nowDescription() {
+        var now = ZonedDateTime.now(VisitService.CLINIC_ZONE);
+        return String.join(System.lineSeparator(),
+            "- Ngày: " + now.toLocalDate(),
+            "- Thứ: " + VI_WEEKDAY[now.getDayOfWeek().getValue() - 1],
+            "- Giờ: " + String.format("%02d:%02d", now.getHour(), now.getMinute()));
+    }
+
+    /** DayOfWeek.getValue(): 1 = thứ hai … 7 = chủ nhật. */
+    private static final String[] VI_WEEKDAY = {
+        "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy", "Chủ nhật"};
 
     /**
      * KHÔNG bỏ dấu tiếng Việt khi dựng khóa. Bỏ dấu sẽ gộp "Nguyễn Văn Á" với "Nguyễn Văn A"

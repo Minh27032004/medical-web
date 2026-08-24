@@ -24,9 +24,16 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ChatHistoryService {
 
-    /** Intent có dùng khoảng ngày — chỉ những intent này mới lưu from/to làm ngữ cảnh. */
+    /**
+     * Intent có dùng khoảng ngày — chỉ những intent này mới lưu from/to làm ngữ cảnh.
+     *
+     * Ba intent TOP_* phải có mặt: chúng đều chạy trên một khoảng thời gian, và câu hỏi nối
+     * tiếp hay gặp nhất chính là đổi khoảng ("thế tháng trước thì sao?"). Thiếu from/to
+     * trong ngữ cảnh thì model không biết lượt trước đang xét khoảng nào để mà so.
+     */
     private static final Set<String> DATE_INTENTS = Set.of(
-        "VISITS_BY_DATE", "INJECTION_BY_DATE", "VISIT_COUNT", "INJECTION_COUNT");
+        "VISITS_BY_DATE", "INJECTION_BY_DATE", "VISIT_COUNT", "INJECTION_COUNT",
+        "TOP_PATIENTS", "TOP_DIAGNOSES", "TOP_MEDICINES");
 
     private final ChatMessageRepository chatRepo;
 
