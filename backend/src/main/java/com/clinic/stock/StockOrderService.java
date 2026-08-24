@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +46,30 @@ interface StockOrderRepository extends JpaRepository<StockOrder, UUID> {
         """,
         countQuery = "select count(o) from StockOrder o where o.doctorId = :doctorId")
     Page<StockOrderSummary> findSummaries(@Param("doctorId") UUID doctorId, Pageable pageable);
+
+    /**
+     * Cùng câu trên nhưng lọc thêm theo trạng thái — cho trang Tổng quan chỉ cần đơn PENDING.
+     *
+     * Viết thành query RIÊNG chứ không nhét `(:status is null or o.status = :status)` vào câu
+     * chung: tham số null trong so sánh chuỗi khiến Postgres không suy được kiểu tham số
+     * ("could not determine data type"), phải ép cast thủ công — đổi lấy vài dòng trùng lặp
+     * để câu truy vấn nào cũng chỉ có đúng một dạng, đọc là biết nó sinh ra SQL gì.
+     */
+    @Query(value = """
+        select new com.clinic.stock.StockOrderSummary(
+            o.id, o.code, o.status, o.source, o.note,
+            o.createdAt, o.receivedAt, o.cancelledAt, size(o.items))
+        from StockOrder o
+        where o.doctorId = :doctorId and o.status = :status
+        order by o.createdAt desc
+        """,
+        countQuery = """
+            select count(o) from StockOrder o
+            where o.doctorId = :doctorId and o.status = :status
+            """)
+    Page<StockOrderSummary> findSummariesByStatus(@Param("doctorId") UUID doctorId,
+                                                  @Param("status") String status,
+                                                  Pageable pageable);
 
     Optional<StockOrder> findByIdAndDoctorId(UUID id, UUID doctorId);
 
@@ -109,10 +134,25 @@ public class StockOrderService {
 
     // ===== CRUD đơn =====
 
-    /** Danh sách: CHỈ tóm tắt, có phân trang. Chi tiết dòng thuốc lấy qua get(id) khi mở đơn. */
+    /**
+     * Danh sách: CHỈ tóm tắt, có phân trang. Chi tiết dòng thuốc lấy qua get(id) khi mở đơn.
+     *
+     * status = null → tất cả (giữ nguyên hành vi cũ của trang Nhập kho).
+     */
     @Transactional(readOnly = true)
-    public Page<StockOrderSummary> list(UUID doctorId, Pageable pageable) {
-        return repository.findSummaries(doctorId, pageable);
+    public Page<StockOrderSummary> list(UUID doctorId, String status, Pageable pageable) {
+        if (status == null || status.isBlank()) {
+            return repository.findSummaries(doctorId, pageable);
+        }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.equals(StockOrder.PENDING)
+            && !normalized.equals(StockOrder.RECEIVED)
+            && !normalized.equals(StockOrder.CANCELLED)) {
+            // Trả 400 thay vì im lặng đưa về danh sách rỗng: một trang gõ sai tham số sẽ
+            // trông y hệt "phòng khám chưa có đơn nào" — kiểu lỗi rất khó truy.
+            throw ApiException.badRequest("Trạng thái đơn nhập kho không hợp lệ: " + status);
+        }
+        return repository.findSummariesByStatus(doctorId, normalized, pageable);
     }
 
     @Transactional(readOnly = true)

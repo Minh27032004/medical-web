@@ -46,14 +46,21 @@ public class DoctorStockOrderController {
         return service.quickSuggestions(doctorId(jwt));
     }
 
-    /** Danh sách CHỈ tóm tắt (không kèm dòng thuốc), phân trang — chi tiết lấy qua GET /{id}. */
+    /**
+     * Danh sách CHỈ tóm tắt (không kèm dòng thuốc), phân trang — chi tiết lấy qua GET /{id}.
+     *
+     * status (tùy chọn): PENDING | RECEIVED | CANCELLED. Trang Tổng quan dùng
+     * ?status=PENDING&size=2 để vừa lấy tổng số đơn còn treo (totalElements) vừa lấy
+     * 2 đơn mới nhất trong MỘT lượt gọi.
+     */
     @GetMapping
     public Page<StockOrderSummary> list(
         @AuthenticationPrincipal Jwt jwt,
+        @RequestParam(required = false) String status,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
-        return service.list(doctorId(jwt), Pageables.of(page, size, 100));
+        return service.list(doctorId(jwt), status, Pageables.of(page, size, 100));
     }
 
     @GetMapping("/{id}")

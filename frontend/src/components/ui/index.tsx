@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Droplet,
   Mail,
+  PackagePlus,
   Pencil,
   Pill,
   Plus,
@@ -15,6 +16,7 @@ import {
   RefreshCw,
   Search,
   Star,
+  Stethoscope,
   Syringe,
   TriangleAlert,
   X,
@@ -42,6 +44,8 @@ export const IconPlus = make(Plus);
 export const IconSearch = make(Search);
 export const IconChevronLeft = make(ChevronLeft);
 export const IconChevronRight = make(ChevronRight);
+export const IconStethoscope = make(Stethoscope);
+export const IconPackagePlus = make(PackagePlus);
 
 /* Sao đặc (đánh dấu ưa dùng) — lucide Star đổ đầy bằng currentColor */
 export const IconStar = ({ size }: { size?: number }) => (

@@ -10,7 +10,7 @@ export default function Home() {
 
   useEffect(() => {
     getMe()
-      .then((me) => router.replace(me.role === "ADMIN" ? "/admin/doctors" : "/patients"))
+      .then((me) => router.replace(me.role === "ADMIN" ? "/admin/doctors" : "/dashboard"))
       .catch(() => router.replace("/login"));
   }, [router]);
 

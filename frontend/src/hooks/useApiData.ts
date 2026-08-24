@@ -33,6 +33,18 @@ export function useApiData<T>(key: string) {
   const seq = useRef(0);
 
   const fetchNow = useCallback(async (showSkeleton: boolean) => {
+    /**
+     * Khóa RỖNG = "chưa cần gọi" — dùng cho ô tìm kiếm khi người dùng chưa gõ gì.
+     * Không có nhánh này thì key "" vẫn đi thành một request tới base URL của API:
+     * mỗi lần mở trang là một lượt gọi thừa, rồi trả 404 và bật cờ failed.
+     * Vẫn tăng seq để lượt đang bay của khóa TRƯỚC không kịp ghi đè kết quả.
+     */
+    if (!key) {
+      seq.current++;
+      setLoading(false);
+      setFailed(false);
+      return;
+    }
     const mine = ++seq.current;
     if (showSkeleton) setLoading(true);
     try {
