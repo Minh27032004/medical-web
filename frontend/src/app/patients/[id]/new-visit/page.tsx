@@ -10,12 +10,45 @@ import { filterIcd, filterSuggestions } from "@/lib/search";
 import type { Diagnosis, Icd10, Page, Patient, RxItem, Suggestion, VisitDetail, VisitRow } from "@/lib/types";
 import { deriveUsage, fixedUsageNote, SESSIONS, USAGE_OPTIONS, usageModeToNote, type UsageMode } from "@/lib/usage";
 
-/** Ghi chú nhanh — bấm để chèn vào ô ghi chú khám. */
-const QUICK_NOTES = [
-  "Đau dạ dày", "Huyết áp cao", "Sốt", "Ho", "Viêm họng", "Đau đầu",
-  "Tiêu chảy", "Đau bụng", "Chóng mặt", "Mất ngủ", "Uống nhiều nước",
-  "Kiêng rượu bia", "Tái khám sau 5 ngày",
-];
+/**
+ * Ghi chú nhanh — bấm để chèn vào ô ghi chú khám, chia theo VIỆC chứ không đổ một đống.
+ *
+ * Vì sao chia nhóm: ba nhóm này được dùng ở ba thời điểm khác nhau của một ca khám (ghi
+ * triệu chứng lúc hỏi bệnh, dặn dò lúc kê xong, hẹn tái khám lúc tiễn bệnh nhân). Trộn
+ * chung 40 chip thành một khối thì mỗi lần tìm là quét cả khối; tách ra thì chỉ quét một
+ * hàng. Danh sách cũ 13 chip được giữ NGUYÊN VĂN trong này — bác sĩ đã quen chip nào thì
+ * chip đó vẫn nằm đúng chỗ có chữ giống hệt.
+ *
+ * KHÔNG dùng dấu phẩy hay chấm phẩy trong các cụm: addQuickNote tách ghi chú theo /[;,]/
+ * để khử trùng, một cụm có dấu phẩy sẽ bị cắt đôi và cụm đó không bao giờ khớp lại được.
+ */
+const QUICK_NOTE_GROUPS = [
+  {
+    label: "Triệu chứng",
+    terms: [
+      "Sốt", "Sốt cao", "Ho", "Ho có đờm", "Đau họng", "Viêm họng", "Sổ mũi", "Nghẹt mũi",
+      "Khó thở", "Đau đầu", "Chóng mặt", "Mất ngủ", "Mệt mỏi", "Đau bụng", "Đau dạ dày",
+      "Buồn nôn", "Tiêu chảy", "Táo bón", "Đau lưng", "Đau khớp", "Nổi mẩn ngứa",
+      "Huyết áp cao",
+    ],
+  },
+  {
+    label: "Dặn dò",
+    terms: [
+      "Uống nhiều nước", "Nghỉ ngơi", "Giữ ấm", "Ăn chín uống sôi", "Ăn nhạt",
+      "Kiêng rượu bia", "Kiêng đồ cay nóng", "Uống thuốc sau ăn", "Uống đủ liều kháng sinh",
+      "Theo dõi huyết áp tại nhà",
+    ],
+  },
+  {
+    label: "Tái khám",
+    terms: [
+      "Tái khám sau 3 ngày", "Tái khám sau 5 ngày", "Tái khám sau 1 tuần",
+      "Tái khám sau 2 tuần", "Tái khám sau 1 tháng", "Khám lại nếu sốt không giảm",
+      "Đến ngay nếu khó thở",
+    ],
+  },
+] as const;
 
 interface ItemForm {
   /**
@@ -1076,16 +1109,27 @@ function NewVisitForm({ params }: { params: Promise<{ id: string }> }) {
             rows={2}
             className="input"
           />
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {QUICK_NOTES.map((term) => (
-              <button
-                key={term}
-                type="button"
-                onClick={() => addQuickNote(term)}
-                className="text-xs border border-gray-300 rounded-full px-2.5 py-1 hover:bg-blue-50 hover:border-blue-300 text-gray-700"
-              >
-                + {term}
-              </button>
+          <div className="mt-2 space-y-1.5">
+            {QUICK_NOTE_GROUPS.map((group) => (
+              <div key={group.label} className="flex items-start gap-2">
+                {/* Nhãn nhóm cố định w-[68px]: canh cho ba hàng chip thẳng lề trái với nhau,
+                    để mắt quét dọc từng nhóm thay vì phải dò lại điểm bắt đầu mỗi hàng. */}
+                <span className="w-[68px] shrink-0 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                  {group.label}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.terms.map((term) => (
+                    <button
+                      key={term}
+                      type="button"
+                      onClick={() => addQuickNote(term)}
+                      className="text-xs border border-gray-300 rounded-full px-2.5 py-1 hover:bg-blue-50 hover:border-blue-300 text-gray-700"
+                    >
+                      + {term}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>
