@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
 import {
@@ -26,6 +27,33 @@ interface DraftLine {
 }
 
 type Mode = null | "QUICK" | "MANUAL";
+
+/**
+ * Bộ lọc trạng thái — "" = tất cả, còn lại truyền thẳng xuống `?status=` của API.
+ *
+ * Vì sao phải lọc Ở SERVER chứ không lọc mảng `orders` tại chỗ: `pageSize` được đo theo
+ * chiều cao màn (khoảng 7 dòng trên 1280×720) và danh sách sắp theo `createdAt desc`, nên
+ * lọc tại chỗ chỉ nhìn thấy 7 đơn GẦN NHẤT. Một đơn treo từ tuần trước, nằm dưới 7 đơn đã
+ * nhập kho, sẽ không bao giờ hiện ra — trong khi ô "Đơn nhập chờ xử lý" ở trang Tổng quan
+ * đếm bằng countQuery trên TOÀN BẢNG nên vẫn tính nó. Đó chính là chỗ hai màn hình lệch số.
+ *
+ * Backend đã có sẵn `findSummariesByStatus` với countQuery lọc cùng điều kiện, nên
+ * totalElements của mỗi chip là con số thật của cả bảng, không phải của trang đang xem.
+ */
+const STATUS_FILTERS = [
+  ["", "Tất cả"],
+  ["PENDING", "Chờ xử lý"],
+  ["RECEIVED", "Đã nhập kho"],
+  ["CANCELLED", "Đã hủy"],
+] as const;
+
+type StatusFilter = (typeof STATUS_FILTERS)[number][0];
+
+/** Chỉ nhận giá trị nằm trong danh sách trên — `?status=` trên URL là dữ liệu người dùng. */
+function parseStatus(raw: string | null): StatusFilter {
+  const found = STATUS_FILTERS.find(([value]) => value === raw);
+  return found ? found[0] : "";
+}
 
 /**
  * Đơn soạn dở giữ trong localStorage — CHỈ mất khi bấm Hủy hoặc xuất file xong.
@@ -57,28 +85,59 @@ function readDraft(): Draft | null {
   }
 }
 
-export default function StockOrdersPage() {
+function StockOrdersView() {
   // Danh sách CHỈ tóm tắt — dòng thuốc của từng đơn nạp riêng khi bấm mở.
   // 20 đơn mỗi trang: lịch sử nhập kho chỉ dài thêm chứ không bao giờ ngắn lại, để nguyên
   // thì trang này chậm dần theo tháng mà không có mốc nào báo hiệu.
   const [page, setPage] = useState(0);
+
+  /**
+   * URL là NGUỒN SỰ THẬT DUY NHẤT của bộ lọc — cố tình không giữ thêm bản sao trong state.
+   *
+   * Bản đầu giữ `useState` khởi tạo một lần từ `?status=`, và hỏng ở chiều URL → giao diện:
+   * sidebar có link "/stock-orders" KHÔNG kèm tham số (AppShell.tsx), mà App Router đổi
+   * query trên cùng một route thì component KHÔNG remount — nên state vẫn giữ "PENDING".
+   * Hệ quả: bác sĩ đi từ ô "Đơn nhập chờ xử lý" ở Tổng quan sang đây, rồi bấm "Nhập kho"
+   * ở sidebar; URL sạch tham số nhưng danh sách vẫn đang lọc và chip vẫn sáng, không có
+   * cách nào gỡ bộ lọc ngoài F5. Nút Back/Forward cũng sai y như vậy.
+   *
+   * Đọc thẳng từ searchParams mỗi lần render thì cả hai chiều tự đúng, và bonus: link
+   * "/stock-orders?status=PENDING" trở thành thứ chia sẻ hay ghim lại được.
+   */
+  const search = useSearchParams();
+  const router = useRouter();
+  const status = parseStatus(search.get("status"));
+
   /**
    * Số đơn mỗi trang = số dòng vừa đúng màn. Trừ: hàng tiêu đề + mb-2, dòng mô tả + mb-5,
-   * viền thẻ, tiêu đề bảng, phân trang. Trên 1280×720 ra khoảng 7 đơn.
+   * hàng chip lọc + mb-4, viền thẻ, tiêu đề bảng, phân trang. Trên 1280×720 ra khoảng 6 đơn.
    *
    * KHÔNG trừ chiều cao thẻ "đơn đang soạn": nó chỉ hiện khi bấm Nhập nhanh/Nhập thủ công,
    * và lúc đó bác sĩ đang nhìn vào thẻ soạn đơn chứ không phải danh sách bên dưới.
    */
   const pageSize = useRowsPerPage({
-    reserved: H.titleRow + 8 + 20 + 20 + H.cardBorder + H.tableHead + H.pager,
+    reserved: H.titleRow + 8 + 20 + 20 + H.chipRow + 16 + H.cardBorder + H.tableHead + H.pager,
     rowHeight: H.tableRow,
   });
 
   const { data: orderPage, loading, failed: loadFailed, reload: load } =
     useApiData<Page<StockOrderSummary>>(
-      pageSize ? `/api/doctor/stock-orders?page=${page}&size=${pageSize}` : ""
+      pageSize
+        ? `/api/doctor/stock-orders?${status ? `status=${status}&` : ""}page=${page}&size=${pageSize}`
+        : ""
     );
   const orders = orderPage?.content ?? [];
+  const total = orderPage?.totalElements ?? 0; // tổng của CẢ bộ lọc, không phải số dòng trang này
+
+  /**
+   * Đổi bộ lọc phải về trang 0: trang 3 của "Tất cả" thường không tồn tại ở "Chờ xử lý".
+   * `replace` chứ không `push` — bộ lọc là cách xem, không phải một bước điều hướng đáng
+   * để Back phải đi ngược qua từng chip đã bấm.
+   */
+  function pickStatus(next: StatusFilter) {
+    setPage(0);
+    router.replace(next ? `/stock-orders?status=${next}` : "/stock-orders", { scroll: false });
+  }
 
   const [mode, setMode] = useState<Mode>(null);
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -236,14 +295,32 @@ export default function StockOrdersPage() {
     }
   }
 
+  /**
+   * Tải lại sau khi một đơn ĐỔI TRẠNG THÁI — và về trang đầu nếu đang đứng ở trang trong.
+   *
+   * Trước khi có bộ lọc thì `load()` là đủ: danh sách "Tất cả" không bao giờ ngắn đi (hủy
+   * đơn chỉ đổi status sang CANCELLED chứ không xóa dòng). Có bộ lọc thì tập kết quả CO
+   * LẠI được, và sinh ra một cái bẫy: đang lọc "Chờ xử lý", đứng ở trang cuối chỉ còn một
+   * đơn, bấm "Đã nhận hàng" → đơn rời khỏi bộ lọc → trang đó không còn tồn tại, nhưng
+   * `page` vẫn giữ số cũ nên API trả về rỗng. Tệ hơn: Pager ẩn hẳn khi chỉ còn một trang
+   * (xem Pager.tsx) nên KHÔNG CÒN NÚT NÀO để quay lại — bác sĩ kẹt ở màn hình "không có
+   * đơn nào" trong khi dòng chữ ngay phía trên vẫn ghi tổng số đơn.
+   *
+   * Dùng đúng cách `create` đã dùng ở trên, vì đây là cùng một loại rủi ro.
+   */
+  function reloadFromStart() {
+    if (page === 0) load();
+    else setPage(0);
+  }
+
   async function receive(o: StockOrderSummary) {
     await api(`/api/doctor/stock-orders/${o.id}/receive`, { method: "POST" });
-    load();
+    reloadFromStart();
   }
 
   async function cancel(o: StockOrderSummary) {
     await api(`/api/doctor/stock-orders/${o.id}`, { method: "DELETE" });
-    load();
+    reloadFromStart();
   }
 
   return (
@@ -267,6 +344,28 @@ export default function StockOrdersPage() {
         Lập đơn đặt thuốc, xuất file gửi nhà thuốc. Tồn kho <strong>chỉ tăng khi bạn xác nhận</strong>{" "}
         đã nhận đủ hàng — đơn đang chờ không ảnh hưởng số tồn.
       </p>
+
+      {/*
+        Số đơn nằm CÙNG hàng với chip, không xuống dòng riêng: hàng chip đã được tính vào
+        `reserved` của useRowsPerPage, thêm một dòng nữa là lệch phép đo và đẩy phân trang
+        khuất đáy màn.
+      */}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {STATUS_FILTERS.map(([value, label]) => (
+            <button
+              key={value || "ALL"}
+              onClick={() => pickStatus(value)}
+              className={`chip ${status === value ? "chip-active" : ""}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {!loading && pageSize > 0 && !loadFailed && total > 0 && (
+          <span className="text-sm text-gray-500 tabular-nums shrink-0">{total} đơn</span>
+        )}
+      </div>
 
       {!mode && error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
@@ -292,10 +391,19 @@ export default function StockOrdersPage() {
       {!loading && pageSize > 0 && loadFailed && <LoadError onRetry={load} />}
 
       {!loading && pageSize > 0 && !loadFailed && orders.length === 0 && !mode && (
-        <EmptyState
-          title="Chưa có đơn nhập kho nào"
-          hint="Bấm “Nhập nhanh” để dựng đơn từ các thuốc đang sắp hết, hoặc “Nhập thủ công” để tự chọn."
-        />
+        status ? (
+          // Trống vì BỘ LỌC, không phải vì chưa từng có đơn — nói đúng chuyện đang xảy ra
+          // thay vì mời bác sĩ lập đơn mới trong khi họ đang đi tìm một đơn cũ.
+          <EmptyState
+            title={`Không có đơn nào ở trạng thái “${STATUS_FILTERS.find(([v]) => v === status)![1]}”`}
+            hint="Bấm “Tất cả” để xem toàn bộ lịch sử nhập kho."
+          />
+        ) : (
+          <EmptyState
+            title="Chưa có đơn nhập kho nào"
+            hint="Bấm “Nhập nhanh” để dựng đơn từ các thuốc đang sắp hết, hoặc “Nhập thủ công” để tự chọn."
+          />
+        )
       )}
 
       {!loading && pageSize > 0 && !loadFailed && orders.length > 0 && (
@@ -355,6 +463,18 @@ export default function StockOrdersPage() {
         onClose={() => setCancelling(null)}
       />
     </div>
+  );
+}
+
+/**
+ * useSearchParams() bắt buộc phải nằm trong <Suspense>: nếu không, Next phải bỏ hẳn việc
+ * prerender trang này vì tham số URL chỉ biết được lúc chạy. Cùng khuôn với trang khám mới.
+ */
+export default function StockOrdersPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <StockOrdersView />
+    </Suspense>
   );
 }
 

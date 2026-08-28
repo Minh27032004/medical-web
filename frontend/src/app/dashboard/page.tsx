@@ -56,6 +56,16 @@ export default function DashboardPage() {
   const lowItems = lowStock.data ?? [];
   const pendingOrders = pending.data?.content ?? [];
 
+  /**
+   * Tổng THẬT từ database, không phải số dòng tải về — dùng cho mọi chỗ hiển thị con số.
+   *
+   * `rows`/`pendingOrders` chỉ là phần đủ để vẽ danh sách (100 và 2 dòng); lấy `.length`
+   * của chúng làm số liệu là cách chắc chắn nhất để hai chỗ trên cùng màn hình nói hai
+   * con số khác nhau.
+   */
+  const todayTotal = visits.data?.totalElements ?? 0;
+  const pendingTotal = pending.data?.totalElements ?? 0;
+
   const todayLabel = useMemo(
     () =>
       new Date().toLocaleDateString("vi-VN", {
@@ -83,7 +93,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatTile
           label="Ca khám hôm nay"
-          value={visits.data?.totalElements}
+          value={todayTotal}
           loading={visits.loading}
           failed={visits.failed}
           hint={rows.length === 0 ? "chưa có ca nào" : `${injectionCount} ca tiêm/truyền`}
@@ -101,12 +111,16 @@ export default function DashboardPage() {
         />
         <StatTile
           label="Đơn nhập chờ xử lý"
-          value={pending.data?.totalElements}
+          value={pendingTotal}
           loading={pending.loading}
           failed={pending.failed}
           hint="chưa nhận hàng"
           icon={<IconPackagePlus size={20} />}
-          tone={(pending.data?.totalElements ?? 0) > 0 ? "amber" : "gray"}
+          tone={pendingTotal > 0 ? "amber" : "gray"}
+          // Con số này đếm trên TOÀN bảng; danh sách Nhập kho mặc định trộn mọi trạng thái
+          // và chỉ hiện ~7 dòng gần nhất, nên đưa thẳng bác sĩ tới danh sách ĐÃ lọc PENDING
+          // — nếu không, bấm sang là thấy một danh sách không giải thích được con số vừa đọc.
+          href="/stock-orders?status=PENDING"
         />
       </div>
 
@@ -211,9 +225,17 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {rows.length > VISIT_ROWS_SHOWN && (
+          {/*
+            "MỚI nhất", không phải "sớm nhất": API trả OrderByVisitDateDesc và bảng trên
+            hiện thẳng rows.slice(0, 5), tức 5 ca gần đây nhất trong ngày.
+
+            Đếm theo totalElements chứ không theo rows.length: rows bị chặn ở VISITS_SIZE
+            = 100, nên ngày vượt 100 ca thì ô số liệu phía trên nói 120 mà dòng này lại nói
+            "trong 100 ca" — hai con số cạnh nhau trên cùng màn hình, lệch nhau không lý do.
+          */}
+          {todayTotal > VISIT_ROWS_SHOWN && (
             <p className="text-[13px] text-gray-500 mt-2">
-              Đang hiện {VISIT_ROWS_SHOWN} ca sớm nhất trong {rows.length} ca hôm nay — xem đầy đủ ở{" "}
+              Đang hiện {VISIT_ROWS_SHOWN} ca mới nhất trong {todayTotal} ca hôm nay — xem đầy đủ ở{" "}
               <Link href="/history" className="text-blue-700 hover:underline">
                 Lịch sử khám
               </Link>
@@ -289,9 +311,14 @@ export default function DashboardPage() {
           {/* --- Đơn nhập chờ xử lý --- */}
           <div className="card overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100">
-              <span className="font-semibold text-gray-900">Đơn nhập chờ xử lý</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold text-gray-900">Đơn nhập chờ xử lý</span>
+                {/* Badge tổng — cùng khuôn với thẻ "Thuốc sắp hết", để thẻ tự nói được
+                    nó đang hiện một PHẦN của bao nhiêu. */}
+                {pendingTotal > 0 && <Badge tone="amber">{pendingTotal}</Badge>}
+              </div>
               <Link
-                href="/stock-orders"
+                href="/stock-orders?status=PENDING"
                 className="text-sm font-medium text-blue-700 hover:underline shrink-0"
               >
                 Xem tất cả
@@ -314,8 +341,11 @@ export default function DashboardPage() {
                   className="flex items-center justify-between gap-3 px-5 py-1 border-b border-gray-100 last:border-b-0"
                 >
                   <div className="min-w-0">
+                    {/* Kèm ?status=PENDING như tiêu đề thẻ: bấm vào mã của một đơn treo mà
+                        rơi vào danh sách trộn lẫn thì gặp đúng vấn đề thẻ này sinh ra để
+                        giải quyết — đơn cũ nằm ở trang sau và không thấy đâu. */}
                     <Link
-                      href="/stock-orders"
+                      href="/stock-orders?status=PENDING"
                       className="block truncate text-sm font-semibold leading-5 text-gray-900 hover:underline"
                     >
                       {o.code}
@@ -327,6 +357,17 @@ export default function DashboardPage() {
                   <Badge tone="amber">Chờ xử lý</Badge>
                 </div>
               ))}
+
+            {/*
+              Thẻ này chỉ tải size=2, nên khi còn nhiều hơn thế phải nói rõ đang hiện mấy
+              trên mấy — nếu không, bác sĩ đọc ô số liệu thấy 5 rồi đếm ở đây được 2 và
+              không có gì giải thích khoảng chênh đó. Cùng khuôn với dòng dưới bảng ca khám.
+            */}
+            {!pending.loading && !pending.failed && pendingTotal > pendingOrders.length && (
+              <p className="px-5 py-2 text-[13px] text-gray-500 border-t border-gray-100">
+                Đang hiện {pendingOrders.length} trong {pendingTotal} đơn đang chờ.
+              </p>
+            )}
           </div>
         </section>
       </div>
@@ -380,7 +421,7 @@ function InlineError({ onRetry }: { onRetry: () => void }) {
  * HAI thẻ rời bên phải thay vì phải gộp làm một.
  */
 function StatTile({
-  label, value, hint, icon, tone, loading, failed,
+  label, value, hint, icon, tone, loading, failed, href,
 }: {
   label: string;
   value: number | undefined;
@@ -389,6 +430,8 @@ function StatTile({
   tone: "blue" | "red" | "amber" | "gray";
   loading: boolean;
   failed: boolean;
+  /** Có thì cả ô thành một liên kết tới danh sách giải thích được con số. */
+  href?: string;
 }) {
   const toneClass = {
     blue: "bg-blue-50 text-blue-600",
@@ -398,8 +441,13 @@ function StatTile({
   }[tone];
   const valueClass = tone === "red" && (value ?? 0) > 0 ? "text-red-700" : "text-gray-900";
 
+  // Ô có liên kết dùng CÙNG lớp .card, chỉ thêm phản hồi hover — để ba ô vẫn cao bằng nhau
+  // và không ô nào trông "khác loại" chỉ vì bấm được.
+  const Wrapper = href ? Link : "div";
+  const wrapperProps = href ? { href, className: "card p-4 flex items-center gap-3 hover:border-gray-300 transition" } : { className: "card p-4 flex items-center gap-3" };
+
   return (
-    <div className="card p-4 flex items-center gap-3">
+    <Wrapper {...(wrapperProps as { href: string; className: string })}>
       <span className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${toneClass}`}>
         {icon}
       </span>
@@ -422,7 +470,7 @@ function StatTile({
           </p>
         )}
       </div>
-    </div>
+    </Wrapper>
   );
 }
 
